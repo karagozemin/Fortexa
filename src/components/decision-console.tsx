@@ -18,6 +18,7 @@ type DecisionApiResponse = {
     decision: "APPROVE" | "WARN" | "REQUIRE_APPROVAL" | "BLOCK";
     explanation: string;
     riskScore: number;
+    requiresManualApproval?: boolean;
     triggeredPolicies: Array<{ code: string; message: string }>;
     riskFindings: Array<{ code: string; detail: string }>;
   };
@@ -77,6 +78,7 @@ export function DecisionConsole() {
   );
 
   const writeDisabled = loading || sessionLoading || !isOperator;
+  const canHumanApprove = decisionData?.result.decision === "REQUIRE_APPROVAL";
 
   function ensureOperator() {
     if (isOperator) {
@@ -90,6 +92,12 @@ export function DecisionConsole() {
   async function runDecision(approvedByHuman = false, actionOverride?: AgentAction) {
     if (!ensureOperator()) return;
     if (!selectedScenario && !actionOverride) return;
+
+    if (approvedByHuman && !canHumanApprove) {
+      setMessage("Human approval can be applied only after a REQUIRE_APPROVAL decision.");
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -348,7 +356,7 @@ export function DecisionConsole() {
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Evaluate Action
             </Button>
-            <Button variant="secondary" onClick={() => runDecision(true)} disabled={writeDisabled}>
+            <Button variant="secondary" onClick={() => runDecision(true)} disabled={writeDisabled || !canHumanApprove}>
               Human Approve & Re-run
             </Button>
           </div>
