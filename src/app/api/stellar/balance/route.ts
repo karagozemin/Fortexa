@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { getWalletFromSession } from "@/lib/auth/session-wallet";
 import { getNativeBalance } from "@/lib/stellar/client";
-import { getUserWallet } from "@/lib/storage/user-wallet-store";
+import { getUserWallet, upsertUserWallet } from "@/lib/storage/user-wallet-store";
 
 export async function GET(request: NextRequest) {
   const auth = requireAuth(request);
@@ -12,8 +13,20 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = auth.session.userId;
-  const assignedWallet = await getUserWallet(userId);
-  const publicKey = assignedWallet?.publicKey;
+  let assignedWallet = await getUserWallet(userId);
+  let publicKey = assignedWallet?.publicKey;
+
+  if (!publicKey || assignedWallet?.source !== "external") {
+    const sessionWallet = getWalletFromSession(auth.session);
+    if (sessionWallet) {
+      assignedWallet = await upsertUserWallet(userId, {
+        publicKey: sessionWallet,
+        source: "external",
+        provider: assignedWallet?.provider ?? "login",
+      });
+      publicKey = assignedWallet.publicKey;
+    }
+  }
 
   if (!publicKey || assignedWallet?.source !== "external") {
     return NextResponse.json(

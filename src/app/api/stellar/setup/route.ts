@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { getWalletFromSession } from "@/lib/auth/session-wallet";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
-import { fundWithFriendbot } from "@/lib/stellar/client";
 import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarSetupRequestSchema } from "@/lib/validation/schemas";
 
@@ -36,37 +36,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = parsedBody.data;
-
-    const auth = requireAuth(request, { allowedRoles: ["operator"] });
+    const auth = requireAuth(request);
 
     if (!auth.ok) {
       return auth.response;
     }
 
-    const userId = auth.session.userId;
-    const shouldFund = body.fund ?? true;
-
-    const assignedPublicKey = body.publicKey;
-    await upsertUserWallet(userId, {
-      publicKey: assignedPublicKey,
-      source: "external",
-      provider: body.provider?.trim() || "unknown",
-    });
-
-    if (shouldFund) {
-      await fundWithFriendbot(assignedPublicKey);
+    const sessionWallet = getWalletFromSession(auth.session);
+    if (!sessionWallet) {
+      return NextResponse.json(
+        { error: "Session is not bound to a valid Stellar wallet." },
+        { status: 400, headers: rateLimitHeaders(rate) }
+      );
     }
+
+    const userId = auth.session.userId;
+
+    await upsertUserWallet(userId, {
+      publicKey: sessionWallet,
+      source: "external",
+      provider: parsedBody.data.provider?.trim() || "login",
+    });
 
     return NextResponse.json(
       {
         ok: true,
         userId,
         source: "external",
-        provider: body.provider?.trim() || "unknown",
+        provider: parsedBody.data.provider?.trim() || "login",
         network: "stellar-testnet",
-        publicKey: assignedPublicKey,
-        message: "Stellar wallet address linked to this user and optionally funded on testnet.",
+        publicKey: sessionWallet,
+        message: "Session wallet synced for transaction execution.",
       },
       { headers: rateLimitHeaders(rate) }
     );

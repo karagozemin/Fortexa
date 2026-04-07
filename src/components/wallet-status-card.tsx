@@ -5,8 +5,6 @@ import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { truncateMiddle } from "@/lib/utils/format";
 
 type WalletData = {
@@ -22,22 +20,9 @@ type WalletData = {
 };
 
 export function WalletStatusCard() {
-  const { isOperator, loading: sessionLoading } = useAuthSession();
   const [data, setData] = useState<WalletData | null>(null);
   const [status, setStatus] = useState<string>("Wallet not loaded yet.");
   const [loading, setLoading] = useState(false);
-  const [manualPublicKey, setManualPublicKey] = useState("");
-
-  const writeDisabled = loading || sessionLoading || !isOperator;
-
-  function ensureOperator() {
-    if (isOperator) {
-      return true;
-    }
-
-    setStatus("Viewer role is read-only. Login as operator for wallet write operations.");
-    return false;
-  }
 
   async function loadWallet() {
     setLoading(true);
@@ -53,100 +38,6 @@ export function WalletStatusCard() {
     }
   }
 
-  async function fundWallet() {
-    if (!ensureOperator()) return;
-    setLoading(true);
-    try {
-      const response = await fetch("/api/stellar/fund", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const payload = (await response.json()) as { ok?: boolean; error?: string };
-      if (!response.ok || payload.error) {
-        setStatus(payload.error ?? "Funding failed.");
-      } else {
-        setStatus("Friendbot funding requested successfully.");
-        await loadWallet();
-      }
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Funding request failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function connectFreighter() {
-    if (!ensureOperator()) return;
-    setLoading(true);
-    try {
-      const { requestAccess } = await import("@stellar/freighter-api");
-      const access = await requestAccess();
-
-      if (!access.address) {
-        setStatus(access.error ?? "Freighter bağlantısı başarısız.");
-        return;
-      }
-
-      const response = await fetch("/api/stellar/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          publicKey: access.address,
-          fund: true,
-          provider: "freighter",
-        }),
-      });
-
-      const payload = (await response.json()) as { error?: string; message?: string };
-      if (!response.ok || payload.error) {
-        setStatus(payload.error ?? "Freighter adresi bağlanamadı.");
-        return;
-      }
-
-      setStatus(payload.message ?? "Freighter cüzdanı bağlandı.");
-      await loadWallet();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Freighter bağlantı hatası.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function linkByPublicKey() {
-    if (!ensureOperator()) return;
-    if (!manualPublicKey.trim()) {
-      setStatus("Önce bir Stellar public key (G...) gir.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch("/api/stellar/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          publicKey: manualPublicKey.trim(),
-          fund: false,
-          provider: "external",
-        }),
-      });
-
-      const payload = (await response.json()) as { error?: string; message?: string };
-      if (!response.ok || payload.error) {
-        setStatus(payload.error ?? "Public key bağlanamadı.");
-        return;
-      }
-
-      setStatus(payload.message ?? "Cüzdan adresi bağlandı.");
-      await loadWallet();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Public key bağlantı hatası.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     void loadWallet();
   }, []);
@@ -155,30 +46,11 @@ export function WalletStatusCard() {
     <Card>
       <CardHeader>
         <CardTitle>Agent Wallet Layer</CardTitle>
-        <CardDescription>Stellar testnet identity, balance, and faucet funding for demo execution.</CardDescription>
+        <CardDescription>Transaction source is strictly bound to the authenticated wallet session.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        {!sessionLoading && !isOperator ? (
-          <Alert className="border-amber-500/40 bg-amber-500/10">
-            <AlertTitle>Viewer mode</AlertTitle>
-            <AlertDescription>Wallet bağlantı/funding işlemleri sadece operator rolü için açık.</AlertDescription>
-          </Alert>
-        ) : null}
-
         <div className="flex gap-2">
-          <Button variant="outline" onClick={connectFreighter} disabled={writeDisabled}>Connect Freighter</Button>
           <Button onClick={loadWallet} disabled={loading}>Refresh Wallet</Button>
-          <Button variant="secondary" onClick={fundWallet} disabled={writeDisabled}>Fund via Friendbot</Button>
-        </div>
-
-        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-          <Input
-            value={manualPublicKey}
-            onChange={(event) => setManualPublicKey(event.target.value)}
-            placeholder="G... herhangi Stellar wallet public key"
-            disabled={writeDisabled}
-          />
-          <Button variant="outline" onClick={linkByPublicKey} disabled={writeDisabled}>Link by Public Key</Button>
         </div>
 
         {data?.publicKey ? (
@@ -197,6 +69,12 @@ export function WalletStatusCard() {
           <AlertTitle>Wallet status</AlertTitle>
           <AlertDescription>{status}</AlertDescription>
         </Alert>
+        {!data?.configured ? (
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <AlertTitle>Wallet required</AlertTitle>
+            <AlertDescription>No valid session wallet is linked. Log out and sign in again with your wallet.</AlertDescription>
+          </Alert>
+        ) : null}
       </CardContent>
     </Card>
   );

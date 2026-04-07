@@ -6,28 +6,41 @@ import { AUTH_COOKIE_KEY, type AuthRole, createSessionToken } from "@/lib/auth/s
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
+import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(4).max(200),
-  mfaCode: z.string().min(4).max(20).optional(),
+  publicKey: z.string().regex(/^G[A-Z2-7]{55}$/u, "Invalid Stellar public key."),
 });
 
-function resolveRoleByCredentials(email: string, password: string): AuthRole | null {
-  const normalizedEmail = email.trim().toLowerCase();
+function parseWalletList(value: string | undefined) {
+  if (!value?.trim()) {
+    return new Set<string>();
+  }
 
-  const operatorEmail = process.env.FORTEXA_OPERATOR_EMAIL?.trim().toLowerCase();
-  const operatorPassword = process.env.FORTEXA_OPERATOR_PASSWORD;
+  return new Set(
+    value
+      .split(",")
+      .map((item) => item.trim().toUpperCase())
+      .filter((item) => /^G[A-Z2-7]{55}$/u.test(item))
+  );
+}
 
-  if (operatorEmail && operatorPassword && normalizedEmail === operatorEmail && password === operatorPassword) {
+function resolveRoleByWallet(publicKey: string): AuthRole | null {
+  const normalizedKey = publicKey.trim().toUpperCase();
+
+  const operatorWallets = parseWalletList(process.env.FORTEXA_OPERATOR_WALLETS);
+  const viewerWallets = parseWalletList(process.env.FORTEXA_VIEWER_WALLETS);
+
+  if (operatorWallets.has(normalizedKey)) {
     return "operator";
   }
 
-  const viewerEmail = process.env.FORTEXA_VIEWER_EMAIL?.trim().toLowerCase();
-  const viewerPassword = process.env.FORTEXA_VIEWER_PASSWORD;
-
-  if (viewerEmail && viewerPassword && normalizedEmail === viewerEmail && password === viewerPassword) {
+  if (viewerWallets.has(normalizedKey)) {
     return "viewer";
+  }
+
+  if (operatorWallets.size === 0 && viewerWallets.size === 0) {
+    return "operator";
   }
 
   return null;
@@ -70,9 +83,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const lockState = isLoginLocked(parsed.data.email, clientIp);
+    const lockState = isLoginLocked(parsed.data.publicKey, clientIp);
     if (lockState.locked) {
-      logWarn("Auth login blocked by lockout", { ...context, email: parsed.data.email, ip: clientIp });
+      logWarn("Auth login blocked by lockout", { ...context, wallet: parsed.data.publicKey, ip: clientIp });
       return jsonWithRequestContext(request, {
         route: "/api/auth/login",
         startedAtMs,
@@ -88,44 +101,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const role = resolveRoleByCredentials(parsed.data.email, parsed.data.password);
+    const role = resolveRoleByWallet(parsed.data.publicKey);
 
     if (!role) {
-      const failure = registerLoginFailure(parsed.data.email, clientIp);
-      logWarn("Auth login invalid credentials", { ...context, email: parsed.data.email });
+      const failure = registerLoginFailure(parsed.data.publicKey, clientIp);
+      logWarn("Auth login unknown wallet", { ...context, wallet: parsed.data.publicKey });
       return jsonWithRequestContext(request, {
         route: "/api/auth/login",
         startedAtMs,
         status: 401,
         body: {
           error: failure.justLocked
-            ? "Invalid credentials. Login temporarily locked due to repeated failures."
-            : "Invalid credentials.",
+            ? "Wallet is not authorized. Login temporarily locked due to repeated failures."
+            : "Wallet is not authorized.",
         },
         headers: rateLimitHeaders(rate),
       });
     }
 
-    const requiredMfaCode = process.env.FORTEXA_MFA_CODE?.trim();
-    if (requiredMfaCode && parsed.data.mfaCode !== requiredMfaCode) {
-      const failure = registerLoginFailure(parsed.data.email, clientIp);
-      logWarn("Auth login MFA failed", { ...context, email: parsed.data.email, role });
-      return jsonWithRequestContext(request, {
-        route: "/api/auth/login",
-        startedAtMs,
-        status: 401,
-        body: {
-          error: failure.justLocked
-            ? "Invalid MFA code. Login temporarily locked due to repeated failures."
-            : "Invalid MFA code.",
-        },
-        headers: rateLimitHeaders(rate),
-      });
-    }
+    const normalizedWallet = parsed.data.publicKey.trim().toUpperCase();
+    const userId = `wallet:${normalizedWallet}`;
+
+    await upsertUserWallet(userId, {
+      publicKey: normalizedWallet,
+      source: "external",
+      provider: "login",
+    });
 
     const token = createSessionToken({
-      email: parsed.data.email,
+      email: `wallet:${normalizedWallet}`,
       role,
+      userId,
     });
 
     const response = jsonWithRequestContext(request, {
@@ -135,7 +141,7 @@ export async function POST(request: NextRequest) {
       body: {
         ok: true,
         role,
-        email: parsed.data.email,
+        wallet: normalizedWallet,
       },
       headers: rateLimitHeaders(rate),
     });
@@ -148,9 +154,9 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    clearLoginFailures(parsed.data.email, clientIp);
+    clearLoginFailures(normalizedWallet, clientIp);
 
-    logInfo("Auth login success", { ...context, email: parsed.data.email, role });
+    logInfo("Auth login success", { ...context, wallet: normalizedWallet, role });
 
     return response;
   } catch (error) {

@@ -40,6 +40,9 @@ type BalanceApiResponse = {
 type BuildPaymentResponse = {
   ok?: boolean;
   error?: string;
+  details?: {
+    fieldErrors?: Record<string, string[] | undefined>;
+  };
   xdr?: string;
   sourcePublicKey?: string;
   networkPassphrase?: string;
@@ -151,8 +154,15 @@ export function DecisionConsole() {
 
   async function prepareStellarPaymentXdr() {
     if (!ensureOperator()) return;
-    if (!selectedScenario || !destination) {
+    const normalizedDestination = destination.trim().toUpperCase();
+
+    if (!selectedScenario || !normalizedDestination) {
       setMessage("Provide destination address for payment execution.");
+      return;
+    }
+
+    if (!/^G[A-Z2-7]{55}$/u.test(normalizedDestination)) {
+      setMessage("Destination must be a valid Stellar public key (G... format). ");
       return;
     }
 
@@ -168,9 +178,9 @@ export function DecisionConsole() {
       }
 
       const paymentPayload = {
-        destination,
+        destination: normalizedDestination,
         amountXLM: selectedScenario.action.amountXLM.toFixed(7),
-        memo: `fortexa:${selectedScenario.id}`,
+        memo: `fortexa:${selectedScenario.id}`.slice(0, 28),
       };
 
       if (!balancePayload.configured || balancePayload.source !== "external") {
@@ -187,7 +197,14 @@ export function DecisionConsole() {
       const buildPayload = (await buildResponse.json()) as BuildPaymentResponse;
 
       if (!buildResponse.ok || buildPayload.error || !buildPayload.xdr) {
-        setMessage(buildPayload.error ?? "Failed to build payment transaction XDR.");
+        const detailMessage =
+          buildPayload.details?.fieldErrors &&
+          Object.values(buildPayload.details.fieldErrors)
+            .flat()
+            .filter((value): value is string => Boolean(value))
+            .join(" ");
+
+        setMessage(buildPayload.error ?? detailMessage ?? "Failed to build payment transaction XDR.");
         return;
       }
 
@@ -386,7 +403,7 @@ export function DecisionConsole() {
               className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
               value={signedXdrInput}
               onChange={(event) => setSignedXdrInput(event.target.value)}
-              placeholder="Signed XDR yapıştır (herhangi bir Stellar wallet/signing flow)"
+              placeholder="Paste signed XDR (any Stellar wallet/signing flow)"
             />
             <Button variant="secondary" onClick={() => submitSignedXdr()} disabled={writeDisabled || !signedXdrInput.trim()}>
               Submit Signed XDR

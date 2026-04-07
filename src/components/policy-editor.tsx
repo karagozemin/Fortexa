@@ -185,7 +185,7 @@ export function PolicyEditor() {
       {!sessionLoading && !isOperator ? (
         <Alert className="border-amber-500/40 bg-amber-500/10">
           <AlertTitle>Viewer mode</AlertTitle>
-          <AlertDescription>Policy düzenleme kapalı. Sadece operator rolü policy güncelleyebilir.</AlertDescription>
+          <AlertDescription>Policy editing is disabled. Only operator role can update policy.</AlertDescription>
         </Alert>
       ) : null}
 

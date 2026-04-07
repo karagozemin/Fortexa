@@ -10,7 +10,6 @@ import {
 import type { StellarPaymentRequest } from "@/lib/types/domain";
 
 const HORIZON_URL = process.env.STELLAR_HORIZON_URL ?? "https://horizon-testnet.stellar.org";
-const FRIEND_BOT_URL = process.env.STELLAR_FRIENDBOT_URL ?? "https://friendbot.stellar.org";
 
 export function getHorizonServer() {
   return new Horizon.Server(HORIZON_URL);
@@ -21,15 +20,6 @@ export async function getNativeBalance(publicKey: string) {
   const account = await server.loadAccount(publicKey);
   const native = account.balances.find((balance) => balance.asset_type === "native");
   return native?.balance ?? "0";
-}
-
-export async function fundWithFriendbot(publicKey: string) {
-  const response = await fetch(`${FRIEND_BOT_URL}?addr=${encodeURIComponent(publicKey)}`);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Friendbot failed: ${text}`);
-  }
-  return response.json();
 }
 
 export async function buildUnsignedPaymentTransaction(request: StellarPaymentRequest, sourcePublicKey: string) {

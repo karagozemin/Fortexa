@@ -8,7 +8,7 @@ export default function WalletPage() {
         <CardHeader>
           <CardTitle>Agent Wallet & Testnet Operations</CardTitle>
           <CardDescription>
-            Lightweight wallet surface for Stellar testnet identity, balance checks, and faucet funding before payments.
+            Lightweight wallet surface for Stellar testnet identity and balance checks before payments.
           </CardDescription>
         </CardHeader>
       </Card>

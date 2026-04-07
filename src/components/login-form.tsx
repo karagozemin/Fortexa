@@ -10,14 +10,40 @@ import { Input } from "@/components/ui/input";
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
+  const [publicKey, setPublicKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  async function connectFreighter() {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const { requestAccess } = await import("@stellar/freighter-api");
+      const access = await requestAccess();
+
+      if (!access.address) {
+        setMessage(access.error ?? "Wallet connection failed.");
+        return;
+      }
+
+      setPublicKey(access.address);
+      setMessage("Wallet connected. You can sign in now.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unexpected wallet connection error.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!publicKey.trim()) {
+      setMessage("Connect your wallet first.");
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -25,7 +51,7 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, mfaCode: mfaCode.trim() || undefined }),
+        body: JSON.stringify({ publicKey: publicKey.trim() }),
       });
 
       const payload = (await response.json()) as { error?: string; role?: string };
@@ -49,31 +75,20 @@ export function LoginForm() {
     <Card className="mx-auto max-w-md">
       <CardHeader>
         <CardTitle>Fortexa Login</CardTitle>
-        <CardDescription>Use operator/viewer credentials from your env configuration.</CardDescription>
+        <CardDescription>Wallet-only authentication. Connect your wallet to sign in.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-3">
-          <Input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="operator@fortexa.local"
-            required
-          />
-          <Input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="password"
-            required
-          />
+          <Button type="button" variant="outline" onClick={connectFreighter} disabled={loading} className="w-full">
+            {loading ? "Connecting..." : "Connect Wallet"}
+          </Button>
           <Input
             type="text"
-            value={mfaCode}
-            onChange={(event) => setMfaCode(event.target.value)}
-            placeholder="MFA code (optional if enabled)"
+            value={publicKey}
+            placeholder="Connected wallet address will appear here"
+            readOnly
           />
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button type="submit" disabled={loading || !publicKey.trim()} className="w-full">
             {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>

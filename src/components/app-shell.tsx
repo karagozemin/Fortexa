@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
 
 import { cn } from "@/lib/utils/cn";
+import { truncateMiddle } from "@/lib/utils/format";
 
 const navItems = [
   { href: "/", label: "Overview", icon: ShieldCheck },
@@ -19,11 +20,13 @@ const navItems = [
   { href: "/ops", label: "Ops", icon: Activity },
 ];
 
-const writeSensitivePages = new Set(["/wallet", "/policies", "/console", "/ops"]);
+const writeSensitivePages = new Set(["/policies", "/console", "/ops"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { email, role, isViewer } = useAuthSession();
+
+  const identityLabel = email?.startsWith("wallet:") ? truncateMiddle(email.slice("wallet:".length), 8, 8) : email;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -69,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {email ? (
               <>
                 <span>
-                  {email} {role ? `(${role})` : ""}
+                  {identityLabel} {role ? `(${role})` : ""}
                 </span>
                 <Button variant="outline" size="sm" onClick={logout}>
                   Logout

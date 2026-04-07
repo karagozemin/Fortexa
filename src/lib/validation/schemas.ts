@@ -28,18 +28,7 @@ export const decisionRequestSchema = z
   });
 
 export const stellarSetupRequestSchema = z.object({
-  publicKey: z.string().startsWith("G", { message: "Stellar public key must start with G." }).min(56).max(56),
-  fund: z.boolean().optional(),
   provider: z.string().trim().min(1).max(60).optional(),
-});
-
-export const stellarFundRequestSchema = z.object({
-  publicKey: z
-    .string()
-    .startsWith("G", { message: "Stellar public key must start with G." })
-    .min(56)
-    .max(56)
-    .optional(),
 });
 
 export const stellarBuildPaymentRequestSchema = z.object({
