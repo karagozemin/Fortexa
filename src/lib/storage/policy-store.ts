@@ -28,7 +28,18 @@ async function ensureStore() {
 async function readStore() {
   await ensureStore();
   const raw = await fs.readFile(storePath, "utf8");
-  return JSON.parse(raw) as Partial<PolicyStoreFile>;
+
+  try {
+    return JSON.parse(raw) as Partial<PolicyStoreFile>;
+  } catch {
+    const reset: PolicyStoreFile = {
+      policy: defaultPolicyConfig,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await fs.writeFile(storePath, JSON.stringify(reset, null, 2), "utf8");
+    return reset;
+  }
 }
 
 function normalizePolicy(policy?: Partial<PolicyConfig>): PolicyConfig {
@@ -51,7 +62,9 @@ async function writeStore(nextPolicy: PolicyConfig) {
     updatedAt: new Date().toISOString(),
   };
 
-  await fs.writeFile(storePath, JSON.stringify(next, null, 2), "utf8");
+  const tempPath = `${storePath}.tmp`;
+  await fs.writeFile(tempPath, JSON.stringify(next, null, 2), "utf8");
+  await fs.rename(tempPath, storePath);
 
   return next;
 }
