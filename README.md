@@ -183,6 +183,16 @@ Global HTTP hardening headers are applied via `src/proxy.ts`:
 - `Cross-Origin-Resource-Policy`
 - `x-request-id`
 
+## Observability
+
+- Health endpoint: `GET /api/health`
+- Structured JSON logs with request correlation id via `src/lib/observability/logger.ts`
+- Critical route logging enabled for:
+  - `POST /api/auth/login`
+  - `POST /api/decision`
+  - `GET/POST /api/policy`
+  - `POST /api/stellar/submit-signed`
+
 ## Hackathon Demo Narrative (2 minutes)
 1. Open overview: show wallet + active policies.
 2. Link any Stellar wallet in `/wallet` (Freighter optional quick connect) and fund testnet if needed.

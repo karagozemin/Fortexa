@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
 import { evaluateDecision } from "@/lib/decision/engine";
+import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { appendAuditEntry, consumeUsage, getDailyUsage } from "@/lib/storage/audit-store";
@@ -11,6 +12,8 @@ import type { AgentAction } from "@/lib/types/domain";
 import { decisionRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
+  const context = getRequestLogContext(request, "/api/decision");
+
   const rate = consumeRateLimit(request, {
     key: "decision",
     limit: 40,
@@ -18,6 +21,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (!rate.ok) {
+    logWarn("Decision route rate limited", context);
     return NextResponse.json(
       { error: "Rate limit exceeded for decision endpoint." },
       { status: 429, headers: rateLimitHeaders(rate) }
@@ -28,6 +32,7 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(request, { allowedRoles: ["operator"] });
 
     if (!auth.ok) {
+      logWarn("Decision route unauthorized", context);
       return auth.response;
     }
 
@@ -37,6 +42,7 @@ export async function POST(request: NextRequest) {
     const parsedBody = decisionRequestSchema.safeParse(rawBody);
 
     if (!parsedBody.success) {
+      logWarn("Decision route validation failed", { ...context, userId });
       return NextResponse.json(
         {
           error: "Invalid decision request body.",
@@ -59,6 +65,7 @@ export async function POST(request: NextRequest) {
     const action = body.action ?? scenarioAction;
 
     if (!action) {
+      logWarn("Decision route action missing", { ...context, userId });
       return NextResponse.json({ error: "No action provided." }, { status: 400, headers: rateLimitHeaders(rate) });
     }
 
@@ -92,6 +99,13 @@ export async function POST(request: NextRequest) {
 
     const latestUsage = await getDailyUsage(userId);
 
+    logInfo("Decision evaluated", {
+      ...context,
+      userId,
+      decision: finalDecision,
+      riskScore: decision.riskScore,
+    });
+
     return NextResponse.json(
       {
         result: {
@@ -106,6 +120,10 @@ export async function POST(request: NextRequest) {
       { headers: rateLimitHeaders(rate) }
     );
   } catch (error) {
+    logError("Decision route internal error", {
+      ...context,
+      detail: error instanceof Error ? error.message : "unknown",
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected decision failure." },
       { status: 500, headers: rateLimitHeaders(rate) }

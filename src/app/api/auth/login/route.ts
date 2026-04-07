@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AUTH_COOKIE_KEY, type AuthRole, createSessionToken } from "@/lib/auth/session";
+import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 const loginSchema = z.object({
@@ -30,6 +31,8 @@ function resolveRoleByCredentials(email: string, password: string): AuthRole | n
 }
 
 export async function POST(request: NextRequest) {
+  const context = getRequestLogContext(request, "/api/auth/login");
+
   const rate = consumeRateLimit(request, {
     key: "auth-login",
     limit: 15,
@@ -37,6 +40,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (!rate.ok) {
+    logWarn("Auth login rate limited", context);
     return NextResponse.json(
       { error: "Too many login attempts. Try again later." },
       { status: 429, headers: rateLimitHeaders(rate) }
@@ -48,6 +52,7 @@ export async function POST(request: NextRequest) {
     const parsed = loginSchema.safeParse(rawBody);
 
     if (!parsed.success) {
+      logWarn("Auth login validation failed", context);
       return NextResponse.json(
         { error: "Invalid login payload.", details: parsed.error.flatten() },
         { status: 400, headers: rateLimitHeaders(rate) }
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
     const role = resolveRoleByCredentials(parsed.data.email, parsed.data.password);
 
     if (!role) {
+      logWarn("Auth login invalid credentials", { ...context, email: parsed.data.email });
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401, headers: rateLimitHeaders(rate) });
     }
 
@@ -82,8 +88,14 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
+    logInfo("Auth login success", { ...context, email: parsed.data.email, role });
+
     return response;
   } catch (error) {
+    logError("Auth login internal error", {
+      ...context,
+      detail: error instanceof Error ? error.message : "unknown",
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Login failed." },
       { status: 500, headers: rateLimitHeaders(rate) }
