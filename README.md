@@ -75,6 +75,7 @@ Included in `src/lib/scenarios/seed.ts`:
 - `src/lib/storage/audit-store.ts` → user-scoped persistent audit + usage state
 - `src/lib/stellar/client.ts` → Stellar testnet integration
 - `src/lib/storage/user-wallet-store.ts` → per-user external Stellar wallet assignment
+- `src/lib/storage/db.ts` → optional Postgres persistence layer (`DATABASE_URL`)
 
 ### API Routes
 - `POST /api/auth/login` → start session with operator/viewer credentials
@@ -108,6 +109,7 @@ Included in `src/lib/scenarios/seed.ts`:
 - `/console` → live decision console + optional payment execution
 - `/scenarios` → scenario catalog
 - `/activity` → audit trail
+- `/ops` → live operations dashboard (health + metrics trends)
 
 ## Stellar Integration Details
 Fortexa supports **any Stellar wallet** that can sign transactions:
@@ -120,6 +122,13 @@ Fortexa supports **any Stellar wallet** that can sign transactions:
 - Each user receives a stable `fortexa_user_id` cookie.
 - Wallet assignment is persisted per user in local storage files under `.fortexa/`.
 - Only public wallet metadata is stored; no custodial private keys are stored in repo files.
+
+### Optional Postgres persistence
+- If `DATABASE_URL` is set, Fortexa uses Postgres as the primary store for:
+  - wallet assignments
+  - audit entries + usage counters
+  - policy state + version history
+- If `DATABASE_URL` is not set (or DB is unavailable), Fortexa automatically falls back to local `.fortexa/*.json` files.
 
 ## Local Setup
 
@@ -136,6 +145,8 @@ Open `http://localhost:3000`.
 ```bash
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org
+DATABASE_URL=
+DATABASE_SSL=false
 GROQ_API_KEY=
 GROQ_MODEL=llama-3.3-70b-versatile
 FORTEXA_AUTH_SECRET=
@@ -197,6 +208,7 @@ Global HTTP hardening headers are applied via `src/proxy.ts`:
 ## Observability
 
 - Health endpoint: `GET /api/health`
+- Ops dashboard page: `GET /ops`
 - Structured JSON logs with request correlation id via `src/lib/observability/logger.ts`
 - API metrics aggregator via `src/lib/observability/metrics.ts`
 - Standardized response helper with request-id + metric recording via `src/lib/observability/http.ts`

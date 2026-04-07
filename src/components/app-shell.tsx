@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText } from "lucide-react";
+import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText, Activity } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
@@ -16,9 +16,10 @@ const navItems = [
   { href: "/console", label: "Decision Console", icon: Bot },
   { href: "/scenarios", label: "Scenarios", icon: Wallet },
   { href: "/activity", label: "Audit Trail", icon: ScrollText },
+  { href: "/ops", label: "Ops", icon: Activity },
 ];
 
-const writeSensitivePages = new Set(["/wallet", "/policies", "/console"]);
+const writeSensitivePages = new Set(["/wallet", "/policies", "/console", "/ops"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

@@ -1,6 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { runWithDatabase } from "@/lib/storage/db";
+
 export type UserWallet = {
   userId: string;
   publicKey: string;
@@ -86,6 +88,42 @@ async function writeStore(store: WalletStoreFile) {
 }
 
 export async function getUserWallet(userId: string) {
+  const db = await runWithDatabase("getUserWallet", async (pool) => {
+    const result = await pool.query<{
+      user_id: string;
+      public_key: string;
+      source: string;
+      provider: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+        SELECT user_id, public_key, source, provider, created_at, updated_at
+        FROM fortexa_wallets
+        WHERE user_id = $1
+      `,
+      [userId]
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      userId: row.user_id,
+      publicKey: row.public_key,
+      source: "external" as const,
+      provider: row.provider ?? undefined,
+      createdAt: new Date(row.created_at).toISOString(),
+      updatedAt: new Date(row.updated_at).toISOString(),
+    };
+  });
+
+  if (db.available) {
+    return db.value;
+  }
+
   const store = await readStore();
   const wallet = store.wallets[userId];
   if (!wallet || typeof wallet !== "object" || !("source" in wallet) || !("publicKey" in wallet)) {
@@ -102,6 +140,49 @@ export async function upsertUserWallet(
     provider?: string;
   }
 ) {
+  const db = await runWithDatabase("upsertUserWallet", async (pool) => {
+    const existing = await pool.query<{ created_at: string }>(
+      `
+        SELECT created_at
+        FROM fortexa_wallets
+        WHERE user_id = $1
+      `,
+      [userId]
+    );
+
+    const nowIso = new Date().toISOString();
+    const createdAt = existing.rows[0]?.created_at
+      ? new Date(existing.rows[0].created_at).toISOString()
+      : nowIso;
+
+    await pool.query(
+      `
+        INSERT INTO fortexa_wallets (user_id, public_key, source, provider, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz)
+        ON CONFLICT (user_id)
+        DO UPDATE SET
+          public_key = EXCLUDED.public_key,
+          source = EXCLUDED.source,
+          provider = EXCLUDED.provider,
+          updated_at = EXCLUDED.updated_at
+      `,
+      [userId, payload.publicKey, payload.source, payload.provider ?? null, createdAt, nowIso]
+    );
+
+    return {
+      userId,
+      publicKey: payload.publicKey,
+      source: payload.source,
+      provider: payload.provider,
+      createdAt,
+      updatedAt: nowIso,
+    };
+  });
+
+  if (db.available) {
+    return db.value;
+  }
+
   const store = await readStore();
   const now = new Date().toISOString();
   const existing = await getUserWallet(userId);
