@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { demoScenarios } from "@/lib/scenarios/seed";
+import type { AgentAction } from "@/lib/types/domain";
 import { truncateMiddle } from "@/lib/utils/format";
 
 type DecisionApiResponse = {
@@ -43,6 +44,12 @@ type BuildPaymentResponse = {
   networkPassphrase?: string;
 };
 
+type AgentPlanResponse = {
+  ok?: boolean;
+  error?: string;
+  action?: AgentAction;
+};
+
 export function DecisionConsole() {
   const [selectedScenarioId, setSelectedScenarioId] = useState(demoScenarios[0]?.id ?? "");
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
@@ -54,22 +61,30 @@ export function DecisionConsole() {
   const [signedXdrInput, setSignedXdrInput] = useState<string>("");
   const [sourcePublicKey, setSourcePublicKey] = useState<string>("");
   const [networkPassphrase, setNetworkPassphrase] = useState<string>("TESTNET");
+  const [agentGoal, setAgentGoal] = useState<string>("Find safe market data provider and pay for premium query results.");
+  const [agentContext, setAgentContext] = useState<string>("Need reliable source with low risk and clear policy-compliant endpoint.");
+  const [generatedAction, setGeneratedAction] = useState<AgentAction | null>(null);
+  const [generatingAction, setGeneratingAction] = useState(false);
 
   const selectedScenario = useMemo(
     () => demoScenarios.find((scenario) => scenario.id === selectedScenarioId),
     [selectedScenarioId]
   );
 
-  async function runDecision(approvedByHuman = false) {
-    if (!selectedScenario) return;
+  async function runDecision(approvedByHuman = false, actionOverride?: AgentAction) {
+    if (!selectedScenario && !actionOverride) return;
     setLoading(true);
     setMessage(null);
 
     try {
+      const requestBody = actionOverride
+        ? { action: actionOverride, approvedByHuman }
+        : { scenarioId: selectedScenario?.id, approvedByHuman };
+
       const response = await fetch("/api/decision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId: selectedScenario.id, approvedByHuman }),
+        body: JSON.stringify(requestBody),
       });
 
       const payload = (await response.json()) as DecisionApiResponse | { error: string };
@@ -84,6 +99,38 @@ export function DecisionConsole() {
       setMessage(error instanceof Error ? error.message : "Unexpected console failure.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generateActionWithAi() {
+    if (!agentGoal.trim()) {
+      setMessage("Provide an agent goal first.");
+      return;
+    }
+
+    setGeneratingAction(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/agent/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal: agentGoal.trim(), context: agentContext.trim() || undefined, destinationHint: destination || undefined }),
+      });
+
+      const payload = (await response.json()) as AgentPlanResponse;
+
+      if (!response.ok || payload.error || !payload.action) {
+        setMessage(payload.error ?? "AI action generation failed.");
+        return;
+      }
+
+      setGeneratedAction(payload.action);
+      setMessage("AI generated a candidate action. Review and run policy decision.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unexpected AI planning failure.");
+    } finally {
+      setGeneratingAction(false);
     }
   }
 
@@ -262,6 +309,39 @@ export function DecisionConsole() {
             <Button variant="secondary" onClick={() => runDecision(true)} disabled={loading}>
               Human Approve & Re-run
             </Button>
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-[hsl(var(--border))] p-3">
+            <p className="text-sm font-semibold">Live AI Agent Planner (Groq)</p>
+            <Input value={agentGoal} onChange={(event) => setAgentGoal(event.target.value)} placeholder="Agent goal" />
+            <textarea
+              className="min-h-20 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
+              value={agentContext}
+              onChange={(event) => setAgentContext(event.target.value)}
+              placeholder="Context for the AI planner"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={generateActionWithAi} disabled={loading || generatingAction}>
+                {generatingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Generate Action with AI
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => (generatedAction ? runDecision(false, generatedAction) : undefined)}
+                disabled={loading || !generatedAction}
+              >
+                Evaluate Generated Action
+              </Button>
+            </div>
+            {generatedAction ? (
+              <div className="rounded-lg border border-[hsl(var(--border))] p-3 text-xs">
+                <p className="font-medium">{generatedAction.name}</p>
+                <p>kind: {generatedAction.kind}</p>
+                <p>domain: {generatedAction.domain}</p>
+                <p>target: {generatedAction.target}</p>
+                <p>amount: {generatedAction.amountXLM} XLM</p>
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">

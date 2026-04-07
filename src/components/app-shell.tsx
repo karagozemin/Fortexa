@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -17,6 +20,52 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authRole, setAuthRole] = useState<string | null>(null);
+
+  async function fetchSession() {
+    try {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const payload = (await response.json()) as {
+        authenticated?: boolean;
+        user?: { email?: string; role?: string };
+      };
+
+      if (payload.authenticated && payload.user?.email) {
+        return {
+          email: payload.user.email,
+          role: payload.user.role ?? null,
+        };
+      }
+
+      return { email: null, role: null };
+    } catch {
+      return { email: null, role: null };
+    }
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setAuthEmail(null);
+    setAuthRole(null);
+    window.location.href = "/login";
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetchSession().then((session) => {
+      if (cancelled) {
+        return;
+      }
+      setAuthEmail(session.email);
+      setAuthRole(session.role);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl px-5 pb-10 pt-8">
@@ -25,7 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs uppercase tracking-[0.35em] text-blue-300">Fortexa</p>
           <h1 className="text-2xl font-semibold">Agent Payment Firewall on Stellar</h1>
         </div>
-        <nav className="flex flex-wrap gap-2">
+        <div className="flex flex-col items-end gap-2">
+          <nav className="flex flex-wrap gap-2">
           {navItems.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
@@ -46,7 +96,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-        </nav>
+          </nav>
+          <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+            {authEmail ? (
+              <>
+                <span>
+                  {authEmail} {authRole ? `(${authRole})` : ""}
+                </span>
+                <Button variant="outline" size="sm" onClick={logout}>
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <Link href="/login" className="underline-offset-2 hover:underline">
+                Login
+              </Link>
+            )}
+          </div>
+        </div>
       </header>
       {children}
     </div>

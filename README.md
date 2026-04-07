@@ -47,7 +47,8 @@ Fortexa combines:
 - Explainable decision output for each attempted action
 - Scenario runner with seeded judge-friendly demos
 - Activity log with policies + risk findings per decision
-- Real Stellar testnet payment execution via Freighter signing
+- Real Stellar testnet payment execution via wallet-signed XDR submission
+- Live AI action planning via Groq (`/api/agent/plan`) with policy/security decisioning
 
 ## Demo Scenarios
 Included in `src/lib/scenarios/seed.ts`:
@@ -76,6 +77,12 @@ Included in `src/lib/scenarios/seed.ts`:
 - `src/lib/storage/user-wallet-store.ts` → per-user external Stellar wallet assignment
 
 ### API Routes
+- `POST /api/auth/login` → start session with operator/viewer credentials
+- `POST /api/auth/logout` → clear session
+- `GET /api/auth/session` → current auth session status
+- `GET /api/policy` → read active policy config
+- `POST /api/policy` → update active policy config (operator only)
+- `POST /api/agent/plan` → generate a live `AgentAction` from prompt/context via Groq
 - `POST /api/decision` → evaluate action and append audit entry
 - `GET /api/audit` → retrieve audit trail
 - `GET /api/stellar/balance` → wallet identity + balance
@@ -89,6 +96,7 @@ Included in `src/lib/scenarios/seed.ts`:
 - `/` → overview dashboard + wallet card
 - `/wallet` → wallet testnet operations
 - `/policies` → visible policy rules
+- `/policies` → view/edit active runtime policy config
 - `/console` → live decision console + optional payment execution
 - `/scenarios` → scenario catalog
 - `/activity` → audit trail
@@ -120,6 +128,13 @@ Open `http://localhost:3000`.
 ```bash
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.3-70b-versatile
+FORTEXA_AUTH_SECRET=
+FORTEXA_OPERATOR_EMAIL=operator@fortexa.local
+FORTEXA_OPERATOR_PASSWORD=
+FORTEXA_VIEWER_EMAIL=viewer@fortexa.local
+FORTEXA_VIEWER_PASSWORD=
 NEXT_PUBLIC_STELLAR_DESTINATION=
 ```
 

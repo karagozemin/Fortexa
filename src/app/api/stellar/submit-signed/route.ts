@@ -1,47 +1,65 @@
-import { randomUUID } from "node:crypto";
-
 import { NextRequest, NextResponse } from "next/server";
 
-import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { submitSignedTransactionXdr } from "@/lib/stellar/client";
+import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
+  const rate = consumeRateLimit(request, {
+    key: "stellar-submit-signed",
+    limit: 30,
+    windowMs: 60_000,
+  });
+
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded for signed transaction submission." },
+      { status: 429, headers: rateLimitHeaders(rate) }
+    );
+  }
+
   try {
-    const { userId, shouldSetCookie } = getOrCreateUserId(request);
+    const auth = requireAuth(request, { allowedRoles: ["operator"] });
 
-    const payload = (await request.json()) as {
-      signedXdr: string;
-    };
-
-    if (!payload.signedXdr) {
-      return NextResponse.json({ error: "signedXdr is required" }, { status: 400 });
+    if (!auth.ok) {
+      return auth.response;
     }
+
+    const userId = auth.session.userId;
+
+    const rawPayload = (await request.json().catch(() => ({}))) as unknown;
+    const parsedPayload = stellarSubmitSignedRequestSchema.safeParse(rawPayload);
+
+    if (!parsedPayload.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid signed transaction submission.",
+          details: parsedPayload.error.flatten(),
+        },
+        { status: 400, headers: rateLimitHeaders(rate) }
+      );
+    }
+
+    const payload = parsedPayload.data;
 
     const submitted = await submitSignedTransactionXdr(payload.signedXdr);
 
-    const response = NextResponse.json({
-      ok: true,
-      userId,
-      payment: {
-        mode: "real",
-        ...submitted,
+    return NextResponse.json(
+      {
+        ok: true,
+        userId,
+        payment: {
+          mode: "real",
+          ...submitted,
+        },
       },
-    });
-
-    if (shouldSetCookie) {
-      response.cookies.set(USER_COOKIE_KEY, userId ?? randomUUID(), {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 365,
-      });
-    }
-
-    return response;
+      { headers: rateLimitHeaders(rate) }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to submit signed transaction." },
-      { status: 500 }
+      { status: 500, headers: rateLimitHeaders(rate) }
     );
   }
 }

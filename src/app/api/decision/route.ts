@@ -1,18 +1,52 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { evaluateDecision } from "@/lib/decision/engine";
-import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { demoScenarios } from "@/lib/scenarios/seed";
+import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { appendAuditEntry, consumeUsage, getDailyUsage } from "@/lib/storage/audit-store";
+import { getPolicyConfig } from "@/lib/storage/policy-store";
 import type { AgentAction } from "@/lib/types/domain";
+import { decisionRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
-  try {
-    const { userId, shouldSetCookie } = getOrCreateUserId(request);
+  const rate = consumeRateLimit(request, {
+    key: "decision",
+    limit: 40,
+    windowMs: 60_000,
+  });
 
-    const body = (await request.json()) as {
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded for decision endpoint." },
+      { status: 429, headers: rateLimitHeaders(rate) }
+    );
+  }
+
+  try {
+    const auth = requireAuth(request, { allowedRoles: ["operator"] });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const userId = auth.session.userId;
+
+    const rawBody = (await request.json().catch(() => ({}))) as unknown;
+    const parsedBody = decisionRequestSchema.safeParse(rawBody);
+
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid decision request body.",
+          details: parsedBody.error.flatten(),
+        },
+        { status: 400, headers: rateLimitHeaders(rate) }
+      );
+    }
+
+    const body = parsedBody.data as {
       scenarioId?: string;
       action?: AgentAction;
       approvedByHuman?: boolean;
@@ -25,11 +59,12 @@ export async function POST(request: NextRequest) {
     const action = body.action ?? scenarioAction;
 
     if (!action) {
-      return NextResponse.json({ error: "No action provided." }, { status: 400 });
+      return NextResponse.json({ error: "No action provided." }, { status: 400, headers: rateLimitHeaders(rate) });
     }
 
+    const { policy } = await getPolicyConfig();
     const usage = await getDailyUsage(userId);
-    const decision = evaluateDecision(action, defaultPolicyConfig, usage);
+    const decision = evaluateDecision(action, policy, usage);
 
     let finalDecision = decision.decision;
     let explanation = decision.explanation;
@@ -57,31 +92,23 @@ export async function POST(request: NextRequest) {
 
     const latestUsage = await getDailyUsage(userId);
 
-    const response = NextResponse.json({
-      result: {
-        ...decision,
-        decision: finalDecision,
-        explanation,
+    return NextResponse.json(
+      {
+        result: {
+          ...decision,
+          decision: finalDecision,
+          explanation,
+        },
+        auditEntry,
+        usage: latestUsage,
+        userId,
       },
-      auditEntry,
-      usage: latestUsage,
-      userId,
-    });
-
-    if (shouldSetCookie) {
-      response.cookies.set(USER_COOKIE_KEY, userId, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 365,
-      });
-    }
-
-    return response;
+      { headers: rateLimitHeaders(rate) }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected decision failure." },
-      { status: 500 }
+      { status: 500, headers: rateLimitHeaders(rate) }
     );
   }
 }
