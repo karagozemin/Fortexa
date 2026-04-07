@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  --background: 220 30% 8%;
+  --foreground: 220 20% 96%;
+  --muted: 220 16% 16%;
+  --muted-foreground: 220 10% 70%;
+  --card: 220 26% 10%;
+  --card-foreground: 220 20% 96%;
+  --border: 220 20% 20%;
+  --ring: 205 90% 64%;
+  --primary: 205 90% 64%;
+  --primary-foreground: 220 40% 12%;
+  --success: 150 70% 45%;
+  --warn: 42 96% 55%;
+  --danger: 0 84% 62%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: radial-gradient(circle at 20% 0%, #1d2441 0%, #0b1020 55%, #070b16 100%);
+  color: hsl(var(--foreground));
+  min-height: 100vh;
+}
