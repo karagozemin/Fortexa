@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 
 import { logWarn } from "@/lib/observability/logger";
+import { STORAGE_MIGRATIONS } from "@/lib/storage/migrations";
 
 type DatabaseExecution<T> =
   | {
@@ -39,56 +40,42 @@ async function ensureSchema(targetPool: Pool) {
   if (!initPromise) {
     initPromise = (async () => {
       await targetPool.query(`
-        CREATE TABLE IF NOT EXISTS fortexa_wallets (
-          user_id TEXT PRIMARY KEY,
-          public_key TEXT NOT NULL,
-          source TEXT NOT NULL,
-          provider TEXT,
-          created_at TIMESTAMPTZ NOT NULL,
-          updated_at TIMESTAMPTZ NOT NULL
-        );
-      `);
-
-      await targetPool.query(`
-        CREATE TABLE IF NOT EXISTS fortexa_audit_entries (
+        CREATE TABLE IF NOT EXISTS fortexa_schema_migrations (
           id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          timestamp TIMESTAMPTZ NOT NULL,
-          payload JSONB NOT NULL
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
       `);
 
-      await targetPool.query(`
-        CREATE INDEX IF NOT EXISTS fortexa_audit_entries_user_ts_idx
-        ON fortexa_audit_entries (user_id, timestamp DESC);
-      `);
+      const applied = await targetPool.query<{ id: string }>(
+        `
+          SELECT id
+          FROM fortexa_schema_migrations
+        `
+      );
 
-      await targetPool.query(`
-        CREATE TABLE IF NOT EXISTS fortexa_usage (
-          user_id TEXT PRIMARY KEY,
-          spent_xlm DOUBLE PRECISION NOT NULL,
-          tool_calls INTEGER NOT NULL,
-          last_updated TIMESTAMPTZ NOT NULL
-        );
-      `);
+      const appliedSet = new Set(applied.rows.map((row) => row.id));
 
-      await targetPool.query(`
-        CREATE TABLE IF NOT EXISTS fortexa_policy_state (
-          id SMALLINT PRIMARY KEY,
-          version INTEGER NOT NULL,
-          updated_at TIMESTAMPTZ NOT NULL,
-          policy JSONB NOT NULL
-        );
-      `);
+      for (const migration of STORAGE_MIGRATIONS) {
+        if (appliedSet.has(migration.id)) {
+          continue;
+        }
 
-      await targetPool.query(`
-        CREATE TABLE IF NOT EXISTS fortexa_policy_history (
-          version INTEGER PRIMARY KEY,
-          updated_at TIMESTAMPTZ NOT NULL,
-          updated_by TEXT,
-          policy JSONB NOT NULL
-        );
-      `);
+        await targetPool.query("BEGIN");
+        try {
+          await targetPool.query(migration.sql);
+          await targetPool.query(
+            `
+              INSERT INTO fortexa_schema_migrations (id)
+              VALUES ($1)
+            `,
+            [migration.id]
+          );
+          await targetPool.query("COMMIT");
+        } catch (error) {
+          await targetPool.query("ROLLBACK");
+          throw error;
+        }
+      }
     })();
   }
 
@@ -116,4 +103,12 @@ export async function runWithDatabase<T>(
 
     return { available: false };
   }
+}
+
+export async function __resetDatabaseForTests() {
+  initPromise = null;
+  if (pool) {
+    await pool.end().catch(() => undefined);
+  }
+  pool = null;
 }

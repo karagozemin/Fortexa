@@ -1,3 +1,11 @@
+import {
+  clearSharedLockouts,
+  isSharedSecurityStateEnabled,
+  readSharedLockout,
+  removeSharedLockout,
+  writeSharedLockout,
+} from "@/lib/security/shared-security-state";
+
 type LockoutRecord = {
   attempts: number;
   lockedUntilMs: number;
@@ -35,14 +43,21 @@ export function readClientIp(headers: Headers) {
 }
 
 export function isLoginLocked(email: string, ip: string) {
-  const record = records.get(keyOf(email, ip));
+  const key = keyOf(email, ip);
+  const useSharedState = isSharedSecurityStateEnabled();
+  const record = useSharedState ? readSharedLockout(key) : records.get(key);
+
   if (!record) {
     return { locked: false as const, retryAfterSeconds: 0 };
   }
 
   const now = Date.now();
   if (record.lockedUntilMs <= now) {
-    records.delete(keyOf(email, ip));
+    if (useSharedState) {
+      removeSharedLockout(key);
+    } else {
+      records.delete(key);
+    }
     return { locked: false as const, retryAfterSeconds: 0 };
   }
 
@@ -56,16 +71,24 @@ export function registerLoginFailure(email: string, ip: string) {
   const now = Date.now();
   const maxAttempts = getMaxAttempts();
   const lockMs = Math.max(1000, getLockMinutes() * 60 * 1000);
+  const useSharedState = isSharedSecurityStateEnabled();
 
   const key = keyOf(email, ip);
-  const current = records.get(key) ?? { attempts: 0, lockedUntilMs: 0 };
+  const current = (useSharedState ? readSharedLockout(key) : records.get(key)) ?? {
+    attempts: 0,
+    lockedUntilMs: 0,
+  };
   current.attempts += 1;
 
   if (current.attempts >= maxAttempts) {
     current.lockedUntilMs = now + lockMs;
   }
 
-  records.set(key, current);
+  if (useSharedState) {
+    writeSharedLockout(key, current);
+  } else {
+    records.set(key, current);
+  }
 
   return {
     attempts: current.attempts,
@@ -75,9 +98,18 @@ export function registerLoginFailure(email: string, ip: string) {
 }
 
 export function clearLoginFailures(email: string, ip: string) {
-  records.delete(keyOf(email, ip));
+  const key = keyOf(email, ip);
+  if (isSharedSecurityStateEnabled()) {
+    removeSharedLockout(key);
+    return;
+  }
+
+  records.delete(key);
 }
 
 export function resetLoginLockoutStore() {
   records.clear();
+  if (isSharedSecurityStateEnabled()) {
+    clearSharedLockouts();
+  }
 }

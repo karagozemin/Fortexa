@@ -1,5 +1,12 @@
 import type { NextRequest } from "next/server";
 
+import {
+  clearSharedRateLimits,
+  isSharedSecurityStateEnabled,
+  readSharedRateLimit,
+  writeSharedRateLimit,
+} from "@/lib/security/shared-security-state";
+
 type BucketConfig = {
   key: string;
   limit: number;
@@ -35,8 +42,9 @@ export function consumeRateLimit(request: NextRequest, config: BucketConfig): Ra
   const now = Date.now();
   const ip = getClientIp(request);
   const bucketKey = `${config.key}:${ip}`;
+  const useSharedState = isSharedSecurityStateEnabled();
 
-  const current = buckets.get(bucketKey);
+  const current = useSharedState ? readSharedRateLimit(bucketKey) : buckets.get(bucketKey);
 
   if (!current || now >= current.resetAt) {
     const fresh: BucketState = {
@@ -44,7 +52,11 @@ export function consumeRateLimit(request: NextRequest, config: BucketConfig): Ra
       resetAt: now + config.windowMs,
     };
 
-    buckets.set(bucketKey, fresh);
+    if (useSharedState) {
+      writeSharedRateLimit(bucketKey, fresh);
+    } else {
+      buckets.set(bucketKey, fresh);
+    }
 
     return {
       ok: true,
@@ -66,7 +78,12 @@ export function consumeRateLimit(request: NextRequest, config: BucketConfig): Ra
   }
 
   current.count += 1;
-  buckets.set(bucketKey, current);
+
+  if (useSharedState) {
+    writeSharedRateLimit(bucketKey, current);
+  } else {
+    buckets.set(bucketKey, current);
+  }
 
   return {
     ok: true,
@@ -84,4 +101,11 @@ export function rateLimitHeaders(result: RateLimitResult) {
     "X-RateLimit-Reset": String(Math.floor(result.resetAt / 1000)),
     "Retry-After": String(result.retryAfterSeconds),
   };
+}
+
+export function resetRateLimitStore() {
+  buckets.clear();
+  if (isSharedSecurityStateEnabled()) {
+    clearSharedRateLimits();
+  }
 }

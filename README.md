@@ -147,6 +147,7 @@ STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org
 DATABASE_URL=
 DATABASE_SSL=false
+FORTEXA_SHARED_STATE_PATH=
 GROQ_API_KEY=
 GROQ_MODEL=llama-3.3-70b-versatile
 FORTEXA_AUTH_SECRET=
@@ -165,6 +166,7 @@ NEXT_PUBLIC_STELLAR_DESTINATION=
 ```bash
 npm run test
 npm run demo:scenarios
+npm run db:migrate
 npm run lint
 ```
 
@@ -204,14 +206,25 @@ Global HTTP hardening headers are applied via `src/proxy.ts`:
 
 ## Auth Hardening
 
-- Brute-force lockout via in-memory attempt tracking (`src/lib/auth/login-lockout.ts`)
+- Brute-force lockout with optional shared state (`src/lib/auth/login-lockout.ts`)
 - Optional MFA code gate with `FORTEXA_MFA_CODE`
 - Sliding-style session refresh via `POST /api/auth/refresh`
+- Shared state can be enabled with `FORTEXA_SHARED_STATE_PATH` to improve multi-instance consistency for lockout/rate-limit
 
 ## Policy Versioning
 
 - Policy updates now store versioned history in `.fortexa/policy-history.json`
 - Operator can list history (`GET /api/policy/history`) and rollback (`POST /api/policy/rollback`)
+
+## DB Migrations
+
+- Versioned SQL migrations are defined in `src/lib/storage/migrations.ts`
+- Migrations are applied automatically on first successful DB operation
+- Manual trigger command:
+
+```bash
+npm run db:migrate
+```
 
 ## Hackathon Demo Narrative (2 minutes)
 1. Open overview: show wallet + active policies.
@@ -222,7 +235,6 @@ Global HTTP hardening headers are applied via `src/proxy.ts`:
 6. Open audit trail to show timestamped explainable governance history.
 
 ## Future Improvements
-- Persistent DB-backed policy and audit storage
 - Multi-agent org policy profiles and role-based approvals
 - Enhanced risk models (threat intel feeds, anomaly scoring)
 - Signed policy snapshots and tamper-evident audit proofs
