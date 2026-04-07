@@ -47,7 +47,7 @@ Fortexa combines:
 - Explainable decision output for each attempted action
 - Scenario runner with seeded judge-friendly demos
 - Activity log with policies + risk findings per decision
-- Real or simulated Stellar payment execution path
+- Real Stellar testnet payment execution via Freighter signing
 
 ## Demo Scenarios
 Included in `src/lib/scenarios/seed.ts`:
@@ -78,7 +78,6 @@ Included in `src/lib/scenarios/seed.ts`:
 ### API Routes
 - `POST /api/decision` → evaluate action and append audit entry
 - `GET /api/audit` → retrieve audit trail
-- `POST /api/demo/run` → one-click full hackathon narrative (resets state, runs all scenarios, logs outcomes)
 - `GET /api/stellar/balance` → wallet identity + balance
 - `POST /api/stellar/fund` → friendbot funding
 - `POST /api/stellar/setup` → link connected Freighter wallet to current user
@@ -134,10 +133,10 @@ npm run lint
 
 ## Hackathon Demo Narrative (2 minutes)
 1. Open overview: show wallet + active policies.
-2. Go to decision console and click **Run Hackathon Demo Mode**.
-3. Show safe scenario result (`APPROVE`) and optional Stellar payment hash.
-4. Show malicious endpoint (`BLOCK`) and over-budget flow (`REQUIRE_APPROVAL`).
-5. Show manual approval override in summary.
+2. Connect Freighter in `/wallet` and fund testnet if needed.
+3. In decision console run safe scenario (`APPROVE`) and execute payment.
+4. Sign in Freighter extension and show real Stellar tx hash.
+5. Run malicious endpoint (`BLOCK`) and over-budget flow (`REQUIRE_APPROVAL`).
 6. Open audit trail to show timestamped explainable governance history.
 
 ## Future Improvements
@@ -148,7 +147,7 @@ npm run lint
 - SEP integrations and production wallet lifecycle hardening
 
 ## Known Limitations
-- Freighter demo mode cannot auto-sign in server-only flows; real Freighter submission requires interactive browser extension approval.
+- Freighter signing requires interactive browser extension approval; server-side auto-signing is intentionally disabled.
 
 ## Hackathon Framing
 Fortexa is not a generic wallet UI and not a chatbot demo. It is a **trust layer for autonomous machine payments**: an agent payment firewall that makes AI economic actions safe, governable, and auditable on Stellar.
