@@ -55,6 +55,12 @@ type AgentPlanResponse = {
   action?: AgentAction;
 };
 
+type ToastItem = {
+  id: string;
+  kind: "success" | "error";
+  text: string;
+};
+
 export function DecisionConsole() {
   const { isOperator, loading: sessionLoading } = useAuthSession();
   const [selectedScenarioId, setSelectedScenarioId] = useState(demoScenarios[0]?.id ?? "");
@@ -72,6 +78,7 @@ export function DecisionConsole() {
   const [agentContext, setAgentContext] = useState<string>("Need reliable source with low risk and clear policy-compliant endpoint.");
   const [generatedAction, setGeneratedAction] = useState<AgentAction | null>(null);
   const [generatingAction, setGeneratingAction] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const selectedScenario = useMemo(
     () => demoScenarios.find((scenario) => scenario.id === selectedScenarioId),
@@ -83,6 +90,29 @@ export function DecisionConsole() {
 
   function getExplorerUrl(hash: string) {
     return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+  }
+
+  function pushToast(kind: ToastItem["kind"], text: string) {
+    const id = crypto.randomUUID();
+    setToasts((current) => [...current, { id, kind, text }]);
+    setTimeout(() => {
+      setToasts((current) => current.filter((item) => item.id !== id));
+    }, 4500);
+  }
+
+  function renderMessageWithLinks(value: string) {
+    const parts = value.split(/(https?:\/\/\S+)/g);
+    return parts.map((part, index) => {
+      if (/^https?:\/\//.test(part)) {
+        return (
+          <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+            {part}
+          </a>
+        );
+      }
+
+      return <span key={`${part}-${index}`}>{part}</span>;
+    });
   }
 
   function ensureOperator() {
@@ -119,14 +149,19 @@ export function DecisionConsole() {
 
       const payload = (await response.json()) as DecisionApiResponse | { error: string };
       if (!response.ok || "error" in payload) {
-        setMessage("error" in payload ? payload.error : "Decision evaluation failed.");
+        const errorMessage = "error" in payload ? payload.error : "Decision evaluation failed.";
+        setMessage(errorMessage);
+        pushToast("error", errorMessage);
         return;
       }
 
       setDecisionData(payload);
       setMessage("Decision completed and appended to audit trail.");
+      pushToast("success", "Decision completed.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected console failure.");
+      const errorMessage = error instanceof Error ? error.message : "Unexpected console failure.";
+      setMessage(errorMessage);
+      pushToast("error", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -152,14 +187,19 @@ export function DecisionConsole() {
       const payload = (await response.json()) as AgentPlanResponse;
 
       if (!response.ok || payload.error || !payload.action) {
-        setMessage(payload.error ?? "AI action generation failed.");
+        const errorMessage = payload.error ?? "AI action generation failed.";
+        setMessage(errorMessage);
+        pushToast("error", errorMessage);
         return;
       }
 
       setGeneratedAction(payload.action);
       setMessage("AI generated a candidate action. Review and run policy decision.");
+      pushToast("success", "AI generated action candidate.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected AI planning failure.");
+      const errorMessage = error instanceof Error ? error.message : "Unexpected AI planning failure.";
+      setMessage(errorMessage);
+      pushToast("error", errorMessage);
     } finally {
       setGeneratingAction(false);
     }
@@ -186,7 +226,9 @@ export function DecisionConsole() {
       const balancePayload = (await balanceResponse.json()) as BalanceApiResponse;
 
       if (!balanceResponse.ok || balancePayload.error) {
-        setMessage(balancePayload.error ?? "Unable to load wallet source.");
+        const errorMessage = balancePayload.error ?? "Unable to load wallet source.";
+        setMessage(errorMessage);
+        pushToast("error", errorMessage);
         return;
       }
 
@@ -198,6 +240,7 @@ export function DecisionConsole() {
 
       if (!balancePayload.configured || balancePayload.source !== "external") {
         setMessage("Link a Stellar wallet first from Wallet page.");
+        pushToast("error", "Wallet is not ready for transaction build.");
         return;
       }
 
@@ -217,7 +260,9 @@ export function DecisionConsole() {
             .filter((value): value is string => Boolean(value))
             .join(" ");
 
-        setMessage(buildPayload.error ?? detailMessage ?? "Failed to build payment transaction XDR.");
+        const errorMessage = buildPayload.error ?? detailMessage ?? "Failed to build payment transaction XDR.";
+        setMessage(errorMessage);
+        pushToast("error", errorMessage);
         return;
       }
 
@@ -225,9 +270,12 @@ export function DecisionConsole() {
         setSignedXdrInput(buildPayload.xdr);
       setSourcePublicKey(buildPayload.sourcePublicKey ?? "");
       setNetworkPassphrase(buildPayload.networkPassphrase ?? "TESTNET");
-        setMessage("Unsigned XDR prepared and placed in input. Submit will trigger wallet signing automatically.");
+      setMessage("Unsigned XDR prepared and placed in input. Submit will trigger wallet signing automatically.");
+      pushToast("success", "Unsigned XDR prepared.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected payment preparation failure.");
+      const errorMessage = error instanceof Error ? error.message : "Unexpected payment preparation failure.";
+      setMessage(errorMessage);
+      pushToast("error", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -257,14 +305,18 @@ export function DecisionConsole() {
 
       if (!signedXdr) {
         setMessage("Freighter transaction signing failed or was rejected.");
+        pushToast("error", "Wallet signing failed or was rejected.");
         return;
       }
 
       setSignedXdrInput(signedXdr);
       setMessage("Freighter signing complete. Submitting signed XDR...");
+      pushToast("success", "Wallet signing complete.");
       await submitSignedXdr(signedXdr);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Freighter signing failed.");
+      const errorMessage = error instanceof Error ? error.message : "Freighter signing failed.";
+      setMessage(errorMessage);
+      pushToast("error", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -310,7 +362,9 @@ export function DecisionConsole() {
         const resultDetail = submitPayload.resultCode
           ? ` (tx: ${submitPayload.resultCode}${submitPayload.operationCodes?.length ? `, ops: ${submitPayload.operationCodes.join(",")}` : ""})`
           : "";
-        setMessage((submitPayload.error ?? "Failed to submit signed transaction.") + resultDetail);
+        const errorMessage = (submitPayload.error ?? "Failed to submit signed transaction.") + resultDetail;
+        setMessage(errorMessage);
+        pushToast("error", errorMessage);
         return;
       }
 
@@ -320,15 +374,33 @@ export function DecisionConsole() {
       setMessage(
         `Real Stellar testnet payment submitted: ${submitPayload.payment.hash} — ${explorerUrl}`
       );
+      pushToast("success", "Transaction submitted to Stellar testnet.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected payment submission failure.");
+      const errorMessage = error instanceof Error ? error.message : "Unexpected payment submission failure.";
+      setMessage(errorMessage);
+      pushToast("error", errorMessage);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <>
+      <div className="fixed right-4 top-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`max-w-sm rounded-lg border px-3 py-2 text-sm shadow-lg backdrop-blur ${
+              toast.kind === "success"
+                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-100"
+                : "border-rose-500/40 bg-rose-500/15 text-rose-100"
+            }`}
+          >
+            {toast.text}
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle>Demo Scenario Runner</CardTitle>
@@ -490,11 +562,12 @@ export function DecisionConsole() {
                 <ShieldAlert className="h-4 w-4" />
                 Console status
               </AlertTitle>
-              <AlertDescription>{message}</AlertDescription>
+              <AlertDescription>{renderMessageWithLinks(message)}</AlertDescription>
             </Alert>
           ) : null}
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
