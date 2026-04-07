@@ -61,6 +61,7 @@ export function DecisionConsole() {
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
   const [decisionData, setDecisionData] = useState<DecisionApiResponse | null>(null);
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+  const [lastTxExplorerUrl, setLastTxExplorerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [unsignedXdr, setUnsignedXdr] = useState<string>("");
@@ -79,6 +80,10 @@ export function DecisionConsole() {
 
   const writeDisabled = loading || sessionLoading || !isOperator;
   const canHumanApprove = decisionData?.result.decision === "REQUIRE_APPROVAL";
+
+  function getExplorerUrl(hash: string) {
+    return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+  }
 
   function ensureOperator() {
     if (isOperator) {
@@ -217,9 +222,10 @@ export function DecisionConsole() {
       }
 
       setUnsignedXdr(buildPayload.xdr);
+        setSignedXdrInput(buildPayload.xdr);
       setSourcePublicKey(buildPayload.sourcePublicKey ?? "");
       setNetworkPassphrase(buildPayload.networkPassphrase ?? "TESTNET");
-      setMessage("Unsigned XDR prepared. Sign with Freighter or another Stellar wallet, then submit signed XDR.");
+        setMessage("Unsigned XDR prepared and placed in input. Submit will trigger wallet signing automatically.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unexpected payment preparation failure.");
     } finally {
@@ -278,11 +284,12 @@ export function DecisionConsole() {
     }
 
     if (unsignedXdr && signedXdr === unsignedXdr.trim()) {
-      setMessage("You pasted unsigned XDR. Sign it in your wallet first, then submit the signed XDR.");
+      await signWithFreighter();
       return;
     }
 
     setLoading(true);
+  setMessage("Submitting signed XDR to Stellar testnet...");
     try {
       const submitResponse = await fetch("/api/stellar/submit-signed", {
         method: "POST",
@@ -308,10 +315,10 @@ export function DecisionConsole() {
       }
 
       setLastTxHash(submitPayload.payment.hash);
+      const explorerUrl = submitPayload.explorerUrl ?? getExplorerUrl(submitPayload.payment.hash);
+      setLastTxExplorerUrl(explorerUrl);
       setMessage(
-        submitPayload.explorerUrl
-          ? `Real Stellar testnet payment submitted: ${submitPayload.payment.hash} — ${submitPayload.explorerUrl}`
-          : `Real Stellar testnet payment submitted: ${submitPayload.payment.hash}`
+        `Real Stellar testnet payment submitted: ${submitPayload.payment.hash} — ${explorerUrl}`
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unexpected payment submission failure.");
@@ -425,34 +432,21 @@ export function DecisionConsole() {
               Prepare Payment XDR
             </Button>
             <Button variant="outline" onClick={signWithFreighter} disabled={writeDisabled || !unsignedXdr}>
-              Sign with Freighter (Optional)
+              Sign with Wallet (Optional)
             </Button>
-            {unsignedXdr ? (
-              <textarea
-                className="min-h-16 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-2 text-xs"
-                value={unsignedXdr}
-                readOnly
-              />
-            ) : null}
             <textarea
               className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
               value={signedXdrInput}
               onChange={(event) => setSignedXdrInput(event.target.value)}
-              placeholder="Paste FULL signed XDR (do not paste preview with ...)"
+              placeholder="Signed XDR will auto-fill after wallet signing (manual paste optional)"
             />
-            <Button variant="secondary" onClick={() => submitSignedXdr()} disabled={writeDisabled || !signedXdrInput.trim()}>
+            <Button
+              variant="secondary"
+              onClick={() => (signedXdrInput.trim() ? submitSignedXdr() : signWithFreighter())}
+              disabled={writeDisabled || (!signedXdrInput.trim() && !unsignedXdr)}
+            >
               Submit Signed XDR
             </Button>
-            {unsignedXdr ? (
-              <Alert>
-                <AlertTitle>Unsigned XDR Ready (preview)</AlertTitle>
-                <AlertDescription>
-                  {truncateMiddle(unsignedXdr, 36, 36)}
-                  {" "}
-                  Sign this unsigned XDR in wallet, then paste the full signed output below.
-                </AlertDescription>
-              </Alert>
-            ) : null}
           </div>
 
           {decisionData ? (
@@ -477,7 +471,16 @@ export function DecisionConsole() {
           {lastTxHash ? (
             <Alert>
               <AlertTitle>Latest payment hash</AlertTitle>
-              <AlertDescription>{truncateMiddle(lastTxHash, 12, 12)}</AlertDescription>
+              <AlertDescription>
+                <a
+                  href={lastTxExplorerUrl ?? getExplorerUrl(lastTxHash)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  {lastTxExplorerUrl ?? getExplorerUrl(lastTxHash)}
+                </a>
+              </AlertDescription>
             </Alert>
           ) : null}
 
