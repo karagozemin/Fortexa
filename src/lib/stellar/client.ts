@@ -25,6 +25,13 @@ export function getAgentKeypair() {
   return Keypair.fromSecret(secret);
 }
 
+export function getKeypairFromSecret(secret?: string | null) {
+  if (!secret) {
+    return null;
+  }
+  return Keypair.fromSecret(secret);
+}
+
 export function getAgentPublicKey() {
   const fromSecret = getAgentKeypair();
   if (fromSecret) {
@@ -50,7 +57,11 @@ export async function fundWithFriendbot(publicKey: string) {
 }
 
 export async function sendPayment(request: StellarPaymentRequest) {
-  const keypair = getAgentKeypair();
+  return sendPaymentWithSecret(request, process.env.STELLAR_AGENT_SECRET);
+}
+
+export async function sendPaymentWithSecret(request: StellarPaymentRequest, secret?: string | null) {
+  const keypair = getKeypairFromSecret(secret);
 
   if (!keypair) {
     return {

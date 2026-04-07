@@ -1,10 +1,16 @@
-import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 
+import { NextRequest, NextResponse } from "next/server";
+
+import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
 import { fundWithFriendbot, getAgentPublicKey } from "@/lib/stellar/client";
+import { getUserWallet } from "@/lib/storage/user-wallet-store";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => ({}))) as { publicKey?: string };
-  const publicKey = payload.publicKey ?? getAgentPublicKey();
+  const { userId, shouldSetCookie } = getOrCreateUserId(request);
+  const assignedWallet = await getUserWallet(userId);
+  const publicKey = payload.publicKey ?? assignedWallet?.publicKey ?? getAgentPublicKey();
 
   if (!publicKey) {
     return NextResponse.json({ error: "No public key provided or configured." }, { status: 400 });
@@ -12,7 +18,18 @@ export async function POST(request: Request) {
 
   try {
     const funded = await fundWithFriendbot(publicKey);
-    return NextResponse.json({ ok: true, funded });
+    const response = NextResponse.json({ ok: true, userId, publicKey, funded });
+
+    if (shouldSetCookie) {
+      response.cookies.set(USER_COOKIE_KEY, userId ?? randomUUID(), {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Funding failed." },

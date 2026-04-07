@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,13 @@ import { truncateMiddle } from "@/lib/utils/format";
 
 type WalletData = {
   configured: boolean;
+  userId?: string;
+  source?: "custodial" | "freighter" | "env";
   publicKey?: string;
   balance?: string;
   message?: string;
   error?: string;
+  network?: string;
 };
 
 export function WalletStatusCard() {
@@ -56,6 +59,73 @@ export function WalletStatusCard() {
     }
   }
 
+  async function setupTestnetWallet() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/stellar/setup", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        publicKey?: string;
+        error?: string;
+      };
+
+      if (!response.ok || payload.error) {
+        setStatus(payload.error ?? "Testnet setup failed.");
+        return;
+      }
+
+      setStatus(payload.message ?? "Testnet wallet setup complete.");
+      await loadWallet();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to setup testnet wallet.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function connectFreighter() {
+    setLoading(true);
+    try {
+      const { requestAccess } = await import("@stellar/freighter-api");
+      const access = await requestAccess();
+
+      if (!access.address) {
+        setStatus(access.error ?? "Freighter bağlantısı başarısız.");
+        return;
+      }
+
+      const response = await fetch("/api/stellar/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "freighter",
+          publicKey: access.address,
+          fund: true,
+        }),
+      });
+
+      const payload = (await response.json()) as { error?: string; message?: string };
+      if (!response.ok || payload.error) {
+        setStatus(payload.error ?? "Freighter adresi bağlanamadı.");
+        return;
+      }
+
+      setStatus(payload.message ?? "Freighter cüzdanı bağlandı.");
+      await loadWallet();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Freighter bağlantı hatası.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadWallet();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -64,6 +134,8 @@ export function WalletStatusCard() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex gap-2">
+          <Button variant="outline" onClick={setupTestnetWallet} disabled={loading}>Setup Testnet Wallet</Button>
+          <Button variant="outline" onClick={connectFreighter} disabled={loading}>Connect Freighter</Button>
           <Button onClick={loadWallet} disabled={loading}>Refresh Wallet</Button>
           <Button variant="secondary" onClick={fundWallet} disabled={loading}>Fund via Friendbot</Button>
         </div>
@@ -72,7 +144,10 @@ export function WalletStatusCard() {
           <div className="rounded-xl border border-[hsl(var(--border))] p-3">
             <p className="text-[hsl(var(--muted-foreground))]">Public Key</p>
             <p className="font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
+            {data.userId ? <p className="mt-2 text-[hsl(var(--muted-foreground))]">Assigned User: {truncateMiddle(data.userId, 8, 8)}</p> : null}
+            {data.source ? <p className="text-[hsl(var(--muted-foreground))]">Source: {data.source}</p> : null}
             <p className="mt-2 text-[hsl(var(--muted-foreground))]">Balance: {data.balance ?? "0"} XLM</p>
+            {data.network ? <p className="text-[hsl(var(--muted-foreground))]">Network: {data.network}</p> : null}
           </div>
         ) : null}
 

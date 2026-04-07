@@ -1,9 +1,16 @@
-import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 
-import { sendPayment } from "@/lib/stellar/client";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
+import { sendPaymentWithSecret } from "@/lib/stellar/client";
+import { getUserWallet } from "@/lib/storage/user-wallet-store";
+
+export async function POST(request: NextRequest) {
   try {
+    const { userId, shouldSetCookie } = getOrCreateUserId(request);
+    const assignedWallet = await getUserWallet(userId);
+
     const payload = (await request.json()) as {
       destination: string;
       amountXLM: string;
@@ -14,9 +21,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "destination and amountXLM are required" }, { status: 400 });
     }
 
-    const payment = await sendPayment(payload);
+    const signingSecret = assignedWallet
+      ? assignedWallet.source === "custodial"
+        ? assignedWallet.secret
+        : null
+      : process.env.STELLAR_AGENT_SECRET;
 
-    return NextResponse.json({ ok: true, payment });
+    const payment = await sendPaymentWithSecret(payload, signingSecret);
+
+    const response = NextResponse.json({
+      ok: true,
+      userId,
+      source: assignedWallet?.source ?? "env",
+      sourcePublicKey: assignedWallet?.publicKey ?? process.env.STELLAR_AGENT_PUBLIC ?? null,
+      payment,
+    });
+
+    if (shouldSetCookie) {
+      response.cookies.set(USER_COOKIE_KEY, userId ?? randomUUID(), {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Payment failed." },
