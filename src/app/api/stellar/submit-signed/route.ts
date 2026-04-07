@@ -7,6 +7,42 @@ import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { submitSignedTransactionXdr } from "@/lib/stellar/client";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
 
+function getTestnetExplorerUrl(hash: string) {
+  return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+}
+
+function formatSubmitError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return { message: "Failed to submit signed transaction." };
+  }
+
+  const withResponse = error as Error & {
+    response?: {
+      data?: {
+        extras?: {
+          result_codes?: {
+            transaction?: string;
+            operations?: string[];
+          };
+        };
+      };
+    };
+  };
+
+  const txCode = withResponse.response?.data?.extras?.result_codes?.transaction;
+  const opCodes = withResponse.response?.data?.extras?.result_codes?.operations;
+
+  if (!txCode) {
+    return { message: error.message };
+  }
+
+  return {
+    message: `${error.message} (tx: ${txCode}${opCodes?.length ? `, ops: ${opCodes.join(",")}` : ""})`,
+    txCode,
+    opCodes,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
   const context = getRequestLogContext(request, "/api/stellar/submit-signed");
@@ -77,19 +113,25 @@ export async function POST(request: NextRequest) {
           mode: "real",
           ...submitted,
         },
+        explorerUrl: getTestnetExplorerUrl(submitted.hash),
       },
       headers: rateLimitHeaders(rate),
     });
   } catch (error) {
+    const formatted = formatSubmitError(error);
     logError("Submit signed internal error", {
       ...context,
-      detail: error instanceof Error ? error.message : "unknown",
+      detail: formatted.message,
     });
     return jsonWithRequestContext(request, {
       route: "/api/stellar/submit-signed",
       startedAtMs,
       status: 500,
-      body: { error: error instanceof Error ? error.message : "Failed to submit signed transaction." },
+      body: {
+        error: formatted.message,
+        resultCode: formatted.txCode,
+        operationCodes: formatted.opCodes,
+      },
       headers: rateLimitHeaders(rate),
     });
   }

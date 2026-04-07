@@ -272,6 +272,16 @@ export function DecisionConsole() {
       return;
     }
 
+    if (signedXdr.includes("...")) {
+      setMessage("This looks like a truncated XDR preview. Paste the full signed XDR value.");
+      return;
+    }
+
+    if (unsignedXdr && signedXdr === unsignedXdr.trim()) {
+      setMessage("You pasted unsigned XDR. Sign it in your wallet first, then submit the signed XDR.");
+      return;
+    }
+
     setLoading(true);
     try {
       const submitResponse = await fetch("/api/stellar/submit-signed", {
@@ -283,16 +293,26 @@ export function DecisionConsole() {
       const submitPayload = (await submitResponse.json()) as {
         ok?: boolean;
         error?: string;
+        resultCode?: string;
+        operationCodes?: string[];
+        explorerUrl?: string;
         payment?: { hash: string; mode: string; status: string };
       };
 
       if (!submitResponse.ok || submitPayload.error || !submitPayload.payment) {
-        setMessage(submitPayload.error ?? "Failed to submit signed transaction.");
+        const resultDetail = submitPayload.resultCode
+          ? ` (tx: ${submitPayload.resultCode}${submitPayload.operationCodes?.length ? `, ops: ${submitPayload.operationCodes.join(",")}` : ""})`
+          : "";
+        setMessage((submitPayload.error ?? "Failed to submit signed transaction.") + resultDetail);
         return;
       }
 
       setLastTxHash(submitPayload.payment.hash);
-      setMessage(`Real Stellar testnet payment submitted: ${submitPayload.payment.hash}`);
+      setMessage(
+        submitPayload.explorerUrl
+          ? `Real Stellar testnet payment submitted: ${submitPayload.payment.hash} — ${submitPayload.explorerUrl}`
+          : `Real Stellar testnet payment submitted: ${submitPayload.payment.hash}`
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unexpected payment submission failure.");
     } finally {
@@ -407,19 +427,30 @@ export function DecisionConsole() {
             <Button variant="outline" onClick={signWithFreighter} disabled={writeDisabled || !unsignedXdr}>
               Sign with Freighter (Optional)
             </Button>
+            {unsignedXdr ? (
+              <textarea
+                className="min-h-16 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-2 text-xs"
+                value={unsignedXdr}
+                readOnly
+              />
+            ) : null}
             <textarea
               className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
               value={signedXdrInput}
               onChange={(event) => setSignedXdrInput(event.target.value)}
-              placeholder="Paste signed XDR (any Stellar wallet/signing flow)"
+              placeholder="Paste FULL signed XDR (do not paste preview with ...)"
             />
             <Button variant="secondary" onClick={() => submitSignedXdr()} disabled={writeDisabled || !signedXdrInput.trim()}>
               Submit Signed XDR
             </Button>
             {unsignedXdr ? (
               <Alert>
-                <AlertTitle>Unsigned XDR Ready</AlertTitle>
-                <AlertDescription>{truncateMiddle(unsignedXdr, 36, 36)}</AlertDescription>
+                <AlertTitle>Unsigned XDR Ready (preview)</AlertTitle>
+                <AlertDescription>
+                  {truncateMiddle(unsignedXdr, 36, 36)}
+                  {" "}
+                  Sign this unsigned XDR in wallet, then paste the full signed output below.
+                </AlertDescription>
               </Alert>
             ) : null}
           </div>

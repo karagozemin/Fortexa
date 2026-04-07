@@ -38,7 +38,7 @@ export async function buildUnsignedPaymentTransaction(request: StellarPaymentReq
       })
     )
     .addMemo(Memo.text(request.memo?.slice(0, 28) ?? "Fortexa payment"))
-    .setTimeout(30)
+    .setTimeout(180)
     .build();
 
   return {
