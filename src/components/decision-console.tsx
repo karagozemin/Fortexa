@@ -36,6 +36,15 @@ type DemoRunResponse = {
   }>;
 };
 
+type BalanceApiResponse = {
+  configured: boolean;
+  source?: "custodial" | "freighter" | "env";
+  publicKey?: string;
+  network?: string;
+  error?: string;
+  message?: string;
+};
+
 export function DecisionConsole() {
   const [selectedScenarioId, setSelectedScenarioId] = useState(demoScenarios[0]?.id ?? "");
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
@@ -86,14 +95,84 @@ export function DecisionConsole() {
     setLoading(true);
 
     try {
+      const balanceResponse = await fetch("/api/stellar/balance");
+      const balancePayload = (await balanceResponse.json()) as BalanceApiResponse;
+
+      if (!balanceResponse.ok || balancePayload.error) {
+        setMessage(balancePayload.error ?? "Unable to load wallet source.");
+        return;
+      }
+
+      const paymentPayload = {
+        destination,
+        amountXLM: selectedScenario.action.amountXLM.toFixed(7),
+        memo: `fortexa:${selectedScenario.id}`,
+      };
+
+      if (balancePayload.source === "freighter") {
+        const buildResponse = await fetch("/api/stellar/build-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentPayload),
+        });
+
+        const buildPayload = (await buildResponse.json()) as {
+          ok?: boolean;
+          error?: string;
+          xdr?: string;
+          sourcePublicKey?: string;
+          networkPassphrase?: string;
+        };
+
+        if (!buildResponse.ok || buildPayload.error || !buildPayload.xdr) {
+          setMessage(buildPayload.error ?? "Failed to build Freighter transaction.");
+          return;
+        }
+
+        const freighter = await import("@stellar/freighter-api");
+        const signedResult = await freighter.signTransaction(buildPayload.xdr, {
+          networkPassphrase: buildPayload.networkPassphrase,
+          address: buildPayload.sourcePublicKey,
+          accountToSign: buildPayload.sourcePublicKey,
+        } as never);
+
+        const signedXdr =
+          typeof signedResult === "string"
+            ? signedResult
+            : (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTxXdr ??
+              (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTransaction;
+
+        if (!signedXdr) {
+          setMessage("Freighter transaction signing failed or was rejected.");
+          return;
+        }
+
+        const submitResponse = await fetch("/api/stellar/submit-signed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signedXdr }),
+        });
+
+        const submitPayload = (await submitResponse.json()) as {
+          ok?: boolean;
+          error?: string;
+          payment?: { hash: string; mode: string; status: string };
+        };
+
+        if (!submitResponse.ok || submitPayload.error || !submitPayload.payment) {
+          setMessage(submitPayload.error ?? "Failed to submit Freighter-signed transaction.");
+          return;
+        }
+
+        setLastTxHash(submitPayload.payment.hash);
+        setMessage(`Freighter signed + submitted Stellar testnet payment: ${submitPayload.payment.hash}`);
+        return;
+      }
+
       const response = await fetch("/api/stellar/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination,
-          amountXLM: selectedScenario.action.amountXLM.toFixed(7),
-          memo: `fortexa:${selectedScenario.id}`,
-        }),
+        body: JSON.stringify(paymentPayload),
       });
 
       const payload = (await response.json()) as {
