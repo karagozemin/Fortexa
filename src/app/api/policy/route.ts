@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const updated = await updatePolicyConfig(parsed.data);
+    const updated = await updatePolicyConfig(parsed.data, auth.session.userId);
     logInfo("Policy update success", { ...context, userId: auth.session.userId });
     return jsonWithRequestContext(request, {
       route: "/api/policy",

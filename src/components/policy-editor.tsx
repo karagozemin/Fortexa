@@ -12,6 +12,16 @@ import type { PolicyConfig } from "@/lib/types/domain";
 type PolicyResponse = {
   policy?: PolicyConfig;
   updatedAt?: string | null;
+  version?: number;
+  error?: string;
+};
+
+type PolicyHistoryResponse = {
+  entries?: Array<{
+    version: number;
+    updatedAt: string;
+    updatedBy?: string;
+  }>;
   error?: string;
 };
 
@@ -34,6 +44,8 @@ export function PolicyEditor() {
   const [allowedTools, setAllowedTools] = useState("");
   const [blockedTools, setBlockedTools] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [version, setVersion] = useState<number | null>(null);
+  const [history, setHistory] = useState<Array<{ version: number; updatedAt: string; updatedBy?: string }>>([]);
   const [status, setStatus] = useState<string>("Loading policy...");
   const [loading, setLoading] = useState(false);
 
@@ -56,6 +68,7 @@ export function PolicyEditor() {
       setAllowedTools(listToText(payload.policy.allowedTools));
       setBlockedTools(listToText(payload.policy.blockedTools));
       setUpdatedAt(payload.updatedAt ?? null);
+      setVersion(payload.version ?? null);
       setStatus("Policy loaded.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unexpected policy load error.");
@@ -100,7 +113,9 @@ export function PolicyEditor() {
 
       setPolicy(payload.policy);
       setUpdatedAt(payload.updatedAt ?? null);
+      setVersion(payload.version ?? null);
       setStatus("Policy updated successfully.");
+      await loadHistory();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unexpected policy save error.");
     } finally {
@@ -108,8 +123,61 @@ export function PolicyEditor() {
     }
   }
 
+  async function loadHistory() {
+    try {
+      const response = await fetch("/api/policy/history?limit=8", { cache: "no-store" });
+      const payload = (await response.json()) as PolicyHistoryResponse;
+
+      if (!response.ok || payload.error) {
+        return;
+      }
+
+      setHistory(payload.entries ?? []);
+    } catch {
+      setHistory([]);
+    }
+  }
+
+  async function rollback(versionToRollback: number) {
+    if (!isOperator) {
+      setStatus("Viewer role is read-only. Login as operator to rollback policy.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/policy/rollback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetVersion: versionToRollback }),
+      });
+
+      const payload = (await response.json()) as PolicyResponse;
+
+      if (!response.ok || payload.error || !payload.policy) {
+        setStatus(payload.error ?? "Rollback failed.");
+        return;
+      }
+
+      setPolicy(payload.policy);
+      setAllowedDomains(listToText(payload.policy.allowedDomains));
+      setBlockedDomains(listToText(payload.policy.blockedDomains));
+      setAllowedTools(listToText(payload.policy.allowedTools));
+      setBlockedTools(listToText(payload.policy.blockedTools));
+      setUpdatedAt(payload.updatedAt ?? null);
+      setVersion(payload.version ?? null);
+      setStatus(`Rollback successful to version ${versionToRollback}.`);
+      await loadHistory();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unexpected rollback error.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadPolicy();
+    void loadHistory();
   }, []);
 
   return (
@@ -127,6 +195,10 @@ export function PolicyEditor() {
           <CardDescription>View and edit active policy config used by decision engine.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-[hsl(var(--border))] p-3">
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">Current version</p>
+            <p className="text-lg font-semibold">{version ?? "-"}</p>
+          </div>
           <div className="rounded-xl border border-[hsl(var(--border))] p-3">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Per-transaction cap</p>
             <Input
@@ -229,9 +301,39 @@ export function PolicyEditor() {
         </Card>
       </section>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Policy Version History</CardTitle>
+          <CardDescription>Latest saved policy versions with optional rollback.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {history.length === 0 ? <p className="text-sm text-[hsl(var(--muted-foreground))]">No history records.</p> : null}
+          {history.map((entry) => (
+            <div key={entry.version} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] p-2 text-sm">
+              <div>
+                <p className="font-medium">v{entry.version}</p>
+                <p className="text-[hsl(var(--muted-foreground))]">
+                  {entry.updatedAt}
+                  {entry.updatedBy ? ` • ${entry.updatedBy}` : ""}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={writeDisabled || version === entry.version}
+                onClick={() => rollback(entry.version)}
+              >
+                Rollback
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       <div className="flex gap-2">
         <Button onClick={savePolicy} disabled={writeDisabled}>Save Policy</Button>
         <Button variant="outline" onClick={loadPolicy} disabled={loading}>Reload</Button>
+        <Button variant="outline" onClick={loadHistory} disabled={loading}>Reload History</Button>
       </div>
 
       <Alert className="border-blue-500/40 bg-blue-500/10">

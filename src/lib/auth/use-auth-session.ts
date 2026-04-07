@@ -8,6 +8,7 @@ type SessionPayload = {
     email?: string;
     role?: "operator" | "viewer";
     userId?: string;
+    exp?: number;
   };
 };
 
@@ -34,6 +35,15 @@ export function useAuthSession() {
           setAuthenticated(true);
           setEmail(payload.user.email ?? null);
           setRole(payload.user.role);
+
+          const now = Math.floor(Date.now() / 1000);
+          const exp = payload.user.exp ?? 0;
+          const shouldRefresh = exp > 0 && exp - now < 60 * 60 * 24;
+
+          if (shouldRefresh) {
+            void fetch("/api/auth/refresh", { method: "POST" });
+          }
+
           setLoading(false);
           return;
         }

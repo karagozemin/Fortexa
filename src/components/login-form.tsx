@@ -12,6 +12,7 @@ export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -24,7 +25,7 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, mfaCode: mfaCode.trim() || undefined }),
       });
 
       const payload = (await response.json()) as { error?: string; role?: string };
@@ -65,6 +66,12 @@ export function LoginForm() {
             onChange={(event) => setPassword(event.target.value)}
             placeholder="password"
             required
+          />
+          <Input
+            type="text"
+            value={mfaCode}
+            onChange={(event) => setMfaCode(event.target.value)}
+            placeholder="MFA code (optional if enabled)"
           />
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Signing in..." : "Sign In"}

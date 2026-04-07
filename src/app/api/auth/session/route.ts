@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
       email: session.email,
       role: session.role,
       userId: session.userId,
+      exp: session.exp,
     },
   });
 }
