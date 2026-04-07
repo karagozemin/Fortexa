@@ -5,7 +5,6 @@ import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
 import { evaluateDecision } from "@/lib/decision/engine";
 import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { demoScenarios } from "@/lib/scenarios/seed";
-import { executePaymentForUser } from "@/lib/stellar/execute-user-payment";
 import { appendAuditEntry, consumeUsage, getDailyUsage, resetAuditState } from "@/lib/storage/audit-store";
 
 export async function POST(request: NextRequest) {
@@ -51,16 +50,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (scenario.id === "safe-research-payment" && (finalDecision === "APPROVE" || finalDecision === "WARN") && payload.destination) {
-        const paymentResult = await executePaymentForUser(userId, {
-          destination: payload.destination,
-          amountXLM: scenario.action.amountXLM.toFixed(7),
-          memo: `fortexa:demo:${scenario.id}`,
-        });
-        stellarTxHash = paymentResult.payment.hash;
-
-        if (paymentResult.isFreighterNonCustodial) {
-          explanation = `${explanation} Demo mode used shared payment pipeline; Freighter-linked wallets require interactive extension signing for a real on-chain submit.`;
-        }
+        explanation = `${explanation} Demo mode does not auto-sign payments. Execute real on-chain payment from Decision Console using Freighter.`;
       }
 
       await appendAuditEntry(userId, {

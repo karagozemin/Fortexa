@@ -3,21 +3,21 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
-import { getAgentPublicKey, getNativeBalance } from "@/lib/stellar/client";
+import { getNativeBalance } from "@/lib/stellar/client";
 import { getUserWallet } from "@/lib/storage/user-wallet-store";
 
 export async function GET(request: NextRequest) {
   const { userId, shouldSetCookie } = getOrCreateUserId(request);
   const assignedWallet = await getUserWallet(userId);
-  const publicKey = assignedWallet?.publicKey ?? getAgentPublicKey();
+  const publicKey = assignedWallet?.publicKey;
 
-  if (!publicKey) {
+  if (!publicKey || assignedWallet?.source !== "freighter") {
     const response = NextResponse.json(
       {
         configured: false,
         userId,
         network: "stellar-testnet",
-        message: "Set STELLAR_AGENT_SECRET or STELLAR_AGENT_PUBLIC in .env.local for real wallet mode.",
+        message: "Connect your Freighter wallet to continue with real on-chain transactions.",
       },
       { status: 200 }
     );
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json({
       configured: true,
       userId,
-      source: assignedWallet?.source ?? "env",
+      source: assignedWallet.source,
       network: "stellar-testnet",
       publicKey,
       balance,
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       {
         configured: true,
         userId,
-        source: assignedWallet?.source ?? "env",
+        source: assignedWallet.source,
         network: "stellar-testnet",
         publicKey,
         error: error instanceof Error ? error.message : "Failed to load balance.",

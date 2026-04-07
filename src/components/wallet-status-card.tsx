@@ -10,7 +10,7 @@ import { truncateMiddle } from "@/lib/utils/format";
 type WalletData = {
   configured: boolean;
   userId?: string;
-  source?: "custodial" | "freighter" | "env";
+  source?: "freighter";
   publicKey?: string;
   balance?: string;
   message?: string;
@@ -59,33 +59,6 @@ export function WalletStatusCard() {
     }
   }
 
-  async function setupTestnetWallet() {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/stellar/setup", {
-        method: "POST",
-      });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        publicKey?: string;
-        error?: string;
-      };
-
-      if (!response.ok || payload.error) {
-        setStatus(payload.error ?? "Testnet setup failed.");
-        return;
-      }
-
-      setStatus(payload.message ?? "Testnet wallet setup complete.");
-      await loadWallet();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Failed to setup testnet wallet.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function connectFreighter() {
     setLoading(true);
     try {
@@ -101,7 +74,6 @@ export function WalletStatusCard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: "freighter",
           publicKey: access.address,
           fund: true,
         }),
@@ -134,7 +106,6 @@ export function WalletStatusCard() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex gap-2">
-          <Button variant="outline" onClick={setupTestnetWallet} disabled={loading}>Setup Testnet Wallet</Button>
           <Button variant="outline" onClick={connectFreighter} disabled={loading}>Connect Freighter</Button>
           <Button onClick={loadWallet} disabled={loading}>Refresh Wallet</Button>
           <Button variant="secondary" onClick={fundWallet} disabled={loading}>Fund via Friendbot</Button>

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
-import { buildUnsignedPaymentTransaction, getAgentPublicKey } from "@/lib/stellar/client";
+import { buildUnsignedPaymentTransaction } from "@/lib/stellar/client";
 import { getUserWallet } from "@/lib/storage/user-wallet-store";
 
 export async function POST(request: NextRequest) {
@@ -21,10 +21,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "destination and amountXLM are required" }, { status: 400 });
     }
 
-    const sourcePublicKey = assignedWallet?.publicKey ?? getAgentPublicKey();
+    const sourcePublicKey = assignedWallet?.publicKey;
 
-    if (!sourcePublicKey) {
-      return NextResponse.json({ error: "No source wallet is configured for this user." }, { status: 400 });
+    if (!sourcePublicKey || assignedWallet?.source !== "freighter") {
+      return NextResponse.json({ error: "Freighter wallet must be connected before building transactions." }, { status: 400 });
     }
 
     const unsigned = await buildUnsignedPaymentTransaction(payload, sourcePublicKey);
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       ok: true,
       userId,
-      source: assignedWallet?.source ?? "env",
+      source: assignedWallet.source,
       sourcePublicKey,
       xdr: unsigned.xdr,
       networkPassphrase: unsigned.networkPassphrase,

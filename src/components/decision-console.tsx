@@ -38,7 +38,7 @@ type DemoRunResponse = {
 
 type BalanceApiResponse = {
   configured: boolean;
-  source?: "custodial" | "freighter" | "env";
+  source?: "freighter";
   publicKey?: string;
   network?: string;
   error?: string;
@@ -109,89 +109,67 @@ export function DecisionConsole() {
         memo: `fortexa:${selectedScenario.id}`,
       };
 
-      if (balancePayload.source === "freighter") {
-        const buildResponse = await fetch("/api/stellar/build-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(paymentPayload),
-        });
-
-        const buildPayload = (await buildResponse.json()) as {
-          ok?: boolean;
-          error?: string;
-          xdr?: string;
-          sourcePublicKey?: string;
-          networkPassphrase?: string;
-        };
-
-        if (!buildResponse.ok || buildPayload.error || !buildPayload.xdr) {
-          setMessage(buildPayload.error ?? "Failed to build Freighter transaction.");
-          return;
-        }
-
-        const freighter = await import("@stellar/freighter-api");
-        const signedResult = await freighter.signTransaction(buildPayload.xdr, {
-          networkPassphrase: buildPayload.networkPassphrase,
-          address: buildPayload.sourcePublicKey,
-          accountToSign: buildPayload.sourcePublicKey,
-        } as never);
-
-        const signedXdr =
-          typeof signedResult === "string"
-            ? signedResult
-            : (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTxXdr ??
-              (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTransaction;
-
-        if (!signedXdr) {
-          setMessage("Freighter transaction signing failed or was rejected.");
-          return;
-        }
-
-        const submitResponse = await fetch("/api/stellar/submit-signed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signedXdr }),
-        });
-
-        const submitPayload = (await submitResponse.json()) as {
-          ok?: boolean;
-          error?: string;
-          payment?: { hash: string; mode: string; status: string };
-        };
-
-        if (!submitResponse.ok || submitPayload.error || !submitPayload.payment) {
-          setMessage(submitPayload.error ?? "Failed to submit Freighter-signed transaction.");
-          return;
-        }
-
-        setLastTxHash(submitPayload.payment.hash);
-        setMessage(`Freighter signed + submitted Stellar testnet payment: ${submitPayload.payment.hash}`);
+      if (!balancePayload.configured || balancePayload.source !== "freighter") {
+        setMessage("Connect Freighter wallet first. Direct custodial payment path is disabled.");
         return;
       }
 
-      const response = await fetch("/api/stellar/pay", {
+      const buildResponse = await fetch("/api/stellar/build-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(paymentPayload),
       });
 
-      const payload = (await response.json()) as {
+      const buildPayload = (await buildResponse.json()) as {
         ok?: boolean;
-        payment?: { hash: string; mode: string; status: string };
         error?: string;
+        xdr?: string;
+        sourcePublicKey?: string;
+        networkPassphrase?: string;
       };
 
-      if (!response.ok || payload.error || !payload.payment) {
-        setMessage(payload.error ?? "Payment execution failed.");
+      if (!buildResponse.ok || buildPayload.error || !buildPayload.xdr) {
+        setMessage(buildPayload.error ?? "Failed to build Freighter transaction.");
         return;
       }
 
-      setLastTxHash(payload.payment.hash);
-      setMessage(
-        payload.payment.mode === "real"
-          ? `Real Stellar testnet payment submitted: ${payload.payment.hash}`
-          : `Simulated payment completed (configure STELLAR_AGENT_SECRET for real tx): ${payload.payment.hash}`
-      );
+      const freighter = await import("@stellar/freighter-api");
+      const signedResult = await freighter.signTransaction(buildPayload.xdr, {
+        networkPassphrase: buildPayload.networkPassphrase,
+        address: buildPayload.sourcePublicKey,
+        accountToSign: buildPayload.sourcePublicKey,
+      } as never);
+
+      const signedXdr =
+        typeof signedResult === "string"
+          ? signedResult
+          : (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTxXdr ??
+            (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTransaction;
+
+      if (!signedXdr) {
+        setMessage("Freighter transaction signing failed or was rejected.");
+        return;
+      }
+
+      const submitResponse = await fetch("/api/stellar/submit-signed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedXdr }),
+      });
+
+      const submitPayload = (await submitResponse.json()) as {
+        ok?: boolean;
+        error?: string;
+        payment?: { hash: string; mode: string; status: string };
+      };
+
+      if (!submitResponse.ok || submitPayload.error || !submitPayload.payment) {
+        setMessage(submitPayload.error ?? "Failed to submit Freighter-signed transaction.");
+        return;
+      }
+
+      setLastTxHash(submitPayload.payment.hash);
+      setMessage(`Freighter signed + submitted Stellar testnet payment: ${submitPayload.payment.hash}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unexpected payment failure.");
     } finally {

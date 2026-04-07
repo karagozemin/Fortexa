@@ -1,14 +1,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { decryptLocalSecret, encryptLocalSecret } from "@/lib/security/local-crypto";
-
 export type UserWallet = {
   userId: string;
   publicKey: string;
-  secret?: string;
-  encryptedSecret?: string;
-  source: "custodial" | "freighter";
+  source: "freighter";
   createdAt: string;
   updatedAt: string;
 };
@@ -37,11 +33,18 @@ async function readStore(): Promise<WalletStoreFile> {
 
   let migrated = false;
   for (const [userId, wallet] of Object.entries(store.wallets)) {
-    if (wallet.secret && !wallet.encryptedSecret) {
+    if (wallet.source !== "freighter") {
+      delete store.wallets[userId];
+      migrated = true;
+      continue;
+    }
+
+    if ("secret" in wallet || "encryptedSecret" in wallet) {
       store.wallets[userId] = {
-        ...wallet,
-        encryptedSecret: encryptLocalSecret(wallet.secret),
-        secret: undefined,
+        userId,
+        publicKey: wallet.publicKey,
+        source: "freighter",
+        createdAt: wallet.createdAt,
         updatedAt: new Date().toISOString(),
       };
       migrated = true;
@@ -61,28 +64,14 @@ async function writeStore(store: WalletStoreFile) {
 
 export async function getUserWallet(userId: string) {
   const store = await readStore();
-  const wallet = store.wallets[userId] ?? null;
-
-  if (!wallet) {
-    return null;
-  }
-
-  if (wallet.encryptedSecret) {
-    return {
-      ...wallet,
-      secret: decryptLocalSecret(wallet.encryptedSecret),
-    };
-  }
-
-  return wallet;
+  return store.wallets[userId] ?? null;
 }
 
 export async function upsertUserWallet(
   userId: string,
   payload: {
     publicKey: string;
-    secret?: string;
-    source: "custodial" | "freighter";
+    source: "freighter";
   }
 ) {
   const store = await readStore();
@@ -93,8 +82,6 @@ export async function upsertUserWallet(
     userId,
     publicKey: payload.publicKey,
     source: payload.source,
-    secret: undefined,
-    encryptedSecret: payload.secret ? encryptLocalSecret(payload.secret) : existing?.encryptedSecret,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

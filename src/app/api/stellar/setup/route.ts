@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import { Keypair } from "@stellar/stellar-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
@@ -12,57 +11,34 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
-      mode?: "custodial" | "freighter";
       publicKey?: string;
       fund?: boolean;
     };
 
     const { userId, shouldSetCookie } = getOrCreateUserId(request);
-    const mode = body.mode ?? "custodial";
     const shouldFund = body.fund ?? true;
 
-    let assignedPublicKey = "";
-    const source: "custodial" | "freighter" = mode;
+    if (!body.publicKey) {
+      return NextResponse.json({ error: "Freighter publicKey is required." }, { status: 400 });
+    }
 
-    if (mode === "freighter") {
-      if (!body.publicKey) {
-        return NextResponse.json({ error: "publicKey is required for freighter mode" }, { status: 400 });
-      }
+    const assignedPublicKey = body.publicKey;
+    await upsertUserWallet(userId, {
+      publicKey: assignedPublicKey,
+      source: "freighter",
+    });
 
-      assignedPublicKey = body.publicKey;
-      await upsertUserWallet(userId, {
-        publicKey: assignedPublicKey,
-        source: "freighter",
-      });
-
-      if (shouldFund) {
-        await fundWithFriendbot(assignedPublicKey);
-      }
-    } else {
-      const keypair = Keypair.random();
-      assignedPublicKey = keypair.publicKey();
-
-      await upsertUserWallet(userId, {
-        publicKey: keypair.publicKey(),
-        secret: keypair.secret(),
-        source: "custodial",
-      });
-
-      if (shouldFund) {
-        await fundWithFriendbot(keypair.publicKey());
-      }
+    if (shouldFund) {
+      await fundWithFriendbot(assignedPublicKey);
     }
 
     const response = NextResponse.json({
       ok: true,
       userId,
-      source,
+      source: "freighter",
       network: "stellar-testnet",
       publicKey: assignedPublicKey,
-      message:
-        source === "freighter"
-          ? "Freighter address linked to this user and optionally funded on testnet."
-          : "Testnet wallet generated, funded, and assigned to this user.",
+      message: "Freighter address linked to this user and optionally funded on testnet.",
     });
 
     if (shouldSetCookie) {

@@ -71,8 +71,9 @@ Included in `src/lib/scenarios/seed.ts`:
 - `src/lib/security/analyzer.ts` → risk findings + scoring
 - `src/lib/decision/engine.ts` → final decision orchestration
 - `src/lib/scenarios/seed.ts` → demo scenarios + defaults
-- `src/lib/storage/audit-store.ts` → in-memory audit + usage state
+- `src/lib/storage/audit-store.ts` → user-scoped persistent audit + usage state
 - `src/lib/stellar/client.ts` → Stellar testnet integration
+- `src/lib/storage/user-wallet-store.ts` → per-user Freighter wallet assignment
 
 ### API Routes
 - `POST /api/decision` → evaluate action and append audit entry
@@ -80,10 +81,10 @@ Included in `src/lib/scenarios/seed.ts`:
 - `POST /api/demo/run` → one-click full hackathon narrative (resets state, runs all scenarios, logs outcomes)
 - `GET /api/stellar/balance` → wallet identity + balance
 - `POST /api/stellar/fund` → friendbot funding
-- `POST /api/stellar/setup` → assign user wallet (custodial or Freighter-linked)
+- `POST /api/stellar/setup` → link connected Freighter wallet to current user
 - `POST /api/stellar/build-payment` → build unsigned payment XDR for Freighter signing
 - `POST /api/stellar/submit-signed` → submit Freighter-signed XDR to Horizon
-- `POST /api/stellar/pay` → submit/simulate Stellar payment
+- `POST /api/stellar/pay` → disabled (legacy); use signed Freighter flow
 
 ### Pages
 - `/` → overview dashboard + wallet card
@@ -94,30 +95,16 @@ Included in `src/lib/scenarios/seed.ts`:
 - `/activity` → audit trail
 
 ## Stellar Integration Details
-Fortexa supports two modes:
-
-### Real mode
-Set `STELLAR_AGENT_SECRET` in `.env.local`.
-- Uses Horizon testnet endpoint (`https://horizon-testnet.stellar.org`)
-- Builds and signs native XLM payment transaction
-- Returns real tx hash and ledger metadata
-
-### Demo-safe simulated mode
-If no secret is configured:
-- payment route returns a simulated tx hash (`SIM-...`)
-- full decisioning flow still works for judges
-
-This keeps demos resilient while still allowing a real testnet interaction when configured.
+Fortexa is now **Freighter-first**:
+- Users connect their own Freighter wallet.
+- Fortexa builds unsigned Stellar testnet XDR.
+- User signs inside Freighter extension.
+- Fortexa submits signed XDR to Horizon and returns real tx hash.
 
 ### User-assigned wallet model
 - Each user receives a stable `fortexa_user_id` cookie.
 - Wallet assignment is persisted per user in local storage files under `.fortexa/`.
-- Custodial secrets are encrypted at rest using `FORTEXA_LOCAL_ENC_KEY`.
-- Freighter-linked wallets are stored without custodial secrets and use extension-side signing.
-
-### Local secret storage note
-Hackathon implementation uses local file-based encrypted storage for speed.
-This is intentionally **hackathon-only** and should be replaced with a managed secret system (KMS/HSM) in production.
+- Only Freighter public addresses are stored; no custodial private keys are stored in repo files.
 
 ## Local Setup
 
@@ -132,16 +119,9 @@ Open `http://localhost:3000`.
 ## Minimal Env Config
 
 ```bash
-STELLAR_AGENT_SECRET=
-STELLAR_AGENT_PUBLIC=
-FORTEXA_LOCAL_ENC_KEY=
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org
 NEXT_PUBLIC_STELLAR_DESTINATION=
-```
-
-Generate an encryption key quickly:
-
-```bash
-openssl rand -base64 32
 ```
 
 ## Tests & Demo Harness
@@ -169,7 +149,6 @@ npm run lint
 
 ## Known Limitations
 - Freighter demo mode cannot auto-sign in server-only flows; real Freighter submission requires interactive browser extension approval.
-- Local encrypted secret storage is hackathon speed architecture, not production-grade key management.
 
 ## Hackathon Framing
 Fortexa is not a generic wallet UI and not a chatbot demo. It is a **trust layer for autonomous machine payments**: an agent payment firewall that makes AI economic actions safe, governable, and auditable on Stellar.

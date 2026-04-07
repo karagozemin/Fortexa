@@ -3,17 +3,17 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
-import { fundWithFriendbot, getAgentPublicKey } from "@/lib/stellar/client";
+import { fundWithFriendbot } from "@/lib/stellar/client";
 import { getUserWallet } from "@/lib/storage/user-wallet-store";
 
 export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => ({}))) as { publicKey?: string };
   const { userId, shouldSetCookie } = getOrCreateUserId(request);
   const assignedWallet = await getUserWallet(userId);
-  const publicKey = payload.publicKey ?? assignedWallet?.publicKey ?? getAgentPublicKey();
+  const publicKey = payload.publicKey ?? assignedWallet?.publicKey;
 
-  if (!publicKey) {
-    return NextResponse.json({ error: "No public key provided or configured." }, { status: 400 });
+  if (!publicKey || assignedWallet?.source !== "freighter") {
+    return NextResponse.json({ error: "Connect a Freighter wallet before requesting testnet funding." }, { status: 400 });
   }
 
   try {
