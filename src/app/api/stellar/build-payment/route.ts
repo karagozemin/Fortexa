@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
 
     const sourcePublicKey = assignedWallet?.publicKey;
 
-    if (!sourcePublicKey || assignedWallet?.source !== "freighter") {
-      return NextResponse.json({ error: "Freighter wallet must be connected before building transactions." }, { status: 400 });
+    if (!sourcePublicKey || assignedWallet?.source !== "external") {
+      return NextResponse.json({ error: "A linked Stellar wallet is required before building transactions." }, { status: 400 });
     }
 
     const unsigned = await buildUnsignedPaymentTransaction(payload, sourcePublicKey);
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       userId,
       source: assignedWallet.source,
+      provider: assignedWallet.provider ?? "unknown",
       sourcePublicKey,
       xdr: unsigned.xdr,
       networkPassphrase: unsigned.networkPassphrase,

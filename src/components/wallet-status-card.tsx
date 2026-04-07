@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { truncateMiddle } from "@/lib/utils/format";
 
 type WalletData = {
   configured: boolean;
   userId?: string;
-  source?: "freighter";
+  source?: "external";
+  provider?: string;
   publicKey?: string;
   balance?: string;
   message?: string;
@@ -22,6 +24,7 @@ export function WalletStatusCard() {
   const [data, setData] = useState<WalletData | null>(null);
   const [status, setStatus] = useState<string>("Wallet not loaded yet.");
   const [loading, setLoading] = useState(false);
+  const [manualPublicKey, setManualPublicKey] = useState("");
 
   async function loadWallet() {
     setLoading(true);
@@ -76,6 +79,7 @@ export function WalletStatusCard() {
         body: JSON.stringify({
           publicKey: access.address,
           fund: true,
+          provider: "freighter",
         }),
       });
 
@@ -89,6 +93,39 @@ export function WalletStatusCard() {
       await loadWallet();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Freighter bağlantı hatası.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function linkByPublicKey() {
+    if (!manualPublicKey.trim()) {
+      setStatus("Önce bir Stellar public key (G...) gir.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/stellar/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          publicKey: manualPublicKey.trim(),
+          fund: false,
+          provider: "external",
+        }),
+      });
+
+      const payload = (await response.json()) as { error?: string; message?: string };
+      if (!response.ok || payload.error) {
+        setStatus(payload.error ?? "Public key bağlanamadı.");
+        return;
+      }
+
+      setStatus(payload.message ?? "Cüzdan adresi bağlandı.");
+      await loadWallet();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Public key bağlantı hatası.");
     } finally {
       setLoading(false);
     }
@@ -111,12 +148,22 @@ export function WalletStatusCard() {
           <Button variant="secondary" onClick={fundWallet} disabled={loading}>Fund via Friendbot</Button>
         </div>
 
+        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+          <Input
+            value={manualPublicKey}
+            onChange={(event) => setManualPublicKey(event.target.value)}
+            placeholder="G... herhangi Stellar wallet public key"
+          />
+          <Button variant="outline" onClick={linkByPublicKey} disabled={loading}>Link by Public Key</Button>
+        </div>
+
         {data?.publicKey ? (
           <div className="rounded-xl border border-[hsl(var(--border))] p-3">
             <p className="text-[hsl(var(--muted-foreground))]">Public Key</p>
             <p className="font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
             {data.userId ? <p className="mt-2 text-[hsl(var(--muted-foreground))]">Assigned User: {truncateMiddle(data.userId, 8, 8)}</p> : null}
             {data.source ? <p className="text-[hsl(var(--muted-foreground))]">Source: {data.source}</p> : null}
+            {data.provider ? <p className="text-[hsl(var(--muted-foreground))]">Provider: {data.provider}</p> : null}
             <p className="mt-2 text-[hsl(var(--muted-foreground))]">Balance: {data.balance ?? "0"} XLM</p>
             {data.network ? <p className="text-[hsl(var(--muted-foreground))]">Network: {data.network}</p> : null}
           </div>

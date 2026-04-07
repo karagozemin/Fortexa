@@ -27,11 +27,20 @@ type DecisionApiResponse = {
 
 type BalanceApiResponse = {
   configured: boolean;
-  source?: "freighter";
+  source?: "external";
+  provider?: string;
   publicKey?: string;
   network?: string;
   error?: string;
   message?: string;
+};
+
+type BuildPaymentResponse = {
+  ok?: boolean;
+  error?: string;
+  xdr?: string;
+  sourcePublicKey?: string;
+  networkPassphrase?: string;
 };
 
 export function DecisionConsole() {
@@ -41,6 +50,10 @@ export function DecisionConsole() {
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [unsignedXdr, setUnsignedXdr] = useState<string>("");
+  const [signedXdrInput, setSignedXdrInput] = useState<string>("");
+  const [sourcePublicKey, setSourcePublicKey] = useState<string>("");
+  const [networkPassphrase, setNetworkPassphrase] = useState<string>("TESTNET");
 
   const selectedScenario = useMemo(
     () => demoScenarios.find((scenario) => scenario.id === selectedScenarioId),
@@ -74,7 +87,7 @@ export function DecisionConsole() {
     }
   }
 
-  async function executeStellarPayment() {
+  async function prepareStellarPaymentXdr() {
     if (!selectedScenario || !destination) {
       setMessage("Provide destination address for payment execution.");
       return;
@@ -97,8 +110,8 @@ export function DecisionConsole() {
         memo: `fortexa:${selectedScenario.id}`,
       };
 
-      if (!balancePayload.configured || balancePayload.source !== "freighter") {
-        setMessage("Connect Freighter wallet first. Direct custodial payment path is disabled.");
+      if (!balancePayload.configured || balancePayload.source !== "external") {
+        setMessage("Link a Stellar wallet first from Wallet page.");
         return;
       }
 
@@ -108,24 +121,37 @@ export function DecisionConsole() {
         body: JSON.stringify(paymentPayload),
       });
 
-      const buildPayload = (await buildResponse.json()) as {
-        ok?: boolean;
-        error?: string;
-        xdr?: string;
-        sourcePublicKey?: string;
-        networkPassphrase?: string;
-      };
+      const buildPayload = (await buildResponse.json()) as BuildPaymentResponse;
 
       if (!buildResponse.ok || buildPayload.error || !buildPayload.xdr) {
-        setMessage(buildPayload.error ?? "Failed to build Freighter transaction.");
+        setMessage(buildPayload.error ?? "Failed to build payment transaction XDR.");
         return;
       }
 
+      setUnsignedXdr(buildPayload.xdr);
+      setSourcePublicKey(buildPayload.sourcePublicKey ?? "");
+      setNetworkPassphrase(buildPayload.networkPassphrase ?? "TESTNET");
+      setMessage("Unsigned XDR prepared. Sign with Freighter or another Stellar wallet, then submit signed XDR.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unexpected payment preparation failure.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function signWithFreighter() {
+    if (!unsignedXdr) {
+      setMessage("Prepare payment XDR first.");
+      return;
+    }
+
+    setLoading(true);
+    try {
       const freighter = await import("@stellar/freighter-api");
-      const signedResult = await freighter.signTransaction(buildPayload.xdr, {
-        networkPassphrase: buildPayload.networkPassphrase,
-        address: buildPayload.sourcePublicKey,
-        accountToSign: buildPayload.sourcePublicKey,
+      const signedResult = await freighter.signTransaction(unsignedXdr, {
+        networkPassphrase,
+        address: sourcePublicKey || undefined,
+        accountToSign: sourcePublicKey || undefined,
       } as never);
 
       const signedXdr =
@@ -139,6 +165,25 @@ export function DecisionConsole() {
         return;
       }
 
+      setSignedXdrInput(signedXdr);
+      setMessage("Freighter signing complete. Submitting signed XDR...");
+      await submitSignedXdr(signedXdr);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Freighter signing failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitSignedXdr(signedXdrArg?: string) {
+    const signedXdr = (signedXdrArg ?? signedXdrInput).trim();
+    if (!signedXdr) {
+      setMessage("Paste a signed XDR first.");
+      return;
+    }
+
+    setLoading(true);
+    try {
       const submitResponse = await fetch("/api/stellar/submit-signed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,14 +197,14 @@ export function DecisionConsole() {
       };
 
       if (!submitResponse.ok || submitPayload.error || !submitPayload.payment) {
-        setMessage(submitPayload.error ?? "Failed to submit Freighter-signed transaction.");
+        setMessage(submitPayload.error ?? "Failed to submit signed transaction.");
         return;
       }
 
       setLastTxHash(submitPayload.payment.hash);
-      setMessage(`Freighter signed + submitted Stellar testnet payment: ${submitPayload.payment.hash}`);
+      setMessage(`Real Stellar testnet payment submitted: ${submitPayload.payment.hash}`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected payment failure.");
+      setMessage(error instanceof Error ? error.message : "Unexpected payment submission failure.");
     } finally {
       setLoading(false);
     }
@@ -226,9 +271,27 @@ export function DecisionConsole() {
               onChange={(event) => setDestination(event.target.value)}
               placeholder="G... destination public key"
             />
-            <Button variant="outline" onClick={executeStellarPayment} disabled={loading || !decisionData}>
-              Execute Stellar Payment
+            <Button variant="outline" onClick={prepareStellarPaymentXdr} disabled={loading || !decisionData}>
+              Prepare Payment XDR
             </Button>
+            <Button variant="outline" onClick={signWithFreighter} disabled={loading || !unsignedXdr}>
+              Sign with Freighter (Optional)
+            </Button>
+            <textarea
+              className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
+              value={signedXdrInput}
+              onChange={(event) => setSignedXdrInput(event.target.value)}
+              placeholder="Signed XDR yapıştır (herhangi bir Stellar wallet/signing flow)"
+            />
+            <Button variant="secondary" onClick={() => submitSignedXdr()} disabled={loading || !signedXdrInput.trim()}>
+              Submit Signed XDR
+            </Button>
+            {unsignedXdr ? (
+              <Alert>
+                <AlertTitle>Unsigned XDR Ready</AlertTitle>
+                <AlertDescription>{truncateMiddle(unsignedXdr, 36, 36)}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
 
           {decisionData ? (

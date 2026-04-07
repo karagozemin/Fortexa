@@ -13,19 +13,21 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as {
       publicKey?: string;
       fund?: boolean;
+      provider?: string;
     };
 
     const { userId, shouldSetCookie } = getOrCreateUserId(request);
     const shouldFund = body.fund ?? true;
 
     if (!body.publicKey) {
-      return NextResponse.json({ error: "Freighter publicKey is required." }, { status: 400 });
+      return NextResponse.json({ error: "Stellar publicKey is required." }, { status: 400 });
     }
 
     const assignedPublicKey = body.publicKey;
     await upsertUserWallet(userId, {
       publicKey: assignedPublicKey,
-      source: "freighter",
+      source: "external",
+      provider: body.provider?.trim() || "unknown",
     });
 
     if (shouldFund) {
@@ -35,10 +37,11 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       ok: true,
       userId,
-      source: "freighter",
+      source: "external",
+      provider: body.provider?.trim() || "unknown",
       network: "stellar-testnet",
       publicKey: assignedPublicKey,
-      message: "Freighter address linked to this user and optionally funded on testnet.",
+      message: "Stellar wallet address linked to this user and optionally funded on testnet.",
     });
 
     if (shouldSetCookie) {

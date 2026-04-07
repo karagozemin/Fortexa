@@ -11,13 +11,13 @@ export async function GET(request: NextRequest) {
   const assignedWallet = await getUserWallet(userId);
   const publicKey = assignedWallet?.publicKey;
 
-  if (!publicKey || assignedWallet?.source !== "freighter") {
+  if (!publicKey || assignedWallet?.source !== "external") {
     const response = NextResponse.json(
       {
         configured: false,
         userId,
         network: "stellar-testnet",
-        message: "Connect your Freighter wallet to continue with real on-chain transactions.",
+        message: "Link your Stellar wallet address to continue with real on-chain transactions.",
       },
       { status: 200 }
     );
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       configured: true,
       userId,
       source: assignedWallet.source,
+      provider: assignedWallet.provider ?? "unknown",
       network: "stellar-testnet",
       publicKey,
       balance,
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
         configured: true,
         userId,
         source: assignedWallet.source,
+        provider: assignedWallet.provider ?? "unknown",
         network: "stellar-testnet",
         publicKey,
         error: error instanceof Error ? error.message : "Failed to load balance.",

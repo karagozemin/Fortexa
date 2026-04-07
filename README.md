@@ -73,17 +73,17 @@ Included in `src/lib/scenarios/seed.ts`:
 - `src/lib/scenarios/seed.ts` → demo scenarios + defaults
 - `src/lib/storage/audit-store.ts` → user-scoped persistent audit + usage state
 - `src/lib/stellar/client.ts` → Stellar testnet integration
-- `src/lib/storage/user-wallet-store.ts` → per-user Freighter wallet assignment
+- `src/lib/storage/user-wallet-store.ts` → per-user external Stellar wallet assignment
 
 ### API Routes
 - `POST /api/decision` → evaluate action and append audit entry
 - `GET /api/audit` → retrieve audit trail
 - `GET /api/stellar/balance` → wallet identity + balance
 - `POST /api/stellar/fund` → friendbot funding
-- `POST /api/stellar/setup` → link connected Freighter wallet to current user
-- `POST /api/stellar/build-payment` → build unsigned payment XDR for Freighter signing
-- `POST /api/stellar/submit-signed` → submit Freighter-signed XDR to Horizon
-- `POST /api/stellar/pay` → disabled (legacy); use signed Freighter flow
+- `POST /api/stellar/setup` → link external Stellar wallet public key to current user
+- `POST /api/stellar/build-payment` → build unsigned payment XDR
+- `POST /api/stellar/submit-signed` → submit wallet-signed XDR to Horizon
+- `POST /api/stellar/pay` → disabled (legacy); use signed XDR flow
 
 ### Pages
 - `/` → overview dashboard + wallet card
@@ -94,16 +94,16 @@ Included in `src/lib/scenarios/seed.ts`:
 - `/activity` → audit trail
 
 ## Stellar Integration Details
-Fortexa is now **Freighter-first**:
-- Users connect their own Freighter wallet.
+Fortexa supports **any Stellar wallet** that can sign transactions:
+- User links wallet by Stellar public key (`G...`).
 - Fortexa builds unsigned Stellar testnet XDR.
-- User signs inside Freighter extension.
+- User signs with their wallet of choice (Freighter supported as quick path).
 - Fortexa submits signed XDR to Horizon and returns real tx hash.
 
 ### User-assigned wallet model
 - Each user receives a stable `fortexa_user_id` cookie.
 - Wallet assignment is persisted per user in local storage files under `.fortexa/`.
-- Only Freighter public addresses are stored; no custodial private keys are stored in repo files.
+- Only public wallet metadata is stored; no custodial private keys are stored in repo files.
 
 ## Local Setup
 
@@ -133,9 +133,9 @@ npm run lint
 
 ## Hackathon Demo Narrative (2 minutes)
 1. Open overview: show wallet + active policies.
-2. Connect Freighter in `/wallet` and fund testnet if needed.
-3. In decision console run safe scenario (`APPROVE`) and execute payment.
-4. Sign in Freighter extension and show real Stellar tx hash.
+2. Link any Stellar wallet in `/wallet` (Freighter optional quick connect) and fund testnet if needed.
+3. In decision console run safe scenario (`APPROVE`) and prepare payment XDR.
+4. Sign transaction in wallet flow and submit signed XDR; show real Stellar tx hash.
 5. Run malicious endpoint (`BLOCK`) and over-budget flow (`REQUIRE_APPROVAL`).
 6. Open audit trail to show timestamped explainable governance history.
 
@@ -147,7 +147,7 @@ npm run lint
 - SEP integrations and production wallet lifecycle hardening
 
 ## Known Limitations
-- Freighter signing requires interactive browser extension approval; server-side auto-signing is intentionally disabled.
+- Signed transaction submission requires wallet-side signature; server-side auto-signing is intentionally disabled.
 
 ## Hackathon Framing
 Fortexa is not a generic wallet UI and not a chatbot demo. It is a **trust layer for autonomous machine payments**: an agent payment firewall that makes AI economic actions safe, governable, and auditable on Stellar.

@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
   const assignedWallet = await getUserWallet(userId);
   const publicKey = payload.publicKey ?? assignedWallet?.publicKey;
 
-  if (!publicKey || assignedWallet?.source !== "freighter") {
-    return NextResponse.json({ error: "Connect a Freighter wallet before requesting testnet funding." }, { status: 400 });
+  if (!publicKey || assignedWallet?.source !== "external") {
+    return NextResponse.json({ error: "Link a Stellar wallet before requesting testnet funding." }, { status: 400 });
   }
 
   try {
