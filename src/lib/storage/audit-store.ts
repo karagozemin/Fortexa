@@ -46,6 +46,17 @@ export async function listAuditEntries(userId: string) {
   return [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
 }
 
+export async function listAllAuditEntriesByUser() {
+  const store = await readStore();
+  const result: Record<string, AuditEntry[]> = {};
+
+  for (const [userId, entries] of Object.entries(store.auditByUser)) {
+    result[userId] = [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  }
+
+  return result;
+}
+
 export async function appendAuditEntry(userId: string, entry: AuditEntry) {
   const store = await readStore();
   const entries = store.auditByUser[userId] ?? [];

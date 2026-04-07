@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { submitSignedTransactionXdr } from "@/lib/stellar/client";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
+  const startedAtMs = Date.now();
   const context = getRequestLogContext(request, "/api/stellar/submit-signed");
 
   const rate = consumeRateLimit(request, {
@@ -17,10 +19,13 @@ export async function POST(request: NextRequest) {
 
   if (!rate.ok) {
     logWarn("Submit signed route rate limited", context);
-    return NextResponse.json(
-      { error: "Rate limit exceeded for signed transaction submission." },
-      { status: 429, headers: rateLimitHeaders(rate) }
-    );
+    return jsonWithRequestContext(request, {
+      route: "/api/stellar/submit-signed",
+      startedAtMs,
+      status: 429,
+      body: { error: "Rate limit exceeded for signed transaction submission." },
+      headers: rateLimitHeaders(rate),
+    });
   }
 
   try {
@@ -38,13 +43,16 @@ export async function POST(request: NextRequest) {
 
     if (!parsedPayload.success) {
       logWarn("Submit signed validation failed", { ...context, userId });
-      return NextResponse.json(
-        {
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 400,
+        body: {
           error: "Invalid signed transaction submission.",
           details: parsedPayload.error.flatten(),
         },
-        { status: 400, headers: rateLimitHeaders(rate) }
-      );
+        headers: rateLimitHeaders(rate),
+      });
     }
 
     const payload = parsedPayload.data;
@@ -58,8 +66,11 @@ export async function POST(request: NextRequest) {
       ledger: submitted.ledger,
     });
 
-    return NextResponse.json(
-      {
+    return jsonWithRequestContext(request, {
+      route: "/api/stellar/submit-signed",
+      startedAtMs,
+      status: 200,
+      body: {
         ok: true,
         userId,
         payment: {
@@ -67,16 +78,19 @@ export async function POST(request: NextRequest) {
           ...submitted,
         },
       },
-      { headers: rateLimitHeaders(rate) }
-    );
+      headers: rateLimitHeaders(rate),
+    });
   } catch (error) {
     logError("Submit signed internal error", {
       ...context,
       detail: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to submit signed transaction." },
-      { status: 500, headers: rateLimitHeaders(rate) }
-    );
+    return jsonWithRequestContext(request, {
+      route: "/api/stellar/submit-signed",
+      startedAtMs,
+      status: 500,
+      body: { error: error instanceof Error ? error.message : "Failed to submit signed transaction." },
+      headers: rateLimitHeaders(rate),
+    });
   }
 }

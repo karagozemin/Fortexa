@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { AUTH_COOKIE_KEY, type AuthRole, createSessionToken } from "@/lib/auth/session";
+import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
@@ -31,6 +32,7 @@ function resolveRoleByCredentials(email: string, password: string): AuthRole | n
 }
 
 export async function POST(request: NextRequest) {
+  const startedAtMs = Date.now();
   const context = getRequestLogContext(request, "/api/auth/login");
 
   const rate = consumeRateLimit(request, {
@@ -41,10 +43,13 @@ export async function POST(request: NextRequest) {
 
   if (!rate.ok) {
     logWarn("Auth login rate limited", context);
-    return NextResponse.json(
-      { error: "Too many login attempts. Try again later." },
-      { status: 429, headers: rateLimitHeaders(rate) }
-    );
+    return jsonWithRequestContext(request, {
+      route: "/api/auth/login",
+      startedAtMs,
+      status: 429,
+      body: { error: "Too many login attempts. Try again later." },
+      headers: rateLimitHeaders(rate),
+    });
   }
 
   try {
@@ -53,17 +58,26 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       logWarn("Auth login validation failed", context);
-      return NextResponse.json(
-        { error: "Invalid login payload.", details: parsed.error.flatten() },
-        { status: 400, headers: rateLimitHeaders(rate) }
-      );
+      return jsonWithRequestContext(request, {
+        route: "/api/auth/login",
+        startedAtMs,
+        status: 400,
+        body: { error: "Invalid login payload.", details: parsed.error.flatten() },
+        headers: rateLimitHeaders(rate),
+      });
     }
 
     const role = resolveRoleByCredentials(parsed.data.email, parsed.data.password);
 
     if (!role) {
       logWarn("Auth login invalid credentials", { ...context, email: parsed.data.email });
-      return NextResponse.json({ error: "Invalid credentials." }, { status: 401, headers: rateLimitHeaders(rate) });
+      return jsonWithRequestContext(request, {
+        route: "/api/auth/login",
+        startedAtMs,
+        status: 401,
+        body: { error: "Invalid credentials." },
+        headers: rateLimitHeaders(rate),
+      });
     }
 
     const token = createSessionToken({
@@ -71,14 +85,17 @@ export async function POST(request: NextRequest) {
       role,
     });
 
-    const response = NextResponse.json(
-      {
+    const response = jsonWithRequestContext(request, {
+      route: "/api/auth/login",
+      startedAtMs,
+      status: 200,
+      body: {
         ok: true,
         role,
         email: parsed.data.email,
       },
-      { headers: rateLimitHeaders(rate) }
-    );
+      headers: rateLimitHeaders(rate),
+    });
 
     response.cookies.set(AUTH_COOKIE_KEY, token, {
       httpOnly: true,
@@ -96,9 +113,12 @@ export async function POST(request: NextRequest) {
       ...context,
       detail: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Login failed." },
-      { status: 500, headers: rateLimitHeaders(rate) }
-    );
+    return jsonWithRequestContext(request, {
+      route: "/api/auth/login",
+      startedAtMs,
+      status: 500,
+      body: { error: error instanceof Error ? error.message : "Login failed." },
+      headers: rateLimitHeaders(rate),
+    });
   }
 }

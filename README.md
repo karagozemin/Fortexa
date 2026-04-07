@@ -82,6 +82,11 @@ Included in `src/lib/scenarios/seed.ts`:
 - `GET /api/auth/session` → current auth session status
 - `GET /api/policy` → read active policy config
 - `POST /api/policy` → update active policy config (operator only)
+- `GET /api/metrics` → in-memory API metrics snapshot (operator only)
+  - `?format=prometheus` for Prometheus text output
+- `GET /api/audit/export` → audit export endpoint (role controlled)
+  - `?format=json|csv`
+  - `?scope=mine|all` (`all` only for operator)
 - `POST /api/agent/plan` → generate a live `AgentAction` from prompt/context via Groq
 - `POST /api/decision` → evaluate action and append audit entry
 - `GET /api/audit` → retrieve audit trail
@@ -187,6 +192,8 @@ Global HTTP hardening headers are applied via `src/proxy.ts`:
 
 - Health endpoint: `GET /api/health`
 - Structured JSON logs with request correlation id via `src/lib/observability/logger.ts`
+- API metrics aggregator via `src/lib/observability/metrics.ts`
+- Standardized response helper with request-id + metric recording via `src/lib/observability/http.ts`
 - Critical route logging enabled for:
   - `POST /api/auth/login`
   - `POST /api/decision`
