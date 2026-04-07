@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import type { PolicyConfig } from "@/lib/types/domain";
 
 type PolicyResponse = {
@@ -26,6 +27,7 @@ function textToList(text: string) {
 }
 
 export function PolicyEditor() {
+  const { isOperator, loading: sessionLoading } = useAuthSession();
   const [policy, setPolicy] = useState<PolicyConfig | null>(null);
   const [allowedDomains, setAllowedDomains] = useState("");
   const [blockedDomains, setBlockedDomains] = useState("");
@@ -34,6 +36,8 @@ export function PolicyEditor() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("Loading policy...");
   const [loading, setLoading] = useState(false);
+
+  const writeDisabled = loading || sessionLoading || !isOperator;
 
   async function loadPolicy() {
     setLoading(true);
@@ -61,6 +65,11 @@ export function PolicyEditor() {
   }
 
   async function savePolicy() {
+    if (!isOperator) {
+      setStatus("Viewer role is read-only. Login as operator to update policy.");
+      return;
+    }
+
     if (!policy) {
       setStatus("Policy is not loaded yet.");
       return;
@@ -105,6 +114,13 @@ export function PolicyEditor() {
 
   return (
     <main className="space-y-6">
+      {!sessionLoading && !isOperator ? (
+        <Alert className="border-amber-500/40 bg-amber-500/10">
+          <AlertTitle>Viewer mode</AlertTitle>
+          <AlertDescription>Policy düzenleme kapalı. Sadece operator rolü policy güncelleyebilir.</AlertDescription>
+        </Alert>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Policy Engine Rules</CardTitle>
@@ -116,6 +132,7 @@ export function PolicyEditor() {
             <Input
               type="number"
               value={policy?.perTxCapXLM ?? 0}
+              disabled={writeDisabled}
               onChange={(event) =>
                 setPolicy((prev) => (prev ? { ...prev, perTxCapXLM: Number(event.target.value) || 0 } : prev))
               }
@@ -126,6 +143,7 @@ export function PolicyEditor() {
             <Input
               type="number"
               value={policy?.dailyCapXLM ?? 0}
+              disabled={writeDisabled}
               onChange={(event) =>
                 setPolicy((prev) => (prev ? { ...prev, dailyCapXLM: Number(event.target.value) || 0 } : prev))
               }
@@ -136,6 +154,7 @@ export function PolicyEditor() {
             <Input
               type="number"
               value={policy?.maxToolCallsPerDay ?? 0}
+              disabled={writeDisabled}
               onChange={(event) =>
                 setPolicy((prev) => (prev ? { ...prev, maxToolCallsPerDay: Number(event.target.value) || 0 } : prev))
               }
@@ -146,6 +165,7 @@ export function PolicyEditor() {
             <Input
               type="number"
               value={policy?.riskThreshold ?? 0}
+              disabled={writeDisabled}
               onChange={(event) =>
                 setPolicy((prev) => (prev ? { ...prev, riskThreshold: Number(event.target.value) || 0 } : prev))
               }
@@ -163,6 +183,7 @@ export function PolicyEditor() {
             <textarea
               className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] px-3 py-2 text-sm"
               value={allowedDomains}
+              disabled={writeDisabled}
               onChange={(event) => setAllowedDomains(event.target.value)}
             />
           </CardContent>
@@ -175,6 +196,7 @@ export function PolicyEditor() {
             <textarea
               className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] px-3 py-2 text-sm"
               value={blockedDomains}
+              disabled={writeDisabled}
               onChange={(event) => setBlockedDomains(event.target.value)}
             />
           </CardContent>
@@ -187,6 +209,7 @@ export function PolicyEditor() {
             <textarea
               className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] px-3 py-2 text-sm"
               value={allowedTools}
+              disabled={writeDisabled}
               onChange={(event) => setAllowedTools(event.target.value)}
             />
           </CardContent>
@@ -199,6 +222,7 @@ export function PolicyEditor() {
             <textarea
               className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] px-3 py-2 text-sm"
               value={blockedTools}
+              disabled={writeDisabled}
               onChange={(event) => setBlockedTools(event.target.value)}
             />
           </CardContent>
@@ -206,7 +230,7 @@ export function PolicyEditor() {
       </section>
 
       <div className="flex gap-2">
-        <Button onClick={savePolicy} disabled={loading}>Save Policy</Button>
+        <Button onClick={savePolicy} disabled={writeDisabled}>Save Policy</Button>
         <Button variant="outline" onClick={loadPolicy} disabled={loading}>Reload</Button>
       </div>
 

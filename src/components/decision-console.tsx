@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import type { AgentAction } from "@/lib/types/domain";
 import { truncateMiddle } from "@/lib/utils/format";
@@ -51,6 +52,7 @@ type AgentPlanResponse = {
 };
 
 export function DecisionConsole() {
+  const { isOperator, loading: sessionLoading } = useAuthSession();
   const [selectedScenarioId, setSelectedScenarioId] = useState(demoScenarios[0]?.id ?? "");
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
   const [decisionData, setDecisionData] = useState<DecisionApiResponse | null>(null);
@@ -71,7 +73,19 @@ export function DecisionConsole() {
     [selectedScenarioId]
   );
 
+  const writeDisabled = loading || sessionLoading || !isOperator;
+
+  function ensureOperator() {
+    if (isOperator) {
+      return true;
+    }
+
+    setMessage("Viewer role is read-only. Login as operator for execution actions.");
+    return false;
+  }
+
   async function runDecision(approvedByHuman = false, actionOverride?: AgentAction) {
+    if (!ensureOperator()) return;
     if (!selectedScenario && !actionOverride) return;
     setLoading(true);
     setMessage(null);
@@ -103,6 +117,7 @@ export function DecisionConsole() {
   }
 
   async function generateActionWithAi() {
+    if (!ensureOperator()) return;
     if (!agentGoal.trim()) {
       setMessage("Provide an agent goal first.");
       return;
@@ -135,6 +150,7 @@ export function DecisionConsole() {
   }
 
   async function prepareStellarPaymentXdr() {
+    if (!ensureOperator()) return;
     if (!selectedScenario || !destination) {
       setMessage("Provide destination address for payment execution.");
       return;
@@ -187,6 +203,7 @@ export function DecisionConsole() {
   }
 
   async function signWithFreighter() {
+    if (!ensureOperator()) return;
     if (!unsignedXdr) {
       setMessage("Prepare payment XDR first.");
       return;
@@ -223,6 +240,7 @@ export function DecisionConsole() {
   }
 
   async function submitSignedXdr(signedXdrArg?: string) {
+    if (!ensureOperator()) return;
     const signedXdr = (signedXdrArg ?? signedXdrInput).trim();
     if (!signedXdr) {
       setMessage("Paste a signed XDR first.");
@@ -291,6 +309,13 @@ export function DecisionConsole() {
           <CardDescription>Evaluate, optionally approve, and execute payment on Stellar testnet.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!sessionLoading && !isOperator ? (
+            <Alert className="border-amber-500/40 bg-amber-500/10">
+              <AlertTitle>Viewer mode</AlertTitle>
+              <AlertDescription>Execution controls are disabled. Login as operator to run agent/payment actions.</AlertDescription>
+            </Alert>
+          ) : null}
+
           {selectedScenario ? (
             <div className="rounded-xl border border-[hsl(var(--border))] p-3 text-sm">
               <p className="font-semibold">{selectedScenario.title}</p>
@@ -302,11 +327,11 @@ export function DecisionConsole() {
           ) : null}
 
           <div className="grid gap-2 md:grid-cols-2">
-            <Button onClick={() => runDecision(false)} disabled={loading}>
+            <Button onClick={() => runDecision(false)} disabled={writeDisabled}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Evaluate Action
             </Button>
-            <Button variant="secondary" onClick={() => runDecision(true)} disabled={loading}>
+            <Button variant="secondary" onClick={() => runDecision(true)} disabled={writeDisabled}>
               Human Approve & Re-run
             </Button>
           </div>
@@ -321,14 +346,14 @@ export function DecisionConsole() {
               placeholder="Context for the AI planner"
             />
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={generateActionWithAi} disabled={loading || generatingAction}>
+              <Button variant="outline" onClick={generateActionWithAi} disabled={writeDisabled || generatingAction}>
                 {generatingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Generate Action with AI
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => (generatedAction ? runDecision(false, generatedAction) : undefined)}
-                disabled={loading || !generatedAction}
+                disabled={writeDisabled || !generatedAction}
               >
                 Evaluate Generated Action
               </Button>
@@ -351,10 +376,10 @@ export function DecisionConsole() {
               onChange={(event) => setDestination(event.target.value)}
               placeholder="G... destination public key"
             />
-            <Button variant="outline" onClick={prepareStellarPaymentXdr} disabled={loading || !decisionData}>
+            <Button variant="outline" onClick={prepareStellarPaymentXdr} disabled={writeDisabled || !decisionData}>
               Prepare Payment XDR
             </Button>
-            <Button variant="outline" onClick={signWithFreighter} disabled={loading || !unsignedXdr}>
+            <Button variant="outline" onClick={signWithFreighter} disabled={writeDisabled || !unsignedXdr}>
               Sign with Freighter (Optional)
             </Button>
             <textarea
@@ -363,7 +388,7 @@ export function DecisionConsole() {
               onChange={(event) => setSignedXdrInput(event.target.value)}
               placeholder="Signed XDR yapıştır (herhangi bir Stellar wallet/signing flow)"
             />
-            <Button variant="secondary" onClick={() => submitSignedXdr()} disabled={loading || !signedXdrInput.trim()}>
+            <Button variant="secondary" onClick={() => submitSignedXdr()} disabled={writeDisabled || !signedXdrInput.trim()}>
               Submit Signed XDR
             </Button>
             {unsignedXdr ? (

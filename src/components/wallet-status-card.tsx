@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { truncateMiddle } from "@/lib/utils/format";
 
 type WalletData = {
@@ -21,10 +22,22 @@ type WalletData = {
 };
 
 export function WalletStatusCard() {
+  const { isOperator, loading: sessionLoading } = useAuthSession();
   const [data, setData] = useState<WalletData | null>(null);
   const [status, setStatus] = useState<string>("Wallet not loaded yet.");
   const [loading, setLoading] = useState(false);
   const [manualPublicKey, setManualPublicKey] = useState("");
+
+  const writeDisabled = loading || sessionLoading || !isOperator;
+
+  function ensureOperator() {
+    if (isOperator) {
+      return true;
+    }
+
+    setStatus("Viewer role is read-only. Login as operator for wallet write operations.");
+    return false;
+  }
 
   async function loadWallet() {
     setLoading(true);
@@ -41,6 +54,7 @@ export function WalletStatusCard() {
   }
 
   async function fundWallet() {
+    if (!ensureOperator()) return;
     setLoading(true);
     try {
       const response = await fetch("/api/stellar/fund", {
@@ -63,6 +77,7 @@ export function WalletStatusCard() {
   }
 
   async function connectFreighter() {
+    if (!ensureOperator()) return;
     setLoading(true);
     try {
       const { requestAccess } = await import("@stellar/freighter-api");
@@ -99,6 +114,7 @@ export function WalletStatusCard() {
   }
 
   async function linkByPublicKey() {
+    if (!ensureOperator()) return;
     if (!manualPublicKey.trim()) {
       setStatus("Önce bir Stellar public key (G...) gir.");
       return;
@@ -142,10 +158,17 @@ export function WalletStatusCard() {
         <CardDescription>Stellar testnet identity, balance, and faucet funding for demo execution.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {!sessionLoading && !isOperator ? (
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <AlertTitle>Viewer mode</AlertTitle>
+            <AlertDescription>Wallet bağlantı/funding işlemleri sadece operator rolü için açık.</AlertDescription>
+          </Alert>
+        ) : null}
+
         <div className="flex gap-2">
-          <Button variant="outline" onClick={connectFreighter} disabled={loading}>Connect Freighter</Button>
+          <Button variant="outline" onClick={connectFreighter} disabled={writeDisabled}>Connect Freighter</Button>
           <Button onClick={loadWallet} disabled={loading}>Refresh Wallet</Button>
-          <Button variant="secondary" onClick={fundWallet} disabled={loading}>Fund via Friendbot</Button>
+          <Button variant="secondary" onClick={fundWallet} disabled={writeDisabled}>Fund via Friendbot</Button>
         </div>
 
         <div className="grid gap-2 md:grid-cols-[1fr_auto]">
@@ -153,8 +176,9 @@ export function WalletStatusCard() {
             value={manualPublicKey}
             onChange={(event) => setManualPublicKey(event.target.value)}
             placeholder="G... herhangi Stellar wallet public key"
+            disabled={writeDisabled}
           />
-          <Button variant="outline" onClick={linkByPublicKey} disabled={loading}>Link by Public Key</Button>
+          <Button variant="outline" onClick={linkByPublicKey} disabled={writeDisabled}>Link by Public Key</Button>
         </div>
 
         {data?.publicKey ? (
