@@ -177,22 +177,6 @@ GitHub Actions workflow is available at `.github/workflows/ci.yml` and runs:
 
 on every pull request and push to `main`.
 
-## Docker
-
-The project ships with a production `Dockerfile` using Next.js standalone output.
-
-Build image:
-
-```bash
-docker build -t fortexa:latest .
-```
-
-Run container:
-
-```bash
-docker run --rm -p 3000:3000 --env-file .env.local fortexa:latest
-```
-
 ## Security Middleware
 
 Global HTTP hardening headers are applied via `src/proxy.ts`:
