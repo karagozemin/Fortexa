@@ -1,9 +1,14 @@
 import { DecisionBadge } from "@/components/decision-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cookies } from "next/headers";
+
+import { USER_COOKIE_KEY } from "@/lib/auth/user-id";
 import { listAuditEntries } from "@/lib/storage/audit-store";
 
 export default async function ActivityPage() {
-  const entries = listAuditEntries();
+  const cookieStore = await cookies();
+  const userId = cookieStore.get(USER_COOKIE_KEY)?.value;
+  const entries = userId ? await listAuditEntries(userId) : [];
 
   return (
     <main className="space-y-6">

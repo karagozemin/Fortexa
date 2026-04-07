@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
 import { evaluateDecision } from "@/lib/decision/engine";
 import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import { appendAuditEntry, consumeUsage, getDailyUsage } from "@/lib/storage/audit-store";
 import type { AgentAction } from "@/lib/types/domain";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const { userId, shouldSetCookie } = getOrCreateUserId(request);
+
     const body = (await request.json()) as {
       scenarioId?: string;
       action?: AgentAction;
@@ -25,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No action provided." }, { status: 400 });
     }
 
-    const usage = getDailyUsage();
+    const usage = await getDailyUsage(userId);
     const decision = evaluateDecision(action, defaultPolicyConfig, usage);
 
     let finalDecision = decision.decision;
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     if (finalDecision === "APPROVE" || finalDecision === "WARN") {
-      consumeUsage(action.amountXLM);
+      await consumeUsage(userId, action.amountXLM);
     }
 
     const auditEntry = {
@@ -50,17 +53,31 @@ export async function POST(request: Request) {
       riskFindings: decision.riskFindings.map((finding) => `${finding.code}: ${finding.detail}`),
     };
 
-    appendAuditEntry(auditEntry);
+    await appendAuditEntry(userId, auditEntry);
 
-    return NextResponse.json({
+    const latestUsage = await getDailyUsage(userId);
+
+    const response = NextResponse.json({
       result: {
         ...decision,
         decision: finalDecision,
         explanation,
       },
       auditEntry,
-      usage: getDailyUsage(),
+      usage: latestUsage,
+      userId,
     });
+
+    if (shouldSetCookie) {
+      response.cookies.set(USER_COOKIE_KEY, userId, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected decision failure." },

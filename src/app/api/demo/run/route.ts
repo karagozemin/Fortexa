@@ -1,17 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
 import { evaluateDecision } from "@/lib/decision/engine";
 import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { demoScenarios } from "@/lib/scenarios/seed";
-import { sendPayment } from "@/lib/stellar/client";
+import { executePaymentForUser } from "@/lib/stellar/execute-user-payment";
 import { appendAuditEntry, consumeUsage, getDailyUsage, resetAuditState } from "@/lib/storage/audit-store";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const { userId, shouldSetCookie } = getOrCreateUserId(request);
     const payload = (await request.json().catch(() => ({}))) as { destination?: string };
 
-    resetAuditState();
+    await resetAuditState(userId);
 
     const runSummary: Array<{
       scenarioId: string;
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
     }> = [];
 
     for (const scenario of demoScenarios) {
-      const usage = getDailyUsage();
+      const usage = await getDailyUsage(userId);
       const decision = evaluateDecision(scenario.action, defaultPolicyConfig, usage);
 
       let finalDecision = decision.decision;
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
       let stellarTxHash: string | undefined;
 
       if (scenario.id === "manual-approval-needed" && decision.decision === "REQUIRE_APPROVAL") {
-        appendAuditEntry({
+        await appendAuditEntry(userId, {
           id: randomUUID(),
           timestamp: new Date().toISOString(),
           action: scenario.action,
@@ -45,19 +47,23 @@ export async function POST(request: Request) {
       }
 
       if (finalDecision === "APPROVE" || finalDecision === "WARN") {
-        consumeUsage(scenario.action.amountXLM);
+        await consumeUsage(userId, scenario.action.amountXLM);
       }
 
       if (scenario.id === "safe-research-payment" && (finalDecision === "APPROVE" || finalDecision === "WARN") && payload.destination) {
-        const payment = await sendPayment({
+        const paymentResult = await executePaymentForUser(userId, {
           destination: payload.destination,
           amountXLM: scenario.action.amountXLM.toFixed(7),
           memo: `fortexa:demo:${scenario.id}`,
         });
-        stellarTxHash = payment.hash;
+        stellarTxHash = paymentResult.payment.hash;
+
+        if (paymentResult.isFreighterNonCustodial) {
+          explanation = `${explanation} Demo mode used shared payment pipeline; Freighter-linked wallets require interactive extension signing for a real on-chain submit.`;
+        }
       }
 
-      appendAuditEntry({
+      await appendAuditEntry(userId, {
         id: randomUUID(),
         timestamp: new Date().toISOString(),
         action: scenario.action,
@@ -77,11 +83,25 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({
+    const latestUsage = await getDailyUsage(userId);
+
+    const response = NextResponse.json({
       ok: true,
+      userId,
       summary: runSummary,
-      usage: getDailyUsage(),
+      usage: latestUsage,
     });
+
+    if (shouldSetCookie) {
+      response.cookies.set(USER_COOKIE_KEY, userId, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Demo mode failed." },

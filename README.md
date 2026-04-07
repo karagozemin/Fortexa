@@ -80,6 +80,9 @@ Included in `src/lib/scenarios/seed.ts`:
 - `POST /api/demo/run` → one-click full hackathon narrative (resets state, runs all scenarios, logs outcomes)
 - `GET /api/stellar/balance` → wallet identity + balance
 - `POST /api/stellar/fund` → friendbot funding
+- `POST /api/stellar/setup` → assign user wallet (custodial or Freighter-linked)
+- `POST /api/stellar/build-payment` → build unsigned payment XDR for Freighter signing
+- `POST /api/stellar/submit-signed` → submit Freighter-signed XDR to Horizon
 - `POST /api/stellar/pay` → submit/simulate Stellar payment
 
 ### Pages
@@ -106,6 +109,16 @@ If no secret is configured:
 
 This keeps demos resilient while still allowing a real testnet interaction when configured.
 
+### User-assigned wallet model
+- Each user receives a stable `fortexa_user_id` cookie.
+- Wallet assignment is persisted per user in local storage files under `.fortexa/`.
+- Custodial secrets are encrypted at rest using `FORTEXA_LOCAL_ENC_KEY`.
+- Freighter-linked wallets are stored without custodial secrets and use extension-side signing.
+
+### Local secret storage note
+Hackathon implementation uses local file-based encrypted storage for speed.
+This is intentionally **hackathon-only** and should be replaced with a managed secret system (KMS/HSM) in production.
+
 ## Local Setup
 
 ```bash
@@ -121,7 +134,14 @@ Open `http://localhost:3000`.
 ```bash
 STELLAR_AGENT_SECRET=
 STELLAR_AGENT_PUBLIC=
+FORTEXA_LOCAL_ENC_KEY=
 NEXT_PUBLIC_STELLAR_DESTINATION=
+```
+
+Generate an encryption key quickly:
+
+```bash
+openssl rand -base64 32
 ```
 
 ## Tests & Demo Harness
@@ -146,6 +166,10 @@ npm run lint
 - Enhanced risk models (threat intel feeds, anomaly scoring)
 - Signed policy snapshots and tamper-evident audit proofs
 - SEP integrations and production wallet lifecycle hardening
+
+## Known Limitations
+- Freighter demo mode cannot auto-sign in server-only flows; real Freighter submission requires interactive browser extension approval.
+- Local encrypted secret storage is hackathon speed architecture, not production-grade key management.
 
 ## Hackathon Framing
 Fortexa is not a generic wallet UI and not a chatbot demo. It is a **trust layer for autonomous machine payments**: an agent payment firewall that makes AI economic actions safe, governable, and auditable on Stellar.

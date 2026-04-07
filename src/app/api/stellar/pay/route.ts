@@ -3,13 +3,11 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getOrCreateUserId, USER_COOKIE_KEY } from "@/lib/auth/user-id";
-import { sendPaymentWithSecret } from "@/lib/stellar/client";
-import { getUserWallet } from "@/lib/storage/user-wallet-store";
+import { executePaymentForUser } from "@/lib/stellar/execute-user-payment";
 
 export async function POST(request: NextRequest) {
   try {
     const { userId, shouldSetCookie } = getOrCreateUserId(request);
-    const assignedWallet = await getUserWallet(userId);
 
     const payload = (await request.json()) as {
       destination: string;
@@ -21,20 +19,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "destination and amountXLM are required" }, { status: 400 });
     }
 
-    const signingSecret = assignedWallet
-      ? assignedWallet.source === "custodial"
-        ? assignedWallet.secret
-        : null
-      : process.env.STELLAR_AGENT_SECRET;
-
-    const payment = await sendPaymentWithSecret(payload, signingSecret);
+    const paymentResult = await executePaymentForUser(userId, payload);
 
     const response = NextResponse.json({
       ok: true,
       userId,
-      source: assignedWallet?.source ?? "env",
-      sourcePublicKey: assignedWallet?.publicKey ?? process.env.STELLAR_AGENT_PUBLIC ?? null,
-      payment,
+      source: paymentResult.source,
+      sourcePublicKey: paymentResult.sourcePublicKey,
+      payment: paymentResult.payment,
+      note: paymentResult.isFreighterNonCustodial
+        ? "Freighter-linked wallet requires extension-side signing flow for real submission."
+        : undefined,
     });
 
     if (shouldSetCookie) {

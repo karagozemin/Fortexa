@@ -1,56 +1,92 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
 import type { AuditEntry, DailyUsage } from "@/lib/types/domain";
 
-const globalAuditKey = "__fortexa_audit_entries";
-const globalUsageKey = "__fortexa_daily_usage";
-
-type GlobalWithAudit = typeof globalThis & {
-  [globalAuditKey]?: AuditEntry[];
-  [globalUsageKey]?: DailyUsage;
+type AuditStoreFile = {
+  auditByUser: Record<string, AuditEntry[]>;
+  usageByUser: Record<string, DailyUsage>;
 };
 
-const globalState = globalThis as GlobalWithAudit;
+const storeDir = path.join(process.cwd(), ".fortexa");
+const storePath = path.join(storeDir, "audit.json");
 
 const baselineUsage: DailyUsage = {
-  spentXLM: 42,
-  toolCalls: 2,
+  spentXLM: 0,
+  toolCalls: 0,
   lastUpdated: new Date().toISOString(),
 };
 
-if (!globalState[globalAuditKey]) {
-  globalState[globalAuditKey] = [];
+async function ensureStore() {
+  await fs.mkdir(storeDir, { recursive: true });
+  try {
+    await fs.access(storePath);
+  } catch {
+    const initial: AuditStoreFile = {
+      auditByUser: {},
+      usageByUser: {},
+    };
+    await fs.writeFile(storePath, JSON.stringify(initial, null, 2), "utf8");
+  }
 }
 
-if (!globalState[globalUsageKey]) {
-  globalState[globalUsageKey] = baselineUsage;
+async function readStore(): Promise<AuditStoreFile> {
+  await ensureStore();
+  const raw = await fs.readFile(storePath, "utf8");
+  return JSON.parse(raw) as AuditStoreFile;
 }
 
-export function listAuditEntries() {
-  return [...(globalState[globalAuditKey] ?? [])].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+async function writeStore(store: AuditStoreFile) {
+  await fs.writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
 }
 
-export function appendAuditEntry(entry: AuditEntry) {
-  const entries = globalState[globalAuditKey] ?? [];
+export async function listAuditEntries(userId: string) {
+  const store = await readStore();
+  const entries = store.auditByUser[userId] ?? [];
+  return [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+}
+
+export async function appendAuditEntry(userId: string, entry: AuditEntry) {
+  const store = await readStore();
+  const entries = store.auditByUser[userId] ?? [];
   entries.push(entry);
-  globalState[globalAuditKey] = entries;
+  store.auditByUser[userId] = entries;
+  await writeStore(store);
 }
 
-export function getDailyUsage() {
-  return globalState[globalUsageKey]!;
+export async function getDailyUsage(userId: string) {
+  const store = await readStore();
+  return (
+    store.usageByUser[userId] ?? {
+      ...baselineUsage,
+      lastUpdated: new Date().toISOString(),
+    }
+  );
 }
 
-export function consumeUsage(amountXLM: number) {
-  const current = globalState[globalUsageKey]!;
-  globalState[globalUsageKey] = {
+export async function consumeUsage(userId: string, amountXLM: number) {
+  const store = await readStore();
+  const current =
+    store.usageByUser[userId] ?? {
+      ...baselineUsage,
+      lastUpdated: new Date().toISOString(),
+    };
+
+  store.usageByUser[userId] = {
     spentXLM: current.spentXLM + amountXLM,
     toolCalls: current.toolCalls + 1,
     lastUpdated: new Date().toISOString(),
   };
+
+  await writeStore(store);
 }
 
-export function resetAuditState() {
-  globalState[globalAuditKey] = [];
-  globalState[globalUsageKey] = {
+export async function resetAuditState(userId: string) {
+  const store = await readStore();
+  store.auditByUser[userId] = [];
+  store.usageByUser[userId] = {
     ...baselineUsage,
     lastUpdated: new Date().toISOString(),
   };
+  await writeStore(store);
 }

@@ -1,10 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { decryptLocalSecret, encryptLocalSecret } from "@/lib/security/local-crypto";
+
 export type UserWallet = {
   userId: string;
   publicKey: string;
   secret?: string;
+  encryptedSecret?: string;
   source: "custodial" | "freighter";
   createdAt: string;
   updatedAt: string;
@@ -30,7 +33,26 @@ async function ensureStore() {
 async function readStore(): Promise<WalletStoreFile> {
   await ensureStore();
   const raw = await fs.readFile(storePath, "utf8");
-  return JSON.parse(raw) as WalletStoreFile;
+  const store = JSON.parse(raw) as WalletStoreFile;
+
+  let migrated = false;
+  for (const [userId, wallet] of Object.entries(store.wallets)) {
+    if (wallet.secret && !wallet.encryptedSecret) {
+      store.wallets[userId] = {
+        ...wallet,
+        encryptedSecret: encryptLocalSecret(wallet.secret),
+        secret: undefined,
+        updatedAt: new Date().toISOString(),
+      };
+      migrated = true;
+    }
+  }
+
+  if (migrated) {
+    await writeStore(store);
+  }
+
+  return store;
 }
 
 async function writeStore(store: WalletStoreFile) {
@@ -39,7 +61,20 @@ async function writeStore(store: WalletStoreFile) {
 
 export async function getUserWallet(userId: string) {
   const store = await readStore();
-  return store.wallets[userId] ?? null;
+  const wallet = store.wallets[userId] ?? null;
+
+  if (!wallet) {
+    return null;
+  }
+
+  if (wallet.encryptedSecret) {
+    return {
+      ...wallet,
+      secret: decryptLocalSecret(wallet.encryptedSecret),
+    };
+  }
+
+  return wallet;
 }
 
 export async function upsertUserWallet(
@@ -58,7 +93,8 @@ export async function upsertUserWallet(
     userId,
     publicKey: payload.publicKey,
     source: payload.source,
-    secret: payload.secret,
+    secret: undefined,
+    encryptedSecret: payload.secret ? encryptLocalSecret(payload.secret) : existing?.encryptedSecret,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
