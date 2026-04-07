@@ -25,3 +25,11 @@ body {
   color: hsl(var(--foreground));
   min-height: 100vh;
 }
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
