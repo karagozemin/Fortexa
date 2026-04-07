@@ -77,6 +77,7 @@ Included in `src/lib/scenarios/seed.ts`:
 ### API Routes
 - `POST /api/decision` → evaluate action and append audit entry
 - `GET /api/audit` → retrieve audit trail
+- `POST /api/demo/run` → one-click full hackathon narrative (resets state, runs all scenarios, logs outcomes)
 - `GET /api/stellar/balance` → wallet identity + balance
 - `POST /api/stellar/fund` → friendbot funding
 - `POST /api/stellar/pay` → submit/simulate Stellar payment
@@ -133,10 +134,10 @@ npm run lint
 
 ## Hackathon Demo Narrative (2 minutes)
 1. Open overview: show wallet + active policies.
-2. Go to decision console: run safe scenario → `APPROVE`.
-3. Run malicious endpoint scenario → `BLOCK` with clear reason.
-4. Run over-budget scenario → `REQUIRE_APPROVAL`.
-5. Trigger manual approval and optionally execute Stellar payment.
+2. Go to decision console and click **Run Hackathon Demo Mode**.
+3. Show safe scenario result (`APPROVE`) and optional Stellar payment hash.
+4. Show malicious endpoint (`BLOCK`) and over-budget flow (`REQUIRE_APPROVAL`).
+5. Show manual approval override in summary.
 6. Open audit trail to show timestamped explainable governance history.
 
 ## Future Improvements

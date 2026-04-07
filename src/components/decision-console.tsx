@@ -25,6 +25,17 @@ type DecisionApiResponse = {
   };
 };
 
+type DemoRunResponse = {
+  ok: boolean;
+  summary: Array<{
+    scenarioId: string;
+    title: string;
+    decision: "APPROVE" | "WARN" | "REQUIRE_APPROVAL" | "BLOCK";
+    explanation: string;
+    stellarTxHash?: string;
+  }>;
+};
+
 export function DecisionConsole() {
   const [selectedScenarioId, setSelectedScenarioId] = useState(demoScenarios[0]?.id ?? "");
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
@@ -32,6 +43,7 @@ export function DecisionConsole() {
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [demoSummary, setDemoSummary] = useState<DemoRunResponse["summary"]>([]);
 
   const selectedScenario = useMemo(
     () => demoScenarios.find((scenario) => scenario.id === selectedScenarioId),
@@ -108,6 +120,37 @@ export function DecisionConsole() {
     }
   }
 
+  async function runHackathonDemoMode() {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/demo/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination }),
+      });
+
+      const payload = (await response.json()) as DemoRunResponse | { error: string };
+      if (!response.ok || "error" in payload) {
+        setMessage("error" in payload ? payload.error : "Demo mode failed.");
+        return;
+      }
+
+      setDemoSummary(payload.summary);
+      const withTx = payload.summary.find((item) => item.stellarTxHash)?.stellarTxHash;
+      if (withTx) {
+        setLastTxHash(withTx);
+      }
+
+      setMessage("Hackathon Demo Mode completed. Audit trail now includes full narrative sequence.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Demo mode crashed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-1">
@@ -162,6 +205,10 @@ export function DecisionConsole() {
             </Button>
           </div>
 
+          <Button variant="outline" onClick={runHackathonDemoMode} disabled={loading}>
+            Run Hackathon Demo Mode
+          </Button>
+
           <div className="space-y-2">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Stellar destination for approved test payment</p>
             <Input
@@ -198,6 +245,21 @@ export function DecisionConsole() {
               <AlertTitle>Latest payment hash</AlertTitle>
               <AlertDescription>{truncateMiddle(lastTxHash, 12, 12)}</AlertDescription>
             </Alert>
+          ) : null}
+
+          {demoSummary.length > 0 ? (
+            <div className="space-y-2 rounded-xl border border-[hsl(var(--border))] p-4">
+              <p className="font-semibold">Demo Mode Summary</p>
+              {demoSummary.map((item) => (
+                <div key={item.scenarioId} className="flex items-center justify-between gap-2 rounded-lg bg-[hsl(var(--muted)/0.35)] p-2 text-sm">
+                  <div>
+                    <p>{item.title}</p>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">{item.explanation}</p>
+                  </div>
+                  <DecisionBadge decision={item.decision} />
+                </div>
+              ))}
+            </div>
           ) : null}
 
           {message ? (

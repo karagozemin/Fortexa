@@ -10,16 +10,18 @@ type GlobalWithAudit = typeof globalThis & {
 
 const globalState = globalThis as GlobalWithAudit;
 
+const baselineUsage: DailyUsage = {
+  spentXLM: 42,
+  toolCalls: 2,
+  lastUpdated: new Date().toISOString(),
+};
+
 if (!globalState[globalAuditKey]) {
   globalState[globalAuditKey] = [];
 }
 
 if (!globalState[globalUsageKey]) {
-  globalState[globalUsageKey] = {
-    spentXLM: 42,
-    toolCalls: 2,
-    lastUpdated: new Date().toISOString(),
-  };
+  globalState[globalUsageKey] = baselineUsage;
 }
 
 export function listAuditEntries() {
@@ -41,6 +43,14 @@ export function consumeUsage(amountXLM: number) {
   globalState[globalUsageKey] = {
     spentXLM: current.spentXLM + amountXLM,
     toolCalls: current.toolCalls + 1,
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+export function resetAuditState() {
+  globalState[globalAuditKey] = [];
+  globalState[globalUsageKey] = {
+    ...baselineUsage,
     lastUpdated: new Date().toISOString(),
   };
 }
