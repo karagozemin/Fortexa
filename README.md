@@ -146,6 +146,43 @@ npm run demo:scenarios
 npm run lint
 ```
 
+## CI Quality Gate
+
+GitHub Actions workflow is available at `.github/workflows/ci.yml` and runs:
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+
+on every pull request and push to `main`.
+
+## Docker
+
+The project ships with a production `Dockerfile` using Next.js standalone output.
+
+Build image:
+
+```bash
+docker build -t fortexa:latest .
+```
+
+Run container:
+
+```bash
+docker run --rm -p 3000:3000 --env-file .env.local fortexa:latest
+```
+
+## Security Middleware
+
+Global HTTP hardening headers are applied via `src/proxy.ts`:
+- `Content-Security-Policy`
+- `X-Frame-Options`
+- `X-Content-Type-Options`
+- `Referrer-Policy`
+- `Permissions-Policy`
+- `Cross-Origin-Opener-Policy`
+- `Cross-Origin-Resource-Policy`
+- `x-request-id`
+
 ## Hackathon Demo Narrative (2 minutes)
 1. Open overview: show wallet + active policies.
 2. Link any Stellar wallet in `/wallet` (Freighter optional quick connect) and fund testnet if needed.

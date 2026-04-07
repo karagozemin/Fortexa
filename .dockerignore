@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.github
+coverage
+.env
+.env.local
+.fortexa
+npm-debug.log
+Dockerfile

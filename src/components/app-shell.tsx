@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -18,54 +18,16 @@ const navItems = [
   { href: "/activity", label: "Audit Trail", icon: ScrollText },
 ];
 
+const writeSensitivePages = new Set(["/wallet", "/policies", "/console"]);
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [authEmail, setAuthEmail] = useState<string | null>(null);
-  const [authRole, setAuthRole] = useState<string | null>(null);
-
-  async function fetchSession() {
-    try {
-      const response = await fetch("/api/auth/session", { cache: "no-store" });
-      const payload = (await response.json()) as {
-        authenticated?: boolean;
-        user?: { email?: string; role?: string };
-      };
-
-      if (payload.authenticated && payload.user?.email) {
-        return {
-          email: payload.user.email,
-          role: payload.user.role ?? null,
-        };
-      }
-
-      return { email: null, role: null };
-    } catch {
-      return { email: null, role: null };
-    }
-  }
+  const { email, role, isViewer } = useAuthSession();
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    setAuthEmail(null);
-    setAuthRole(null);
     window.location.href = "/login";
   }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void fetchSession().then((session) => {
-      if (cancelled) {
-        return;
-      }
-      setAuthEmail(session.email);
-      setAuthRole(session.role);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl px-5 pb-10 pt-8">
@@ -93,15 +55,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
+                {isViewer && writeSensitivePages.has(item.href) ? (
+                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">
+                    read-only
+                  </span>
+                ) : null}
               </Link>
             );
           })}
           </nav>
           <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-            {authEmail ? (
+            {email ? (
               <>
                 <span>
-                  {authEmail} {authRole ? `(${authRole})` : ""}
+                  {email} {role ? `(${role})` : ""}
                 </span>
                 <Button variant="outline" size="sm" onClick={logout}>
                   Logout
