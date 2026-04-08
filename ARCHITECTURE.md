@@ -49,7 +49,7 @@ flowchart LR
   AUD --> DB
   AUTH --> DB
 
-  POL --> FILE[.fortexa/*.json fallback]
+  POL --> FILE[JSON fallback\nlocal .fortexa / Vercel /tmp/fortexa]
   AUD --> FILE
   AUTH --> FILE
 
@@ -251,7 +251,10 @@ erDiagram
 ### 6.2 DB-first fallback behavior
 
 - If `DATABASE_URL` is set and DB is reachable: uses Postgres tables.
-- On DB unavailability or operation failure: falls back to local JSON files in `.fortexa/`.
+- On DB unavailability or operation failure: falls back to local JSON files.
+  - local/dev default: `.fortexa/`
+  - Vercel default: `/tmp/fortexa/`
+  - optional override: `FORTEXA_STORE_DIR`
 
 This fallback is intentional for local resilience, but introduces consistency tradeoffs in multi-instance deployments.
 

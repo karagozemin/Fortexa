@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
-import path from "node:path";
 
 import { runWithDatabase } from "@/lib/storage/db";
+import { getFortexaStoreDir, getFortexaStorePath } from "@/lib/storage/paths";
 import type { AuditEntry, DailyUsage } from "@/lib/types/domain";
 
 type AuditStoreFile = {
@@ -9,8 +9,7 @@ type AuditStoreFile = {
   usageByUser: Record<string, DailyUsage>;
 };
 
-const storeDir = path.join(process.cwd(), ".fortexa");
-const storePath = path.join(storeDir, "audit.json");
+const storePath = getFortexaStorePath("audit.json");
 
 const baselineUsage: DailyUsage = {
   spentXLM: 0,
@@ -19,7 +18,7 @@ const baselineUsage: DailyUsage = {
 };
 
 async function ensureStore() {
-  await fs.mkdir(storeDir, { recursive: true });
+  await fs.mkdir(getFortexaStoreDir(), { recursive: true });
   try {
     await fs.access(storePath);
   } catch {

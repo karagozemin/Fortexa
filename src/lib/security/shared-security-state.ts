@@ -27,9 +27,12 @@ function getSharedStatePath() {
     return null;
   }
 
-  return path.isAbsolute(configured)
-    ? configured
-    : path.join(process.cwd(), configured);
+  if (path.isAbsolute(configured)) {
+    return configured;
+  }
+
+  const relativeBase = process.env.VERCEL === "1" ? "/tmp" : process.cwd();
+  return path.join(relativeBase, configured);
 }
 
 export function isSharedSecurityStateEnabled() {

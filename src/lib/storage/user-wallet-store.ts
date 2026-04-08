@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
-import path from "node:path";
 
 import { runWithDatabase } from "@/lib/storage/db";
+import { getFortexaStoreDir, getFortexaStorePath } from "@/lib/storage/paths";
 
 export type UserWallet = {
   userId: string;
@@ -16,11 +16,10 @@ type WalletStoreFile = {
   wallets: Record<string, UserWallet | { [key: string]: unknown }>;
 };
 
-const storeDir = path.join(process.cwd(), ".fortexa");
-const storePath = path.join(storeDir, "wallets.json");
+const storePath = getFortexaStorePath("wallets.json");
 
 async function ensureStore() {
-  await fs.mkdir(storeDir, { recursive: true });
+  await fs.mkdir(getFortexaStoreDir(), { recursive: true });
   try {
     await fs.access(storePath);
   } catch {

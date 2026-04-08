@@ -158,6 +158,8 @@ STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 DATABASE_URL=
 DATABASE_SSL=false
 
+FORTEXA_STORE_DIR=
+
 FORTEXA_SHARED_STATE_PATH=
 
 GROQ_API_KEY=
@@ -261,7 +263,14 @@ Stores include:
 - `user-wallet-store`
 
 If `DATABASE_URL` is available and healthy, Postgres is used.
-Otherwise Fortexa falls back to `.fortexa/*.json` files.
+Otherwise Fortexa falls back to local JSON files:
+- local/dev default: `.fortexa/*.json`
+- Vercel default: `/tmp/fortexa/*.json`
+
+Optional overrides:
+- `FORTEXA_STORE_DIR` to set file-store directory explicitly
+- `FORTEXA_SHARED_STATE_PATH` for shared lockout/rate-limit state file path
+  - use an absolute path on Vercel (example: `/tmp/fortexa/shared-security-state.json`)
 
 ### Versioned Migrations
 
