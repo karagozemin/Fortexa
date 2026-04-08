@@ -503,9 +503,6 @@ export function DecisionConsole() {
             <Button variant="outline" onClick={prepareStellarPaymentXdr} disabled={writeDisabled || !decisionData}>
               Prepare Payment XDR
             </Button>
-            <Button variant="outline" onClick={signWithFreighter} disabled={writeDisabled || !unsignedXdr}>
-              Sign with Wallet (Optional)
-            </Button>
             <textarea
               className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
               value={signedXdrInput}
