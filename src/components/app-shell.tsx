@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="hidden w-70 border-r border-[hsl(var(--border))] bg-[linear-gradient(180deg,rgba(10,17,30,0.95),rgba(7,12,22,0.95))] p-5 lg:flex lg:flex-col">
           <div className="mb-8">
             <div className="mb-3 inline-flex items-center gap-3">
-              <Image src="/fortexa-logo.svg" alt="Fortexa logo" width={52} height={52} className="h-13 w-13" priority />
+              <Image src="/fortexa-logo.jpeg" alt="Fortexa logo" width={52} height={52} className="h-13 w-13 rounded-xl" priority />
               <div>
                 <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">Fortexa</p>
                 <h2 className="text-xl font-semibold">Mission Console</h2>
@@ -104,7 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="inline-flex items-center gap-3">
-                  <Image src="/fortexa-logo.svg" alt="Fortexa logo" width={40} height={40} className="h-10 w-10" priority />
+                  <Image src="/fortexa-logo.jpeg" alt="Fortexa logo" width={40} height={40} className="h-10 w-10 rounded-lg" priority />
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Mission Control</p>
                     <h1 className="text-xl font-semibold md:text-2xl">Autonomous Payment Security Plane</h1>

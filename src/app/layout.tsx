@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   title: "Fortexa",
   description: "Policy-controlled agent wallet and security layer on Stellar",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/icon.jpg",
+    shortcut: "/icon.jpg",
+    apple: "/icon.jpg",
   },
 };
 

@@ -1,7 +1,7 @@
 # Fortexa
 
 <p align="center">
-  <img src="public/fortexa-logo.svg" alt="Fortexa logo" width="120" />
+  <img src="public/fortexa-logo.jpeg" alt="Fortexa logo" width="120" />
 </p>
 
 <p align="center"><strong>Policy-Controlled Payment Firewall for Autonomous Agent Actions on Stellar</strong></p>

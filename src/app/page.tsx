@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   BrainCircuit,
@@ -57,6 +58,13 @@ export default function LandingPage() {
 
         <div className="relative grid gap-8 xl:grid-cols-2">
           <div className="space-y-6">
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.25)] p-2 pr-4">
+              <Image src="/fortexa-logo.jpeg" alt="Fortexa logo" width={56} height={56} className="h-14 w-14 rounded-xl" priority />
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Fortexa</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">Agentic Payment Firewall</p>
+              </div>
+            </div>
             <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-cyan-200">
               <Sparkles className="h-3.5 w-3.5" />
               Fortexa Control Plane
