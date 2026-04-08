@@ -104,13 +104,19 @@ export function DecisionConsole() {
     return parts.map((part, index) => {
       if (/^https?:\/\//.test(part)) {
         return (
-          <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+          <a
+            key={`${part}-${index}`}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all underline underline-offset-2"
+          >
             {part}
           </a>
         );
       }
 
-      return <span key={`${part}-${index}`}>{part}</span>;
+      return <span key={`${part}-${index}`} className="wrap-anywhere">{part}</span>;
     });
   }
 
@@ -436,9 +442,11 @@ export function DecisionConsole() {
                   : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] hover:border-cyan-300/30"
               }`}
             >
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <p className="font-medium">{scenario.title}</p>
-                <DecisionBadge decision={scenario.expectedDecision} />
+              <div className="mb-1 flex items-start justify-between gap-3">
+                <p className="min-w-0 flex-1 font-medium leading-snug">{scenario.title}</p>
+                <div className="shrink-0">
+                  <DecisionBadge decision={scenario.expectedDecision} />
+                </div>
               </div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">{scenario.description}</p>
             </button>
@@ -526,7 +534,7 @@ export function DecisionConsole() {
               Prepare Payment XDR
             </Button>
             <textarea
-              className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.45)] px-3 py-2 text-xs"
+              className="fortexa-no-scrollbar min-h-24 w-full resize-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.45)] px-3 py-2 text-xs"
               value={signedXdrInput}
               onChange={(event) => setSignedXdrInput(event.target.value)}
               placeholder="Signed XDR will auto-fill after wallet signing (manual paste optional)"
@@ -542,9 +550,11 @@ export function DecisionConsole() {
 
           {decisionData ? (
             <div className="space-y-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <p className="font-semibold">Decision Outcome</p>
-                <DecisionBadge decision={decisionData.result.decision} />
+                <div className="shrink-0">
+                  <DecisionBadge decision={decisionData.result.decision} />
+                </div>
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))]">{decisionData.result.explanation}</p>
               <p className="text-sm">Risk Score: {decisionData.result.riskScore}</p>
@@ -583,7 +593,7 @@ export function DecisionConsole() {
                   href={lastTxExplorerUrl ?? getExplorerUrl(lastTxHash)}
                   target="_blank"
                   rel="noreferrer"
-                  className="underline underline-offset-2"
+                  className="break-all underline underline-offset-2"
                 >
                   {lastTxExplorerUrl ?? getExplorerUrl(lastTxHash)}
                 </a>
