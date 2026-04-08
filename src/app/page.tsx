@@ -65,10 +65,8 @@ export default function LandingPage() {
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">Agentic Payment Firewall</p>
               </div>
             </div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-cyan-200">
-              <Sparkles className="h-3.5 w-3.5" />
-              Fortexa Control Plane
-            </p>
+            
+            
             <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-white md:text-6xl">
               The Payment Firewall for Autonomous Agent Actions on Stellar
             </h1>
