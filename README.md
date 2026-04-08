@@ -1,212 +1,130 @@
 # Fortexa
 
-Fortexa is a **policy-controlled payment safety layer for autonomous agents on Stellar**.
-It sits between an AI agent and economic execution, enforcing policy, security checks, and auditable decisioning before any payment/action can proceed.
+Fortexa is a **policy-controlled payment firewall for autonomous agent actions on Stellar**.
+It sits between agent intent and economic execution, applies governance/risk checks, and keeps an auditable decision trail.
 
-This README is intentionally complete and candid: what exists, how it works, and where the current limitations are.
-
----
-
-## 1) What Fortexa Does
-
-Fortexa acts like an execution firewall:
-
-1. An agent proposes an action.
-2. The policy engine checks governance constraints.
-3. The security analyzer computes risk findings and score.
-4. The decision engine returns one of: `APPROVE`, `WARN`, `REQUIRE_APPROVAL`, `BLOCK`.
-5. The outcome is stored in the audit trail.
-6. If allowed, an unsigned Stellar testnet XDR can be built, signed by the wallet owner, then submitted.
+This document reflects the **current implementation** in this repository.
 
 ---
 
-## 2) Stack
+## 1) Why This Matters
 
-- **Framework:** Next.js App Router (`next@16`)
-- **Language:** TypeScript
-- **UI:** Tailwind CSS + custom UI primitives
-- **Validation:** `zod`
-- **Charts:** `recharts`
-- **Stellar:** `@stellar/stellar-sdk`, optional Freighter helper
-- **Database:** `pg` (optional Postgres with file fallback)
-- **Testing:** Vitest
+Agentic systems can now trigger real payments. That creates a new risk layer: high-speed model decisions can become high-impact economic actions.
 
----
+Fortexa adds a control plane between intent and money movement:
 
-## 3) Product Surface
+- Policy checks before execution
+- Risk scoring on suspicious behavior
+- Human-approval gate for sensitive cases
+- Wallet-native signed XDR flow
+- Auditable evidence trail for every decision
 
-### 3.1 Pages
-
-- `/` → Overview + KPI cards + wallet summary
-- `/wallet` → Session wallet status (identity-bound)
-- `/policies` → Runtime policy editor + history + rollback
-- `/console` → Decision console + AI action generation + XDR flow
-- `/scenarios` → Scenario catalog
-- `/activity` → Audit timeline
-- `/ops` → Operations dashboard (health/metrics trends)
-- `/login` → Wallet-only login (role resolved from wallet allowlists)
-
-### 3.2 API Routes
-
-#### Auth
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/session`
-- `POST /api/auth/refresh`
-
-#### Policy
-- `GET /api/policy`
-- `POST /api/policy` (operator)
-- `GET /api/policy/history` (operator)
-- `POST /api/policy/rollback` (operator)
-
-#### Decision / Planning
-- `POST /api/decision` (operator)
-- `POST /api/agent/plan` (operator, Groq-backed)
-
-#### Audit / Ops
-- `GET /api/audit`
-- `GET /api/audit/export?format=json|csv&scope=mine|all`
-- `GET /api/health`
-- `GET /api/metrics` (`?format=prometheus` supported)
-
-#### Stellar
-- `GET /api/stellar/balance`
-- `POST /api/stellar/setup`
-- `POST /api/stellar/build-payment`
-- `POST /api/stellar/submit-signed`
-- `POST /api/stellar/pay` (legacy endpoint, intentionally disabled)
+In short: Fortexa is the safety layer for agentic payments.
 
 ---
 
-## 4) Decisioning Internals
+## 2) Jury Demo Flow (Fast Path)
 
-### 4.1 Policy Engine (`src/lib/policy/engine.ts`)
+If you only read one section, read this:
 
-Checks include:
-- Domain allowlist/blocklist
-- Tool allowlist/blocklist
-- Per-transaction cap
-- Daily cap
-- Max tool calls/day
-- Allowed hours window
-
-Returns trigger list + policy flags (`hardBlock`, `requireApproval`, `warning`).
-
-### 4.2 Security Analyzer (`src/lib/security/analyzer.ts`)
-
-Heuristic findings include:
-- Suspicious domain patterns (`evil`, `drainer`, `phish`)
-- High-risk TLDs (`.zip`, `.click`, `.top`, `.ru`)
-- Prompt-injection signatures
-- Secret-targeting signatures
-- High-amount / weak-target indicators
-
-Returns `riskScore` (0–100) and findings.
-
-### 4.3 Decision Engine (`src/lib/decision/engine.ts`)
-
-Current decision rules:
-- Hard block or severe finding → `BLOCK`
-- Approval-required policy trigger or risk score above threshold → `REQUIRE_APPROVAL`
-- Medium warning signal → `WARN`
-- Otherwise → `APPROVE`
+1. **Login with wallet** on `/login`.
+2. **Evaluate action** in `/console`.
+3. Receive decision: **`BLOCK` / `REQUIRE_APPROVAL` / `WARN` / `APPROVE`**.
+4. For allowed flows, **build unsigned XDR → sign in wallet → submit signed XDR**.
+5. Verify outcome with **Explorer link** and inspect evidence in `/activity` and `/ops`.
 
 ---
 
-## 5) Auth, Roles, and Security Hardening
+## 3) Current Product Model
 
-### 5.1 Session Model
+Fortexa currently runs with a strict wallet-bound model:
 
-- Cookie: `fortexa_session`
-- HMAC-signed token (`FORTEXA_AUTH_SECRET` required)
-- Roles: `operator`, `viewer`
+1. User logs in with wallet (`/login`).
+2. Session is created with role (`operator` / `viewer`).
+3. Session wallet is bound as execution source.
+4. Actions are evaluated by policy + security engine.
+5. Approved/warned decisions can proceed to signed-XDR payment flow.
+6. Decision/audit evidence is stored and visible in `/activity` and `/ops`.
 
-Wallet login is role-mapped via allowlisted public keys:
-- `FORTEXA_OPERATOR_WALLETS` (comma-separated `G...` keys)
-- `FORTEXA_VIEWER_WALLETS` (comma-separated `G...` keys)
+---
 
-### 5.2 Login Hardening
+## 4) Auth and Access Control
 
-- Login rate limiting
+### 4.1 Wallet-only Login
+
+- Login payload: wallet public key (`G...`).
+- Role is resolved via allowlists:
+  - `FORTEXA_OPERATOR_WALLETS`
+  - `FORTEXA_VIEWER_WALLETS`
+- If both allowlists are empty, current behavior falls back to `operator` role for any valid wallet (recommended only for local/dev).
+- Session cookie: `fortexa_session` (HMAC-signed).
+
+### 4.2 Role Permissions
+
+- `operator`: full decision/policy/payment flow
+- `viewer`: read-only experience on sensitive execution paths
+
+### 4.3 Login Hardening
+
+- Rate limiting
 - Brute-force lockout (`FORTEXA_AUTH_MAX_ATTEMPTS`, `FORTEXA_AUTH_LOCK_MINUTES`)
 
-### 5.3 Shared Security State (Optional)
-
-- If `FORTEXA_SHARED_STATE_PATH` is set, lockout and rate-limit state is persisted to a shared file.
-- This improves consistency compared to per-process in-memory state.
-
-**Honest note:** this is still file-based, not a true distributed lock system like Redis.
-
-### 5.4 Security Headers (`src/proxy.ts`)
-
-- `Content-Security-Policy`
-- `X-Frame-Options: DENY`
-- `X-Content-Type-Options: nosniff`
-- `Referrer-Policy`
-- `Permissions-Policy`
-- `Cross-Origin-*`
-- `x-request-id`
+> Note: MFA is removed from current implementation.
 
 ---
 
-## 6) Stellar Payment Flow (Wallet-Agnostic)
+## 5) Wallet and Signing Model (Current)
 
-Fortexa does **not** store private keys.
+Fortexa currently does **not perform server-side signing or private-key custody**.
 
-Flow:
-1. Authenticate with your wallet (`/login`) and bind session identity.
-2. Build unsigned payment XDR (`/api/stellar/build-payment`).
-3. Sign in wallet of choice.
-4. Submit signed XDR (`/api/stellar/submit-signed`).
-
-The direct `/api/stellar/pay` path is intentionally disabled.
+- Session is wallet-bound at login.
+- Execution source wallet is derived from session identity.
+- Manual arbitrary wallet assignment in UI is removed.
+- `/api/stellar/balance` auto-syncs missing wallet mapping from session when possible.
 
 ---
 
-## 7) Persistence Model
+## 6) Decision and Payment Flow
 
-### 7.1 DB-first with File Fallback
+### 6.1 Decisioning
 
-Stores:
-- `audit-store`
-- `policy-store`
-- `user-wallet-store`
+- Policy engine: `src/lib/policy/engine.ts`
+- Security analyzer: `src/lib/security/analyzer.ts`
+- Decision engine: `src/lib/decision/engine.ts`
 
-If `DATABASE_URL` is configured, Postgres is attempted first.
-If DB is unavailable (or not configured), the system falls back to `.fortexa/*.json` stores.
+Decision outcomes:
+- `BLOCK`
+- `REQUIRE_APPROVAL`
+- `WARN`
+- `APPROVE`
 
-### 7.2 Versioned Migrations
+`Human Approve & Re-run` applies only when prior result is `REQUIRE_APPROVAL`.
 
-- Migrations: `src/lib/storage/migrations.ts`
-- Runner/helper: `src/lib/storage/db.ts`
-- Tracking table: `fortexa_schema_migrations`
-- Manual command: `npm run db:migrate`
+### 6.2 Signed XDR Payment Path
 
----
+1. Evaluate action in `/console`.
+2. Build unsigned tx: `POST /api/stellar/build-payment`.
+3. `Submit Signed XDR` orchestrates signing/submission path:
+   - if signed input is already present → submit directly
+   - if unsigned input is present → wallet signing is triggered first, then submit
+4. Submit signed tx: `POST /api/stellar/submit-signed`.
+5. Explorer URL is returned and shown as clickable link.
 
-## 8) Observability
-
-### 8.1 Metrics
-- Request volume by route/method
-- Error count + error rate
-- Average + p95 latency
-- Prometheus text export
-
-### 8.2 Health
-- `GET /api/health`
-- Returns env readiness flags (`hasGroqKey`, `hasAuthSecret`, `hasHorizonUrl`)
-
-### 8.3 Ops Dashboard (`/ops`)
-- Health snapshot
-- Request/error summary
-- Route hotlist
-- Rolling trends
-- Signed transaction count from audit export
+Additional behavior:
+- XDR build timeout configured to 180 seconds.
+- Submit errors include Horizon result codes when available.
 
 ---
 
-## 9) Local Setup
+## 7) Audit and Evidence
+
+- Decisions are appended to audit store at evaluation time.
+- `/activity` reads entries by authenticated session user id.
+- Export endpoint supports `mine` and `all` scopes in JSON/CSV.
+
+---
+
+## 8) Local Setup
 
 ### Requirements
 - Node.js 20+
@@ -224,9 +142,9 @@ Open: `http://localhost:3000`
 
 ---
 
-## 10) Environment Variables
+## 9) Environment Variables
 
-Use `.env.example` as source of truth:
+Reference (`.env.example`):
 
 ```bash
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
@@ -250,7 +168,7 @@ NEXT_PUBLIC_STELLAR_DESTINATION=
 
 ---
 
-## 11) Scripts
+## 10) Scripts
 
 ```bash
 npm run dev
@@ -265,53 +183,122 @@ npm run db:migrate
 
 ---
 
-## 12) Testing Coverage
+## 11) API Surface (Reference)
 
-Current suite includes:
-- auth/session/lockout tests
-- shared-state rate-limit tests
-- DB helper/migration tests
-- policy/decision/auth/audit route tests
-- observability metrics tests
+### Auth
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/session`
+- `POST /api/auth/refresh`
 
-Current verified local status:
-- `npm run lint` ✅
-- `npm run test` ✅
+### Policy
+- `GET /api/policy`
+- `POST /api/policy` (`operator`)
+- `GET /api/policy/history` (`operator`)
+- `POST /api/policy/rollback` (`operator`)
 
----
+### Decision / Planning
+- `POST /api/decision` (`operator`)
+- `POST /api/agent/plan` (`operator`, Groq-backed)
 
-## 13) Known Limitations
+### Audit / Observability
+- `GET /api/audit`
+- `GET /api/audit/export?format=json|csv&scope=mine|all`
+- `GET /api/health`
+- `GET /api/metrics` (`?format=prometheus`)
 
-1. Shared security state is file-based (not Redis/distributed locking).
-2. Risk scoring is heuristic-heavy (no threat intel feed integration yet).
-3. `/api/agent/plan` does not currently use the same request-context helper used by key audited routes.
-4. Stellar support is testnet-focused.
-5. Server-side signing is intentionally disabled.
-6. Docker support is intentionally removed in this repository.
-
----
-
-## 14) Practical Roadmap
-
-- Redis adapter for shared security state
-- Multi-tenant policy profiles
-- Stronger risk scoring (intel + anomaly)
-- Tamper-evident audit integrity model
-- Production-grade Stellar lifecycle hardening
+### Stellar
+- `GET /api/stellar/balance`
+- `POST /api/stellar/setup` (session-wallet bootstrap/sync helper; not manual wallet linking)
+- `POST /api/stellar/build-payment`
+- `POST /api/stellar/submit-signed`
+- `POST /api/stellar/pay` (legacy disabled)
+- `POST /api/stellar/fund` (removed behavior, returns `410`)
 
 ---
 
-## 15) Quick Demo Flow
+## 12) Pages
 
-1. Login with an operator-allowlisted wallet
-2. Verify session wallet in `/wallet`
-3. Evaluate scenario or AI-generated action in `/console`
-4. Trigger and manually approve a `REQUIRE_APPROVAL` case
-5. Build unsigned XDR, sign with wallet, submit signed XDR
-6. Show evidence in `/activity` and telemetry in `/ops`
+- `/` → Overview dashboard
+- `/login` → Wallet-only authentication (Connect Wallet)
+- `/wallet` → Session wallet status and balance
+- `/console` → Decisioning + payment execution console
+- `/policies` → Policy editor, history, rollback
+- `/scenarios` → Scenario gallery
+- `/activity` → Audit trail timeline
+- `/ops` → Operations/telemetry dashboard
 
 ---
 
-## 16) License
+## 13) Ops / Observability (Appendix)
 
-This project is licensed under `MIT` (see `package.json`).
+- Health endpoint: `GET /api/health`
+- Metrics endpoint: `GET /api/metrics` + Prometheus format
+- `/ops` dashboard shows:
+  - service health
+  - total requests
+  - error rate
+  - signed tx count
+  - top routes + rolling trend
+
+Ops dashboard initial load is optimized so core telemetry renders first; slow TX-count fetch no longer blocks first paint.
+
+---
+
+## 14) Persistence (Appendix)
+
+### DB-first with File Fallback
+
+Stores include:
+- `audit-store`
+- `policy-store`
+- `user-wallet-store`
+
+If `DATABASE_URL` is available and healthy, Postgres is used.
+Otherwise Fortexa falls back to `.fortexa/*.json` files.
+
+### Versioned Migrations
+
+- Migrations: `src/lib/storage/migrations.ts`
+- Runner: `src/lib/storage/db.ts`
+- Tracking table: `fortexa_schema_migrations`
+- Manual run: `npm run db:migrate`
+
+---
+
+## 15) Stack (Appendix)
+
+- **Framework:** Next.js App Router (`next@16`)
+- **Language:** TypeScript
+- **UI:** Tailwind CSS + custom UI primitives
+- **Validation:** `zod`
+- **Charts:** `recharts`
+- **Stellar:** `@stellar/stellar-sdk`, optional `@stellar/freighter-api`
+- **Database:** `pg` (optional Postgres, file fallback enabled)
+- **Tests:** Vitest
+
+---
+
+## 16) Known Limitations (Current)
+
+1. Shared security state is file-based (not distributed locking like Redis).
+2. Risk scoring remains heuristic-heavy (no external threat-intel integration).
+3. Stellar workflow is testnet-oriented.
+4. Server-side signing remains intentionally disabled.
+5. Full end-to-end automated coverage for the complete decision-to-payment lifecycle is still limited.
+
+Fortexa is intentionally optimized for hackathon clarity and wallet-native control, not full production deployment.
+
+---
+
+## 17) Practical Next Steps
+
+- Introduce distributed shared state backend (Redis).
+- Add stronger risk intelligence + anomaly detection.
+- Expand end-to-end payment verification and automated lifecycle tests.
+
+---
+
+## 18) License
+
+MIT (see `package.json`).
