@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText, Activity, Lock, ChevronRight, Radar, Shield } from "lucide-react";
 
@@ -47,8 +48,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="app-frame flex min-h-[calc(100vh-2rem)] overflow-hidden rounded-3xl">
         <aside className="hidden w-70 border-r border-[hsl(var(--border))] bg-[linear-gradient(180deg,rgba(10,17,30,0.95),rgba(7,12,22,0.95))] p-5 lg:flex lg:flex-col">
           <div className="mb-8">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">Fortexa</p>
-            <h2 className="mt-2 text-xl font-semibold">Agentic Payment Firewall</h2>
+            <div className="mb-3 inline-flex items-center gap-3">
+              <Image src="/fortexa-logo.svg" alt="Fortexa logo" width={52} height={52} className="h-13 w-13" priority />
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">Fortexa</p>
+                <h2 className="text-xl font-semibold">Mission Console</h2>
+              </div>
+            </div>
             <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
               Policy decisioning layer between AI intent and Stellar execution.
             </p>
@@ -97,8 +103,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <header className="border-b border-[hsl(var(--border))] px-4 py-4 md:px-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Mission Control</p>
-                <h1 className="text-xl font-semibold md:text-2xl">Autonomous Payment Security Plane</h1>
+                <div className="inline-flex items-center gap-3">
+                  <Image src="/fortexa-logo.svg" alt="Fortexa logo" width={40} height={40} className="h-10 w-10" priority />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Mission Control</p>
+                    <h1 className="text-xl font-semibold md:text-2xl">Autonomous Payment Security Plane</h1>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">

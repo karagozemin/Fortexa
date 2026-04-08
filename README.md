@@ -1,5 +1,11 @@
 # Fortexa
 
+<p align="center">
+  <img src="public/fortexa-logo.svg" alt="Fortexa logo" width="120" />
+</p>
+
+<p align="center"><strong>Policy-Controlled Payment Firewall for Autonomous Agent Actions on Stellar</strong></p>
+
 Fortexa is a **policy-controlled payment firewall for autonomous agent actions on Stellar**.
 It sits between agent intent and economic execution, applies governance/risk checks, and keeps an auditable decision trail.
 
