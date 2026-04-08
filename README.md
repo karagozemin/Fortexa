@@ -13,7 +13,7 @@ This document reflects the **current implementation** in this repository.
 
 ---
 
-## 1) Why This Matters
+## 1) ⚠️ Why This Matters
 
 Agentic systems can now trigger real payments. That creates a new risk layer: high-speed model decisions can become high-impact economic actions.
 
@@ -29,7 +29,7 @@ In short: Fortexa is the safety layer for agentic payments.
 
 ---
 
-## 2) Jury Demo Flow (Fast Path)
+## 2) 🚀 Jury Demo Flow (Fast Path)
 
 If you only read one section, read this:
 
@@ -41,7 +41,7 @@ If you only read one section, read this:
 
 ---
 
-## 3) Current Product Model
+## 3) 🧭 Current Product Model
 
 Fortexa currently runs with a strict wallet-bound model:
 
@@ -54,7 +54,7 @@ Fortexa currently runs with a strict wallet-bound model:
 
 ---
 
-## 4) Auth and Access Control
+## 4) 🔐 Auth and Access Control
 
 ### 4.1 Wallet-only Login
 
@@ -79,7 +79,7 @@ Fortexa currently runs with a strict wallet-bound model:
 
 ---
 
-## 5) Wallet and Signing Model (Current)
+## 5) 👛 Wallet and Signing Model (Current)
 
 Fortexa currently does **not perform server-side signing or private-key custody**.
 
@@ -90,7 +90,7 @@ Fortexa currently does **not perform server-side signing or private-key custody*
 
 ---
 
-## 6) Decision and Payment Flow
+## 6) ⚙️ Decision and Payment Flow
 
 ### 6.1 Decisioning
 
@@ -122,7 +122,7 @@ Additional behavior:
 
 ---
 
-## 7) Audit and Evidence
+## 7) 📜 Audit and Evidence
 
 - Decisions are appended to audit store at evaluation time.
 - `/activity` reads entries by authenticated session user id.
@@ -130,7 +130,7 @@ Additional behavior:
 
 ---
 
-## 8) Local Setup
+## 8) 🛠️ Local Setup
 
 ### Requirements
 - Node.js 20+
@@ -148,7 +148,7 @@ Open: `http://localhost:3000`
 
 ---
 
-## 9) Environment Variables
+## 9) 🌍 Environment Variables
 
 Reference (`.env.example`):
 
@@ -174,7 +174,7 @@ NEXT_PUBLIC_STELLAR_DESTINATION=
 
 ---
 
-## 10) Scripts
+## 10) ▶️ Scripts
 
 ```bash
 npm run dev
@@ -189,7 +189,7 @@ npm run db:migrate
 
 ---
 
-## 11) API Surface (Reference)
+## 11) 🔌 API Surface (Reference)
 
 ### Auth
 - `POST /api/auth/login`
@@ -223,7 +223,7 @@ npm run db:migrate
 
 ---
 
-## 12) Pages
+## 12) 🗺️ Pages
 
 - `/` → Overview dashboard
 - `/login` → Wallet-only authentication (Connect Wallet)
@@ -236,7 +236,7 @@ npm run db:migrate
 
 ---
 
-## 13) Ops / Observability (Appendix)
+## 13) 📈 Ops / Observability (Appendix)
 
 - Health endpoint: `GET /api/health`
 - Metrics endpoint: `GET /api/metrics` + Prometheus format
@@ -251,7 +251,7 @@ Ops dashboard initial load is optimized so core telemetry renders first; slow TX
 
 ---
 
-## 14) Persistence (Appendix)
+## 14) 💾 Persistence (Appendix)
 
 ### DB-first with File Fallback
 
@@ -272,7 +272,7 @@ Otherwise Fortexa falls back to `.fortexa/*.json` files.
 
 ---
 
-## 15) Stack (Appendix)
+## 15) 🧱 Stack (Appendix)
 
 - **Framework:** Next.js App Router (`next@16`)
 - **Language:** TypeScript
@@ -285,7 +285,7 @@ Otherwise Fortexa falls back to `.fortexa/*.json` files.
 
 ---
 
-## 16) Known Limitations (Current)
+## 16) 🧪 Known Limitations (Current)
 
 1. Shared security state is file-based (not distributed locking like Redis).
 2. Risk scoring remains heuristic-heavy (no external threat-intel integration).
@@ -297,7 +297,7 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
-## 17) Practical Next Steps
+## 17) 🛣️ Practical Next Steps
 
 - Introduce distributed shared state backend (Redis).
 - Add stronger risk intelligence + anomaly detection.
@@ -305,6 +305,6 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
-## 18) License
+## 18) 📄 License
 
 MIT (see `package.json`).

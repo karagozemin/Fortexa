@@ -1,9 +1,9 @@
-# Fortexa Architecture
+# 🏗️ Fortexa Architecture
 
 > This document describes the architecture **as currently implemented in this repository**, not an idealized target state.
 > This file is intended for technical reviewers; see `README.md` for product framing and demo-first flow.
 
-## 1) System Purpose
+## 1) 🎯 System Purpose
 
 Fortexa is a policy-controlled payment firewall for agent-triggered actions on Stellar.  
 It inserts a decision layer between agent intent and transaction submission.
@@ -14,7 +14,7 @@ Core intent:
 - allow signed XDR submission only through authenticated operator flows
 - preserve audit evidence for traceability
 
-## 2) Scope and Non-Goals (Current)
+## 2) 📌 Scope and Non-Goals (Current)
 
 ### In scope
 - Wallet-address-based login via public-key allowlists (`/api/auth/login`)
@@ -30,7 +30,7 @@ Core intent:
 - Mainnet-first transaction flow
 - Distributed, strongly consistent security state by default
 
-## 3) High-Level Topology
+## 3) 🧭 High-Level Topology
 
 ### 3.1 Runtime Container View
 
@@ -91,7 +91,7 @@ flowchart TB
   ApiRoutes --> Groq
 ```
 
-## 4) Runtime Building Blocks
+## 4) 🧩 Runtime Building Blocks
 
 - `src/app/api/auth/*`: wallet login, session issue/refresh/logout/session lookup.
 - `src/lib/auth/session.ts`: signed cookie session token (`fortexa_session`).
@@ -107,7 +107,7 @@ flowchart TB
 - `src/lib/storage/db.ts`: optional Postgres connector + migration bootstrap + graceful fallback.
 - `src/app/api/metrics/route.ts` + `src/lib/observability/metrics.ts`: JSON and Prometheus metrics.
 
-## 5) Primary Request Flows
+## 5) 🔄 Primary Request Flows
 
 ### 5.1 Wallet-Address-Based Login
 
@@ -198,7 +198,7 @@ sequenceDiagram
 `/api/stellar/setup` currently acts as a **session-wallet bootstrap/sync helper**.  
 It does not enable arbitrary manual wallet linking; it syncs the wallet already present in session context.
 
-## 6) Data and Persistence Model
+## 6) 💾 Data and Persistence Model
 
 ### 6.1 Stores
 
@@ -261,7 +261,7 @@ This fallback is intentional for local resilience, but introduces consistency tr
 - Runtime bootstrap: `src/lib/storage/db.ts`
 - Script: `npm run db:migrate`
 
-## 7) Security and Trust Boundaries
+## 7) 🔐 Security and Trust Boundaries
 
 ### 7.1 Trust boundaries
 
@@ -305,7 +305,7 @@ stateDiagram-v2
   Audited --> [*]
 ```
 
-## 8) Observability Model
+## 8) 📈 Observability Model
 
 - Structured request-aware responses/log context via `jsonWithRequestContext` and logger utilities
 - `/api/health` for health checks
@@ -313,7 +313,7 @@ stateDiagram-v2
 - `/api/metrics?format=prometheus` for scrape-compatible format
 - Ops UI consumes these APIs for dashboarding
 
-## 9) Failure Modes and Current Behavior
+## 9) 🚨 Failure Modes and Current Behavior
 
 - **DB down or flaky:** storage layer logs warning and falls back to file store.
 - **Horizon rejection:** submit endpoint returns enriched error with result codes when available.
@@ -321,7 +321,7 @@ stateDiagram-v2
 - **Rate limit exceeded:** API returns `429` with rate-limit headers.
 - **Invalid session wallet state:** setup/balance flows return validation errors or require resync.
 
-## 10) Architecture Limitations (Honest)
+## 10) 🧪 Architecture Limitations (Honest)
 
 1. Deployment model is still effectively single-node oriented unless external shared state is configured.
 2. Shared security state is file-backed, not distributed by default.
@@ -329,7 +329,7 @@ stateDiagram-v2
 4. Transaction flow is testnet-centric (`Networks.TESTNET`, testnet explorer links).
 5. End-to-end automated coverage for full decision-to-payment lifecycle is still limited.
 
-## 11) Practical Evolution Path
+## 11) 🛣️ Practical Evolution Path
 
 Near-term, high-impact improvements:
 - move limiter/lockout shared state to Redis for true multi-instance consistency
