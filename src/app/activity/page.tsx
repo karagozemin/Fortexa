@@ -2,12 +2,14 @@ import { DecisionBadge } from "@/components/decision-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cookies } from "next/headers";
 
-import { USER_COOKIE_KEY } from "@/lib/auth/user-id";
+import { AUTH_COOKIE_KEY, verifySessionToken } from "@/lib/auth/session";
 import { listAuditEntries } from "@/lib/storage/audit-store";
 
 export default async function ActivityPage() {
   const cookieStore = await cookies();
-  const userId = cookieStore.get(USER_COOKIE_KEY)?.value;
+  const sessionToken = cookieStore.get(AUTH_COOKIE_KEY)?.value;
+  const session = sessionToken ? verifySessionToken(sessionToken) : null;
+  const userId = session?.userId;
   const entries = userId ? await listAuditEntries(userId) : [];
 
   return (

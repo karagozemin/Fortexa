@@ -69,16 +69,47 @@ export function OpsDashboard() {
   const [samples, setSamples] = useState<MetricSample[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [txLoading, setTxLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function loadTxCount() {
+      setTxLoading(true);
+
       try {
-        const [healthResponse, metricsResponse, auditResponse] = await Promise.all([
+        const auditResponse = await fetch("/api/audit/export?format=json&scope=all", { cache: "no-store" });
+
+        if (!auditResponse.ok) {
+          throw new Error("Failed to fetch signed transaction count.");
+        }
+
+        const auditPayload = (await auditResponse.json()) as AuditExportResponse;
+        const extractedTxCount = Object.values(auditPayload.entriesByUser)
+          .flatMap((entries) => entries)
+          .filter((entry) => Boolean(entry.stellarTxHash)).length;
+
+        if (cancelled) {
+          return;
+        }
+
+        setTxCount(extractedTxCount);
+      } catch {
+        if (!cancelled) {
+          setTxCount(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setTxLoading(false);
+        }
+      }
+    }
+
+    async function loadCore() {
+      try {
+        const [healthResponse, metricsResponse] = await Promise.all([
           fetch("/api/health", { cache: "no-store" }),
           fetch("/api/metrics", { cache: "no-store" }),
-          fetch("/api/audit/export?format=json&scope=all", { cache: "no-store" }),
         ]);
 
         if (!healthResponse.ok || !metricsResponse.ok) {
@@ -88,21 +119,12 @@ export function OpsDashboard() {
         const healthPayload = (await healthResponse.json()) as HealthResponse;
         const metricsPayload = (await metricsResponse.json()) as MetricsResponse;
 
-        let extractedTxCount: number | null = null;
-        if (auditResponse.ok) {
-          const auditPayload = (await auditResponse.json()) as AuditExportResponse;
-          extractedTxCount = Object.values(auditPayload.entriesByUser)
-            .flatMap((entries) => entries)
-            .filter((entry) => Boolean(entry.stellarTxHash)).length;
-        }
-
         if (cancelled) {
           return;
         }
 
         setHealth(healthPayload);
         setMetrics(metricsPayload);
-        setTxCount(extractedTxCount);
         setSamples((current) => {
           const next = [
             ...current,
@@ -126,10 +148,14 @@ export function OpsDashboard() {
           setLoading(false);
         }
       }
+
+      void loadTxCount();
     }
 
-    load();
-    const interval = window.setInterval(load, 8000);
+    void loadCore();
+    const interval = window.setInterval(() => {
+      void loadCore();
+    }, 8000);
 
     return () => {
       cancelled = true;
@@ -207,7 +233,7 @@ export function OpsDashboard() {
             <CardDescription>Signed TX Count</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Clock3 className="h-5 w-5 text-fuchsia-300" />
-              {txCount ?? "-"}
+              {txLoading ? "Loading" : txCount ?? "-"}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">
