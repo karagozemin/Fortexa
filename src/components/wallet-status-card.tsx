@@ -43,7 +43,7 @@ export function WalletStatusCard() {
   }, []);
 
   return (
-    <Card>
+    <Card className="premium-panel">
       <CardHeader>
         <CardDescription>Wallet-Bound Identity</CardDescription>
         <CardTitle className="text-xl">Agent Wallet Layer</CardTitle>
@@ -55,14 +55,19 @@ export function WalletStatusCard() {
         </div>
 
         {data?.publicKey ? (
-          <div className="rounded-xl border border-cyan-300/20 bg-cyan-500/10 p-3">
-            <p className="text-[hsl(var(--muted-foreground))]">Public Key</p>
-            <p className="font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
-            {data.userId ? <p className="mt-2 text-[hsl(var(--muted-foreground))]">Assigned User: {truncateMiddle(data.userId, 8, 8)}</p> : null}
-            {data.source ? <p className="text-[hsl(var(--muted-foreground))]">Source: {data.source}</p> : null}
-            {data.provider ? <p className="text-[hsl(var(--muted-foreground))]">Provider: {data.provider}</p> : null}
-            <p className="mt-2 text-[hsl(var(--muted-foreground))]">Balance: {data.balance ?? "0"} XLM</p>
-            {data.network ? <p className="text-[hsl(var(--muted-foreground))]">Network: {data.network}</p> : null}
+          <div className="grid gap-2 rounded-xl border border-cyan-300/20 bg-cyan-500/10 p-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-[hsl(var(--border))] p-2">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">Public Key</p>
+              <p className="font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
+            </div>
+            <div className="rounded-lg border border-[hsl(var(--border))] p-2">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">Balance</p>
+              <p>{data.balance ?? "0"} XLM</p>
+            </div>
+            {data.userId ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Assigned User: {truncateMiddle(data.userId, 8, 8)}</p> : null}
+            {data.source ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Source: {data.source}</p> : null}
+            {data.provider ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Provider: {data.provider}</p> : null}
+            {data.network ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Network: {data.network}</p> : null}
           </div>
         ) : null}
 

@@ -420,7 +420,7 @@ export function DecisionConsole() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-      <Card className="lg:col-span-1">
+      <Card className="premium-panel lg:col-span-1">
         <CardHeader>
           <CardTitle>Demo Scenario Runner</CardTitle>
           <CardDescription>Select a scenario and force policy/risk decisioning before any economic action.</CardDescription>
@@ -446,7 +446,7 @@ export function DecisionConsole() {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2">
+      <Card className="premium-panel lg:col-span-2">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Rocket className="h-5 w-5 text-blue-300" />
@@ -548,6 +548,12 @@ export function DecisionConsole() {
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))]">{decisionData.result.explanation}</p>
               <p className="text-sm">Risk Score: {decisionData.result.riskScore}</p>
+              <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--muted)/0.8)]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,rgba(34,197,94,0.9),rgba(245,158,11,0.9),rgba(244,63,94,0.9))]"
+                  style={{ width: `${Math.min(100, Math.max(0, decisionData.result.riskScore * 10))}%` }}
+                />
+              </div>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="rounded-lg border border-[hsl(var(--border))] p-3 text-sm text-[hsl(var(--muted-foreground))]">
                   <p className="mb-1 text-xs uppercase tracking-[0.14em] text-cyan-300">Triggered Policies</p>

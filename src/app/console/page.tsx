@@ -4,7 +4,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 export default function ConsolePage() {
   return (
     <main className="space-y-6">
-      <Card className="border-cyan-300/20 bg-[linear-gradient(180deg,rgba(17,28,52,0.75),rgba(9,16,30,0.75))]">
+      <Card className="premium-panel border-cyan-300/20 bg-[linear-gradient(180deg,rgba(11,22,42,0.84),rgba(8,14,26,0.84))]">
         <CardHeader>
           <CardDescription>Core Product Surface</CardDescription>
           <CardTitle className="text-2xl">Live Decision Console</CardTitle>

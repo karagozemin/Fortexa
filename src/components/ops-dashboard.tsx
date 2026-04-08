@@ -175,7 +175,7 @@ export function OpsDashboard() {
 
   return (
     <>
-      <Card>
+      <Card className="premium-panel">
         <CardHeader>
           <CardDescription>Telemetry Control Surface</CardDescription>
           <CardTitle className="text-2xl">Operations Dashboard</CardTitle>
@@ -192,7 +192,7 @@ export function OpsDashboard() {
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
+        <Card className="premium-panel">
           <CardHeader>
             <CardDescription>Service Health</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -203,7 +203,7 @@ export function OpsDashboard() {
           <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">{health?.timestamp ?? "-"}</CardContent>
         </Card>
 
-        <Card>
+        <Card className="premium-panel">
           <CardHeader>
             <CardDescription>Total Requests</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -216,7 +216,7 @@ export function OpsDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="premium-panel">
           <CardHeader>
             <CardDescription>Error Rate</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -229,7 +229,7 @@ export function OpsDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="premium-panel">
           <CardHeader>
             <CardDescription>Signed TX Count</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -244,7 +244,7 @@ export function OpsDashboard() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+        <Card className="premium-panel lg:col-span-3">
           <CardHeader>
             <CardTitle>Traffic Trend</CardTitle>
             <CardDescription>Rolling 15 samples (8s interval)</CardDescription>
@@ -261,21 +261,14 @@ export function OpsDashboard() {
                   <Tooltip />
                   <Line yAxisId="left" type="monotone" dataKey="requests" stroke="#22d3ee" strokeWidth={2} dot={false} />
                   <Line yAxisId="left" type="monotone" dataKey="errors" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="errorRatePct"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    dot={false}
-                  />
+                  <Line yAxisId="right" type="monotone" dataKey="errorRatePct" stroke="#ef4444" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="premium-panel lg:col-span-2">
           <CardHeader>
             <CardTitle>Top Routes</CardTitle>
             <CardDescription>Highest request counts</CardDescription>
@@ -285,16 +278,11 @@ export function OpsDashboard() {
               <p className="text-[hsl(var(--muted-foreground))]">No route metrics yet.</p>
             ) : (
               hotRoutes.map((route) => (
-                <div
-                  key={`${route.method}:${route.route}`}
-                  className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]"
-                >
+                <div key={`${route.method}:${route.route}`} className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">
                   <p className="font-medium text-white">
                     {route.method} {route.route}
                   </p>
-                  <p>
-                    requests: {route.totalCount} · errors: {route.errorCount} · p95: {route.p95DurationMs.toFixed(1)} ms
-                  </p>
+                  <p>requests: {route.totalCount} · errors: {route.errorCount} · p95: {route.p95DurationMs.toFixed(1)} ms</p>
                 </div>
               ))
             )}
