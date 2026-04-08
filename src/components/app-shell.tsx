@@ -25,9 +25,13 @@ const writeSensitivePages = new Set(["/policies", "/console", "/ops"]);
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = pathname === "/" || pathname === "/login";
-  const { email, role, isViewer } = useAuthSession();
+  const { email, role, isViewer, authenticated, loading } = useAuthSession();
 
-  const identityLabel = email?.startsWith("wallet:") ? truncateMiddle(email.slice("wallet:".length), 8, 8) : email;
+  const identityLabel = email
+    ? email.startsWith("wallet:")
+      ? truncateMiddle(email.slice("wallet:".length), 8, 8)
+      : email
+    : "wallet-session";
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -101,7 +105,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="hidden items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.28)] px-2.5 py-1 md:inline-flex">
                   <Radar className="h-3.5 w-3.5 text-cyan-300" /> Stellar Testnet
                 </span>
-                {email ? (
+                {loading ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] px-2.5 py-1">
+                    Checking session...
+                  </span>
+                ) : authenticated ? (
                   <>
                     <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] px-2.5 py-1">
                       <Lock className="h-3.5 w-3.5" />
