@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Rocket, ShieldAlert } from "lucide-react";
+import { Loader2, Rocket, ShieldAlert, Sparkles, ShieldCheck, AlertTriangle, Hand, OctagonX, CheckCircle2 } from "lucide-react";
 
 import { DecisionBadge } from "@/components/decision-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import type { AgentAction } from "@/lib/types/domain";
-import { truncateMiddle } from "@/lib/utils/format";
 
 type DecisionApiResponse = {
   result: {
@@ -392,19 +391,39 @@ export function DecisionConsole() {
             key={toast.id}
             className={`max-w-sm rounded-lg border px-3 py-2 text-sm shadow-lg backdrop-blur ${
               toast.kind === "success"
-                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-100"
-                : "border-rose-500/40 bg-rose-500/15 text-rose-100"
+                ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-100"
+                : "border-rose-500/40 bg-rose-500/20 text-rose-100"
             }`}
           >
             {toast.text}
           </div>
         ))}
       </div>
+
+      <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+          <p className="mb-1 inline-flex items-center gap-1 font-medium"><CheckCircle2 className="h-4 w-4" /> APPROVE</p>
+          <p className="text-xs text-emerald-200/80">Executes with wallet signature path.</p>
+        </div>
+        <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <p className="mb-1 inline-flex items-center gap-1 font-medium"><AlertTriangle className="h-4 w-4" /> WARN</p>
+          <p className="text-xs text-amber-200/80">Allowed, with elevated risk posture.</p>
+        </div>
+        <div className="rounded-xl border border-violet-400/25 bg-violet-500/10 p-3 text-sm text-violet-100">
+          <p className="mb-1 inline-flex items-center gap-1 font-medium"><Hand className="h-4 w-4" /> REQUIRE_APPROVAL</p>
+          <p className="text-xs text-violet-200/80">Manual operator sign-off required.</p>
+        </div>
+        <div className="rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-100">
+          <p className="mb-1 inline-flex items-center gap-1 font-medium"><OctagonX className="h-4 w-4" /> BLOCK</p>
+          <p className="text-xs text-rose-200/80">Execution denied by policy or risk.</p>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle>Demo Scenario Runner</CardTitle>
-          <CardDescription>Pick a flow and force Fortexa to evaluate before execution.</CardDescription>
+          <CardDescription>Select a scenario and force policy/risk decisioning before any economic action.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {demoScenarios.map((scenario) => (
@@ -413,11 +432,14 @@ export function DecisionConsole() {
               onClick={() => setSelectedScenarioId(scenario.id)}
               className={`w-full rounded-lg border p-3 text-left transition ${
                 selectedScenarioId === scenario.id
-                  ? "border-blue-400/60 bg-blue-500/20"
-                  : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)]"
+                  ? "border-cyan-300/55 bg-cyan-500/15"
+                  : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] hover:border-cyan-300/30"
               }`}
             >
-              <p className="font-medium">{scenario.title}</p>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="font-medium">{scenario.title}</p>
+                <DecisionBadge decision={scenario.expectedDecision} />
+              </div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">{scenario.description}</p>
             </button>
           ))}
@@ -430,7 +452,7 @@ export function DecisionConsole() {
             <Rocket className="h-5 w-5 text-blue-300" />
             Live Decision Console
           </CardTitle>
-          <CardDescription>Evaluate, optionally approve, and execute payment on Stellar testnet.</CardDescription>
+          <CardDescription>Evaluate, optionally approve, and execute signed payment on Stellar testnet.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!sessionLoading && !isOperator ? (
@@ -441,7 +463,7 @@ export function DecisionConsole() {
           ) : null}
 
           {selectedScenario ? (
-            <div className="rounded-xl border border-[hsl(var(--border))] p-3 text-sm">
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3 text-sm">
               <p className="font-semibold">{selectedScenario.title}</p>
               <p className="text-[hsl(var(--muted-foreground))]">{selectedScenario.description}</p>
               <p className="mt-2 text-[hsl(var(--muted-foreground))]">
@@ -460,11 +482,11 @@ export function DecisionConsole() {
             </Button>
           </div>
 
-          <div className="space-y-2 rounded-xl border border-[hsl(var(--border))] p-3">
-            <p className="text-sm font-semibold">Live AI Agent Planner (Groq)</p>
+          <div className="space-y-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.2)] p-3">
+            <p className="text-sm font-semibold inline-flex items-center gap-2"><Sparkles className="h-4 w-4 text-cyan-200" /> Live AI Agent Planner (Groq)</p>
             <Input value={agentGoal} onChange={(event) => setAgentGoal(event.target.value)} placeholder="Agent goal" />
             <textarea
-              className="min-h-20 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
+              className="min-h-20 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.45)] px-3 py-2 text-xs"
               value={agentContext}
               onChange={(event) => setAgentContext(event.target.value)}
               placeholder="Context for the AI planner"
@@ -483,7 +505,7 @@ export function DecisionConsole() {
               </Button>
             </div>
             {generatedAction ? (
-              <div className="rounded-lg border border-[hsl(var(--border))] p-3 text-xs">
+              <div className="rounded-lg border border-cyan-300/30 bg-cyan-500/10 p-3 text-xs text-cyan-100">
                 <p className="font-medium">{generatedAction.name}</p>
                 <p>kind: {generatedAction.kind}</p>
                 <p>domain: {generatedAction.domain}</p>
@@ -494,7 +516,7 @@ export function DecisionConsole() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">Stellar destination for approved test payment</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-cyan-200" /> Stellar destination for approved test payment</p>
             <Input
               value={destination}
               onChange={(event) => setDestination(event.target.value)}
@@ -504,7 +526,7 @@ export function DecisionConsole() {
               Prepare Payment XDR
             </Button>
             <textarea
-              className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.6)] px-3 py-2 text-xs"
+              className="min-h-24 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.45)] px-3 py-2 text-xs"
               value={signedXdrInput}
               onChange={(event) => setSignedXdrInput(event.target.value)}
               placeholder="Signed XDR will auto-fill after wallet signing (manual paste optional)"
@@ -519,20 +541,30 @@ export function DecisionConsole() {
           </div>
 
           {decisionData ? (
-            <div className="space-y-3 rounded-xl border border-[hsl(var(--border))] p-4">
+            <div className="space-y-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-4">
               <div className="flex items-center justify-between">
                 <p className="font-semibold">Decision Outcome</p>
                 <DecisionBadge decision={decisionData.result.decision} />
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))]">{decisionData.result.explanation}</p>
               <p className="text-sm">Risk Score: {decisionData.result.riskScore}</p>
-              <div className="space-y-1 text-sm text-[hsl(var(--muted-foreground))]">
-                {decisionData.result.triggeredPolicies.map((rule) => (
-                  <p key={rule.code}>• {rule.code}: {rule.message}</p>
-                ))}
-                {decisionData.result.riskFindings.map((finding) => (
-                  <p key={finding.code}>• {finding.code}: {finding.detail}</p>
-                ))}
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-lg border border-[hsl(var(--border))] p-3 text-sm text-[hsl(var(--muted-foreground))]">
+                  <p className="mb-1 text-xs uppercase tracking-[0.14em] text-cyan-300">Triggered Policies</p>
+                  {decisionData.result.triggeredPolicies.length ? (
+                    decisionData.result.triggeredPolicies.map((rule) => <p key={rule.code}>• {rule.code}: {rule.message}</p>)
+                  ) : (
+                    <p>None.</p>
+                  )}
+                </div>
+                <div className="rounded-lg border border-[hsl(var(--border))] p-3 text-sm text-[hsl(var(--muted-foreground))]">
+                  <p className="mb-1 text-xs uppercase tracking-[0.14em] text-cyan-300">Risk Findings</p>
+                  {decisionData.result.riskFindings.length ? (
+                    decisionData.result.riskFindings.map((finding) => <p key={finding.code}>• {finding.code}: {finding.detail}</p>)
+                  ) : (
+                    <p>None.</p>
+                  )}
+                </div>
               </div>
             </div>
           ) : null}
@@ -554,7 +586,7 @@ export function DecisionConsole() {
           ) : null}
 
           {message ? (
-            <Alert className="border-blue-500/40 bg-blue-500/10">
+            <Alert className="border-cyan-400/35 bg-cyan-500/10">
               <AlertTitle className="flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4" />
                 Console status

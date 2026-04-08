@@ -181,7 +181,7 @@ export function PolicyEditor() {
   }, []);
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       {!sessionLoading && !isOperator ? (
         <Alert className="border-amber-500/40 bg-amber-500/10">
           <AlertTitle>Viewer mode</AlertTitle>
@@ -192,7 +192,7 @@ export function PolicyEditor() {
       <Card>
         <CardHeader>
           <CardTitle>Policy Engine Rules</CardTitle>
-          <CardDescription>View and edit active policy config used by decision engine.</CardDescription>
+          <CardDescription>Edit active deterministic controls used by the decision engine.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-[hsl(var(--border))] p-3">
@@ -336,13 +336,13 @@ export function PolicyEditor() {
         <Button variant="outline" onClick={loadHistory} disabled={loading}>Reload History</Button>
       </div>
 
-      <Alert className="border-blue-500/40 bg-blue-500/10">
+      <Alert className="border-cyan-500/35 bg-cyan-500/10">
         <AlertTitle>Policy status</AlertTitle>
         <AlertDescription>
           {status}
           {updatedAt ? ` Last updated: ${updatedAt}` : ""}
         </AlertDescription>
       </Alert>
-    </main>
+    </div>
   );
 }

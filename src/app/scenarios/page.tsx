@@ -5,9 +5,10 @@ import { demoScenarios } from "@/lib/scenarios/seed";
 export default function ScenariosPage() {
   return (
     <main className="space-y-6">
-      <Card>
+      <Card className="border-cyan-300/20 bg-[linear-gradient(180deg,rgba(15,29,55,0.6),rgba(10,16,31,0.6))]">
         <CardHeader>
-          <CardTitle>Scenario Runner Catalog</CardTitle>
+          <CardDescription>Demo Readiness</CardDescription>
+          <CardTitle className="text-2xl">Scenario Runner Catalog</CardTitle>
           <CardDescription>Curated demo journeys showcasing approve, warn, manual-approval, and block outcomes.</CardDescription>
         </CardHeader>
       </Card>

@@ -4,11 +4,12 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 export default function ConsolePage() {
   return (
     <main className="space-y-6">
-      <Card>
+      <Card className="border-cyan-300/20 bg-[linear-gradient(180deg,rgba(17,28,52,0.75),rgba(9,16,30,0.75))]">
         <CardHeader>
-          <CardTitle>Live Decision Console</CardTitle>
+          <CardDescription>Core Product Surface</CardDescription>
+          <CardTitle className="text-2xl">Live Decision Console</CardTitle>
           <CardDescription>
-            Interactive control room for running agent actions through policy + security checks, then optionally executing payments.
+            Mission-control surface for evaluating agent actions, applying approvals, and executing wallet-signed Stellar transactions with full traceability.
           </CardDescription>
         </CardHeader>
       </Card>

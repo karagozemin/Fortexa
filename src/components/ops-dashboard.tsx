@@ -177,7 +177,8 @@ export function OpsDashboard() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Operations Dashboard</CardTitle>
+          <CardDescription>Telemetry Control Surface</CardDescription>
+          <CardTitle className="text-2xl">Operations Dashboard</CardTitle>
           <CardDescription>
             Live health, request/error telemetry, and signed transaction trend snapshot.
           </CardDescription>
@@ -258,7 +259,7 @@ export function OpsDashboard() {
                   <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Line yAxisId="left" type="monotone" dataKey="requests" stroke="#60a5fa" strokeWidth={2} dot={false} />
+                  <Line yAxisId="left" type="monotone" dataKey="requests" stroke="#22d3ee" strokeWidth={2} dot={false} />
                   <Line yAxisId="left" type="monotone" dataKey="errors" stroke="#f59e0b" strokeWidth={2} dot={false} />
                   <Line
                     yAxisId="right"

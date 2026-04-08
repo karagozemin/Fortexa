@@ -1,19 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: 220 30% 8%;
-  --foreground: 220 20% 96%;
-  --muted: 220 16% 16%;
-  --muted-foreground: 220 10% 70%;
-  --card: 220 26% 10%;
-  --card-foreground: 220 20% 96%;
-  --border: 220 20% 20%;
-  --ring: 205 90% 64%;
-  --primary: 205 90% 64%;
-  --primary-foreground: 220 40% 12%;
-  --success: 150 70% 45%;
-  --warn: 42 96% 55%;
-  --danger: 0 84% 62%;
+  --background: 223 31% 5%;
+  --foreground: 220 30% 96%;
+  --muted: 220 21% 13%;
+  --muted-foreground: 220 14% 67%;
+  --card: 224 28% 8%;
+  --card-foreground: 220 26% 95%;
+  --border: 220 20% 19%;
+  --ring: 203 94% 66%;
+  --primary: 203 94% 66%;
+  --primary-foreground: 224 45% 12%;
+  --success: 155 78% 42%;
+  --warn: 42 94% 55%;
+  --danger: 0 83% 62%;
+  --violet: 262 86% 69%;
 }
 
 * {
@@ -21,9 +22,14 @@
 }
 
 body {
-  background: radial-gradient(circle at 20% 0%, #1d2441 0%, #0b1020 55%, #070b16 100%);
+  background:
+    radial-gradient(1000px 560px at 5% -10%, rgba(45, 84, 178, 0.3), rgba(45, 84, 178, 0) 58%),
+    radial-gradient(920px 540px at 100% 0%, rgba(56, 189, 248, 0.14), rgba(56, 189, 248, 0) 55%),
+    linear-gradient(180deg, #070b16 0%, #060911 42%, #05080f 100%);
   color: hsl(var(--foreground));
   min-height: 100vh;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  letter-spacing: 0.01em;
 }
 
 button:not(:disabled) {
@@ -32,4 +38,38 @@ button:not(:disabled) {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+}
+
+.fortexa-shell {
+  position: relative;
+}
+
+.fortexa-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at center, black 42%, transparent 96%);
+  opacity: 0.24;
+}
+
+.section-divider {
+  border-top: 1px solid hsl(var(--border) / 0.9);
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, hsl(var(--card) / 0.9), hsl(var(--card) / 0.78));
+  border: 1px solid hsl(var(--border) / 0.95);
+  box-shadow: 0 20px 40px rgba(2, 8, 20, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }

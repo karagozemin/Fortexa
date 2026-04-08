@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText, Activity } from "lucide-react";
+import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText, Activity, Lock, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils/cn";
 import { truncateMiddle } from "@/lib/utils/format";
 
 const navItems = [
-  { href: "/", label: "Overview", icon: ShieldCheck },
+  { href: "/overview", label: "Overview", icon: ShieldCheck },
   { href: "/wallet", label: "Agent Wallet", icon: Wallet },
   { href: "/policies", label: "Policies", icon: FileSearch },
   { href: "/console", label: "Decision Console", icon: Bot },
-  { href: "/scenarios", label: "Scenarios", icon: Wallet },
+  { href: "/scenarios", label: "Scenarios", icon: Bot },
   { href: "/activity", label: "Audit Trail", icon: ScrollText },
   { href: "/ops", label: "Ops", icon: Activity },
 ];
@@ -24,6 +24,7 @@ const writeSensitivePages = new Set(["/policies", "/console", "/ops"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isPublicRoute = pathname === "/" || pathname === "/login";
   const { email, role, isViewer } = useAuthSession();
 
   const identityLabel = email?.startsWith("wallet:") ? truncateMiddle(email.slice("wallet:".length), 8, 8) : email;
@@ -33,17 +34,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.location.href = "/login";
   }
 
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
+
   return (
-    <div className="mx-auto min-h-screen max-w-7xl px-5 pb-10 pt-8">
-      <header className="mb-7 flex flex-col gap-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/0.6)] p-5 backdrop-blur-lg md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-blue-300">Fortexa</p>
-          <h1 className="text-2xl font-semibold">Agent Payment Firewall on Stellar</h1>
+    <div className="fortexa-shell mx-auto min-h-screen max-w-7xl px-4 pb-12 pt-6 md:px-8">
+      <header className="glass-panel mb-8 overflow-hidden rounded-2xl p-5 md:p-6">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/90">Fortexa Mission Control</p>
+            <h1 className="text-2xl font-semibold md:text-[1.9rem]">Policy Firewall for Agentic Payments</h1>
+            <p className="max-w-2xl text-sm text-[hsl(var(--muted-foreground))]">
+              Evaluate intent, enforce policy, and permit wallet-signed Stellar execution only when risk posture is acceptable.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="inline-flex items-center gap-1 rounded-lg border border-[hsl(var(--border))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] transition hover:text-white">
+              Public site <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <nav className="flex flex-wrap gap-2">
+
+        <div className="mt-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <nav className="flex flex-wrap gap-2.5">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.href || (item.href === "/overview" && pathname === "/app");
             const Icon = item.icon;
 
             return (
@@ -53,8 +69,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition",
                   active
-                    ? "border-blue-400/50 bg-blue-500/20 text-blue-200"
-                    : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] text-[hsl(var(--muted-foreground))] hover:text-white"
+                    ? "border-cyan-300/45 bg-cyan-500/20 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.45)] text-[hsl(var(--muted-foreground))] hover:border-cyan-300/30 hover:text-white"
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -68,10 +84,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
           </nav>
+
           <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
             {email ? (
               <>
-                <span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] px-2.5 py-1">
+                  <Lock className="h-3.5 w-3.5" />
                   {identityLabel} {role ? `(${role})` : ""}
                 </span>
                 <Button variant="outline" size="sm" onClick={logout}>
@@ -86,6 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
+
       {children}
     </div>
   );

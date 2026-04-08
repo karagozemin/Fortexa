@@ -4,11 +4,12 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 export default function WalletPage() {
   return (
     <main className="space-y-6">
-      <Card>
+      <Card className="border-cyan-300/20 bg-[linear-gradient(180deg,rgba(15,29,55,0.6),rgba(10,16,31,0.6))]">
         <CardHeader>
-          <CardTitle>Agent Wallet & Testnet Operations</CardTitle>
+          <CardDescription>Execution Context</CardDescription>
+          <CardTitle className="text-2xl">Agent Wallet & Testnet Operations</CardTitle>
           <CardDescription>
-            Lightweight wallet surface for Stellar testnet identity and balance checks before payments.
+            Verify source wallet identity, balance, and signing posture before transaction execution.
           </CardDescription>
         </CardHeader>
       </Card>

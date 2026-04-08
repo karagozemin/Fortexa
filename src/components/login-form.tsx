@@ -72,22 +72,18 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="mx-auto max-w-md">
+    <Card className="mx-auto max-w-md border-cyan-300/20 bg-[linear-gradient(180deg,rgba(16,27,50,0.82),rgba(9,14,27,0.85))]">
       <CardHeader>
-        <CardTitle>Fortexa Login</CardTitle>
-        <CardDescription>Wallet-only authentication. Connect your wallet to sign in.</CardDescription>
+        <CardDescription>Wallet-First Authentication</CardDescription>
+        <CardTitle className="text-2xl">Fortexa Login</CardTitle>
+        <CardDescription>Connect Freighter and establish a wallet-bound session.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-3">
           <Button type="button" variant="outline" onClick={connectFreighter} disabled={loading} className="w-full">
             {loading ? "Connecting..." : "Connect Wallet"}
           </Button>
-          <Input
-            type="text"
-            value={publicKey}
-            placeholder="Connected wallet address will appear here"
-            readOnly
-          />
+          <Input type="text" value={publicKey} placeholder="Connected wallet address will appear here" readOnly />
           <Button type="submit" disabled={loading || !publicKey.trim()} className="w-full">
             {loading ? "Signing in..." : "Sign In"}
           </Button>

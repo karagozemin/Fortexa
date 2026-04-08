@@ -4,14 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+  "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
   {
     variants: {
       variant: {
-        default: "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-110",
-        secondary: "bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted-foreground)/0.2)]",
-        outline: "border border-[hsl(var(--border))] bg-transparent hover:bg-[hsl(var(--muted))]",
-        danger: "bg-[hsl(var(--danger))] text-white hover:brightness-110",
+        default:
+          "border border-cyan-300/40 bg-cyan-300/[0.92] text-slate-950 shadow-[0_8px_24px_rgba(56,189,248,0.26)] hover:-translate-y-0.5 hover:bg-cyan-200",
+        secondary:
+          "border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.82)] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/1)]",
+        outline:
+          "border border-[hsl(var(--border))] bg-transparent text-[hsl(var(--foreground))] hover:border-cyan-300/40 hover:bg-cyan-400/10",
+        danger: "border border-rose-400/30 bg-[hsl(var(--danger)/0.2)] text-rose-200 hover:bg-[hsl(var(--danger)/0.3)]",
       },
       size: {
         default: "h-10 px-4 py-2",

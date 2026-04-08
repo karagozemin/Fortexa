@@ -45,8 +45,9 @@ export function WalletStatusCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Agent Wallet Layer</CardTitle>
-        <CardDescription>Transaction source is strictly bound to the authenticated wallet session.</CardDescription>
+        <CardDescription>Wallet-Bound Identity</CardDescription>
+        <CardTitle className="text-xl">Agent Wallet Layer</CardTitle>
+        <CardDescription>Transaction source remains strictly bound to authenticated session wallet.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex gap-2">
@@ -54,7 +55,7 @@ export function WalletStatusCard() {
         </div>
 
         {data?.publicKey ? (
-          <div className="rounded-xl border border-[hsl(var(--border))] p-3">
+          <div className="rounded-xl border border-cyan-300/20 bg-cyan-500/10 p-3">
             <p className="text-[hsl(var(--muted-foreground))]">Public Key</p>
             <p className="font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
             {data.userId ? <p className="mt-2 text-[hsl(var(--muted-foreground))]">Assigned User: {truncateMiddle(data.userId, 8, 8)}</p> : null}
@@ -65,7 +66,7 @@ export function WalletStatusCard() {
           </div>
         ) : null}
 
-        <Alert className="border-blue-500/40 bg-blue-500/10">
+        <Alert className="border-cyan-500/35 bg-cyan-500/10">
           <AlertTitle>Wallet status</AlertTitle>
           <AlertDescription>{status}</AlertDescription>
         </Alert>

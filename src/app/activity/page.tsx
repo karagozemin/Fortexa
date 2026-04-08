@@ -14,9 +14,10 @@ export default async function ActivityPage() {
 
   return (
     <main className="space-y-6">
-      <Card>
+      <Card className="border-cyan-300/20 bg-[linear-gradient(180deg,rgba(15,29,55,0.6),rgba(10,16,31,0.6))]">
         <CardHeader>
-          <CardTitle>Audit Trail</CardTitle>
+          <CardDescription>Evidence Layer</CardDescription>
+          <CardTitle className="text-2xl">Audit Trail</CardTitle>
           <CardDescription>
             Immutable-style event log of attempted actions, policy triggers, risk findings, and final decisions.
           </CardDescription>
@@ -32,7 +33,7 @@ export default async function ActivityPage() {
           </Card>
         ) : (
           entries.map((entry) => (
-            <Card key={entry.id}>
+            <Card key={entry.id} className="relative overflow-hidden">
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -45,9 +46,13 @@ export default async function ActivityPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
-                <p>{entry.explanation}</p>
-                {entry.triggeredPolicies.length ? <p>Policies: {entry.triggeredPolicies.join(" | ")}</p> : null}
-                {entry.riskFindings.length ? <p>Risk: {entry.riskFindings.join(" | ")}</p> : null}
+                <p className="rounded-lg border border-[hsl(var(--border))] px-3 py-2">{entry.explanation}</p>
+                {entry.triggeredPolicies.length ? (
+                  <p className="rounded-lg border border-cyan-300/20 bg-cyan-500/10 px-3 py-2">Policies: {entry.triggeredPolicies.join(" | ")}</p>
+                ) : null}
+                {entry.riskFindings.length ? (
+                  <p className="rounded-lg border border-amber-300/20 bg-amber-500/10 px-3 py-2">Risk: {entry.riskFindings.join(" | ")}</p>
+                ) : null}
               </CardContent>
             </Card>
           ))
