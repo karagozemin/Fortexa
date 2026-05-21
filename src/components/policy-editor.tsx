@@ -189,17 +189,17 @@ export function PolicyEditor() {
         </Alert>
       ) : null}
 
-      <Card className="premium-panel">
+      <Card>
         <CardHeader>
           <CardTitle>Policy Engine Rules</CardTitle>
           <CardDescription>Edit active deterministic controls used by the decision engine.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3">
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.35)] p-3">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Current version</p>
             <p className="text-lg font-semibold">{version ?? "-"}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3">
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.35)] p-3">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Per-transaction cap</p>
             <Input
               type="number"
@@ -210,7 +210,7 @@ export function PolicyEditor() {
               }
             />
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3">
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.35)] p-3">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Daily spending cap</p>
             <Input
               type="number"
@@ -221,7 +221,7 @@ export function PolicyEditor() {
               }
             />
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3">
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.35)] p-3">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Max tool calls/day</p>
             <Input
               type="number"
@@ -232,7 +232,7 @@ export function PolicyEditor() {
               }
             />
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3">
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.35)] p-3">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">Risk score threshold</p>
             <Input
               type="number"
@@ -247,52 +247,52 @@ export function PolicyEditor() {
       </Card>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardTitle>Allowed domains</CardTitle>
           </CardHeader>
           <CardContent>
             <textarea
-              className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.38)] px-3 py-2 text-sm"
+              className="min-h-32 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]"
               value={allowedDomains}
               disabled={writeDisabled}
               onChange={(event) => setAllowedDomains(event.target.value)}
             />
           </CardContent>
         </Card>
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardTitle>Blocked domains</CardTitle>
           </CardHeader>
           <CardContent>
             <textarea
-              className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.38)] px-3 py-2 text-sm"
+              className="min-h-32 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]"
               value={blockedDomains}
               disabled={writeDisabled}
               onChange={(event) => setBlockedDomains(event.target.value)}
             />
           </CardContent>
         </Card>
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardTitle>Allowed tools</CardTitle>
           </CardHeader>
           <CardContent>
             <textarea
-              className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.38)] px-3 py-2 text-sm"
+              className="min-h-32 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]"
               value={allowedTools}
               disabled={writeDisabled}
               onChange={(event) => setAllowedTools(event.target.value)}
             />
           </CardContent>
         </Card>
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardTitle>Blocked tools</CardTitle>
           </CardHeader>
           <CardContent>
             <textarea
-              className="min-h-32 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.38)] px-3 py-2 text-sm"
+              className="min-h-32 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]"
               value={blockedTools}
               disabled={writeDisabled}
               onChange={(event) => setBlockedTools(event.target.value)}
@@ -301,7 +301,7 @@ export function PolicyEditor() {
         </Card>
       </section>
 
-      <Card className="premium-panel">
+      <Card>
         <CardHeader>
           <CardTitle>Policy Version History</CardTitle>
           <CardDescription>Latest saved policy versions with optional rollback.</CardDescription>
@@ -336,7 +336,7 @@ export function PolicyEditor() {
         <Button variant="outline" onClick={loadHistory} disabled={loading}>Reload History</Button>
       </div>
 
-      <Alert className="border-cyan-500/35 bg-cyan-500/10">
+      <Alert className="border-[hsl(var(--accent)/0.2)] bg-[hsl(var(--accent)/0.05)]">
         <AlertTitle>Policy status</AlertTitle>
         <AlertDescription>
           {status}

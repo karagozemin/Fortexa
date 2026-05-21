@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function AppRouteAliasPage() {
-  redirect("/overview");
+export default function AppRedirect() {
+  redirect("/dashboard");
 }

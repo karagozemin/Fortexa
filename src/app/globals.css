@@ -1,54 +1,212 @@
 @import "tailwindcss";
 
 :root {
-  --background: 223 31% 5%;
-  --foreground: 220 30% 96%;
-  --muted: 220 21% 13%;
-  --muted-foreground: 220 14% 67%;
-  --card: 224 28% 8%;
-  --card-foreground: 220 26% 95%;
-  --border: 220 20% 19%;
-  --ring: 203 94% 66%;
-  --primary: 203 94% 66%;
-  --primary-foreground: 224 45% 12%;
-  --success: 155 78% 42%;
-  --warn: 42 94% 55%;
-  --danger: 0 83% 62%;
-  --violet: 262 86% 69%;
-  --shell: 224 32% 6%;
-  --shell-soft: 224 28% 9%;
+  --background: 222 47% 4%;
+  --foreground: 210 40% 98%;
+  --muted: 222 28% 12%;
+  --muted-foreground: 215 16% 58%;
+  --card: 222 32% 7%;
+  --card-foreground: 210 40% 98%;
+  --border: 222 22% 16%;
+  --ring: 187 92% 53%;
+  --primary: 187 92% 53%;
+  --primary-foreground: 222 47% 6%;
+  --success: 152 69% 45%;
+  --warn: 38 92% 50%;
+  --danger: 0 72% 58%;
+  --surface-0: 222 47% 4%;
+  --surface-1: 222 32% 7%;
+  --surface-2: 222 28% 10%;
+  --accent: 187 92% 53%;
 }
 
 * {
   border-color: hsl(var(--border));
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background:
-    radial-gradient(1200px 580px at 2% -12%, rgba(45, 84, 178, 0.28), rgba(45, 84, 178, 0) 60%),
-    radial-gradient(900px 600px at 98% -8%, rgba(56, 189, 248, 0.16), rgba(56, 189, 248, 0) 58%),
-    linear-gradient(180deg, #060a14 0%, #050911 45%, #04070e 100%);
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(99, 102, 241, 0.08), transparent),
+    hsl(var(--background));
   color: hsl(var(--foreground));
   min-height: 100vh;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  letter-spacing: 0.01em;
   text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
 }
 
-body::before {
-  content: "";
+body.public-shell {
+  background: hsl(var(--background));
+}
+
+body.app-shell {
+  background: hsl(222 52% 2.5%);
+}
+
+.app-workspace-bg {
   position: fixed;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
+  overflow: hidden;
+}
+
+.app-workspace-base {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -30%, hsl(222 40% 8%) 0%, transparent 55%),
+    linear-gradient(165deg, hsl(222 52% 3%) 0%, hsl(228 45% 2.5%) 45%, hsl(222 50% 2%) 100%);
+}
+
+.app-workspace-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+}
+
+.app-workspace-orb--cyan {
+  top: -22%;
+  left: -10%;
+  width: min(58vw, 680px);
+  height: min(58vw, 680px);
+  background: radial-gradient(circle, hsl(var(--accent) / 0.2) 0%, transparent 68%);
+  animation: app-orb-float-a 20s ease-in-out infinite alternate;
+}
+
+.app-workspace-orb--indigo {
+  right: -8%;
+  bottom: -24%;
+  width: min(50vw, 560px);
+  height: min(50vw, 560px);
+  background: radial-gradient(circle, hsl(245 58% 52% / 0.16) 0%, transparent 70%);
+  animation: app-orb-float-b 24s ease-in-out infinite alternate;
+}
+
+.app-workspace-orb--blue {
+  top: 38%;
+  left: 42%;
+  width: min(36vw, 420px);
+  height: min(36vw, 420px);
+  background: radial-gradient(circle, hsl(210 90% 56% / 0.1) 0%, transparent 72%);
+  animation: app-orb-float-c 28s ease-in-out infinite alternate;
+}
+
+.app-workspace-beam {
+  position: absolute;
+  inset: -40%;
+  opacity: 0.55;
+  background: conic-gradient(
+    from 210deg at 28% 18%,
+    transparent 0deg,
+    hsl(var(--accent) / 0.07) 38deg,
+    transparent 76deg,
+    hsl(245 58% 52% / 0.05) 130deg,
+    transparent 170deg
+  );
+  animation: app-beam-spin 80s linear infinite;
+}
+
+.app-workspace-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.app-workspace-grid {
+  position: absolute;
+  inset: 0;
   background-image:
-    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.08), transparent 34%),
-    radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.1), transparent 40%),
-    linear-gradient(to right, rgba(148, 163, 184, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
-  background-size: auto, auto, 44px 44px, 44px 44px;
-  mask-image: radial-gradient(circle at center, black 44%, transparent 100%);
-  opacity: 0.6;
-  z-index: -1;
+    linear-gradient(hsl(var(--border) / 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--border) / 0.14) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 95% 85% at 52% 22%, black 8%, transparent 72%);
+  opacity: 0.5;
+}
+
+.app-workspace-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 110% 95% at 50% 45%, transparent 28%, hsl(222 52% 2% / 0.82) 100%),
+    linear-gradient(to bottom, hsl(222 52% 2% / 0.55) 0%, transparent 18%, transparent 78%, hsl(222 52% 2% / 0.65) 100%);
+}
+
+@keyframes app-orb-float-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(4%, 6%) scale(1.06); }
+}
+
+@keyframes app-orb-float-b {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-5%, -4%) scale(1.05); }
+}
+
+@keyframes app-orb-float-c {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(3%, -5%) scale(1.08); }
+}
+
+@keyframes app-beam-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+body.app-shell .glass-sidebar {
+  background: linear-gradient(180deg, hsl(var(--surface-2) / 0.72), hsl(var(--surface-1) / 0.58));
+  backdrop-filter: blur(28px) saturate(1.2);
+  border-right: 1px solid hsl(var(--border) / 0.45);
+  box-shadow:
+    inset -1px 0 0 hsl(255 255% 100% / 0.03),
+    8px 0 32px -12px hsl(222 52% 2% / 0.6);
+}
+
+body.app-shell .app-header {
+  background: hsl(var(--surface-1) / 0.55);
+  backdrop-filter: blur(24px) saturate(1.15);
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+}
+
+body.app-shell .app-mobile-nav {
+  background: hsl(var(--surface-1) / 0.7);
+  backdrop-filter: blur(24px) saturate(1.15);
+  border-top: 1px solid hsl(var(--border) / 0.4);
+}
+
+body.app-shell .surface-elevated {
+  background: linear-gradient(180deg, hsl(var(--surface-2) / 0.82), hsl(var(--surface-1) / 0.68));
+  backdrop-filter: blur(12px);
+  border-color: hsl(var(--border) / 0.65);
+  box-shadow:
+    0 0 0 1px hsl(255 255% 100% / 0.025) inset,
+    0 20px 40px -16px hsl(222 52% 2% / 0.75);
+}
+
+.glass-sidebar {
+  background: linear-gradient(180deg, hsl(var(--surface-2) / 0.92), hsl(var(--surface-1) / 0.88));
+  backdrop-filter: blur(24px);
+  border-right: 1px solid hsl(var(--border) / 0.55);
+  box-shadow: inset -1px 0 0 hsl(255 255% 100% / 0.02);
+}
+
+.app-header {
+  background: hsl(var(--surface-1) / 0.72);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid hsl(var(--border) / 0.55);
+  box-shadow: 0 1px 0 hsl(255 255% 100% / 0.02);
+}
+
+.app-mobile-nav {
+  background: hsl(var(--surface-1) / 0.88);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid hsl(var(--border) / 0.55);
 }
 
 button:not(:disabled) {
@@ -59,50 +217,82 @@ button:disabled {
   cursor: not-allowed;
 }
 
-h1,
-h2,
-h3,
-h4 {
-  letter-spacing: -0.02em;
+h1, h2, h3, h4 {
+  letter-spacing: -0.025em;
 }
 
-.fortexa-shell {
-  position: relative;
+.surface {
+  background: hsl(var(--surface-1));
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 1rem;
 }
 
-.fortexa-shell::before {
-  content: "";
+.surface-elevated {
+  background: linear-gradient(180deg, hsl(var(--surface-2) / 0.95), hsl(var(--surface-1) / 0.9));
+  border: 1px solid hsl(var(--border) / 0.85);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 24px 48px -12px rgba(0, 0, 0, 0.5);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #f8fafc 0%, #94a3b8 50%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.aurora {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: radial-gradient(circle at center, black 42%, transparent 96%);
-  opacity: 0.15;
+  overflow: hidden;
 }
 
-.section-divider {
-  border-top: 1px solid hsl(var(--border) / 0.9);
+.aurora::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -20%;
+  width: 70%;
+  height: 80%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.15) 0%, transparent 70%);
+  animation: aurora-drift 12s ease-in-out infinite alternate;
 }
 
-.glass-panel {
-  background: linear-gradient(180deg, hsl(var(--card) / 0.9), hsl(var(--card) / 0.78));
-  border: 1px solid hsl(var(--border) / 0.95);
-  box-shadow: 0 20px 40px rgba(2, 8, 20, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+.aurora::after {
+  content: "";
+  position: absolute;
+  top: -30%;
+  right: -15%;
+  width: 60%;
+  height: 70%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  animation: aurora-drift 15s ease-in-out infinite alternate-reverse;
 }
 
-.premium-panel {
-  border: 1px solid hsl(var(--border) / 0.9);
-  background: linear-gradient(180deg, rgba(14, 21, 37, 0.86), rgba(9, 14, 26, 0.82));
-  box-shadow: 0 18px 48px rgba(3, 9, 24, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+@keyframes aurora-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(5%, 8%) scale(1.08); }
 }
 
-.app-frame {
-  border: 1px solid hsl(var(--border) / 0.9);
-  background: linear-gradient(180deg, rgba(10, 16, 30, 0.85), rgba(8, 13, 24, 0.82));
-  box-shadow: 0 22px 52px rgba(1, 7, 18, 0.45);
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out forwards;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.risk-ring {
+  animation: pulse-ring 2.5s ease-in-out infinite;
 }
 
 .fortexa-no-scrollbar {
@@ -112,4 +302,8 @@ h4 {
 
 .fortexa-no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.wrap-anywhere {
+  overflow-wrap: anywhere;
 }

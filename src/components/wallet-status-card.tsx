@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RefreshCw, Wallet } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { truncateMiddle } from "@/lib/utils/format";
+import { cn } from "@/lib/utils/cn";
 
 type WalletData = {
   configured: boolean;
@@ -19,9 +19,8 @@ type WalletData = {
   network?: string;
 };
 
-export function WalletStatusCard() {
+export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<WalletData | null>(null);
-  const [status, setStatus] = useState<string>("Wallet not loaded yet.");
   const [loading, setLoading] = useState(false);
 
   async function loadWallet() {
@@ -30,9 +29,8 @@ export function WalletStatusCard() {
       const response = await fetch("/api/stellar/balance");
       const payload = (await response.json()) as WalletData;
       setData(payload);
-      setStatus(payload.error ?? payload.message ?? "Wallet loaded.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Failed to load wallet.");
+    } catch {
+      setData(null);
     } finally {
       setLoading(false);
     }
@@ -42,46 +40,65 @@ export function WalletStatusCard() {
     void loadWallet();
   }, []);
 
-  return (
-    <Card className="premium-panel">
-      <CardHeader>
-        <CardDescription>Wallet-Bound Identity</CardDescription>
-        <CardTitle className="text-xl">Agent Wallet Layer</CardTitle>
-        <CardDescription>Transaction source remains strictly bound to authenticated session wallet.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex gap-2">
-          <Button onClick={loadWallet} disabled={loading}>Refresh Wallet</Button>
-        </div>
-
-        {data?.publicKey ? (
-          <div className="grid gap-2 rounded-xl border border-cyan-300/20 bg-cyan-500/10 p-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-[hsl(var(--border))] p-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">Public Key</p>
-              <p className="font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
-            </div>
-            <div className="rounded-lg border border-[hsl(var(--border))] p-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">Balance</p>
-              <p>{data.balance ?? "0"} XLM</p>
-            </div>
-            {data.userId ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Assigned User: {truncateMiddle(data.userId, 8, 8)}</p> : null}
-            {data.source ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Source: {data.source}</p> : null}
-            {data.provider ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Provider: {data.provider}</p> : null}
-            {data.network ? <p className="rounded-lg border border-[hsl(var(--border))] p-2 text-[hsl(var(--muted-foreground))]">Network: {data.network}</p> : null}
+  if (compact) {
+    return (
+      <div className="surface-elevated flex items-center justify-between gap-4 p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--accent)/0.1)]">
+            <Wallet className="h-5 w-5 text-[hsl(var(--accent))]" />
           </div>
-        ) : null}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Session wallet</p>
+            {data?.publicKey ? (
+              <p className="font-mono text-sm">{truncateMiddle(data.publicKey, 8, 8)}</p>
+            ) : (
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">Not linked</p>
+            )}
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">Balance</p>
+          <p className="text-lg font-semibold">{data?.balance ?? "—"} <span className="text-sm font-normal text-[hsl(var(--muted-foreground))]">XLM</span></p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={loadWallet} disabled={loading} className="shrink-0">
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+    );
+  }
 
-        <Alert className="border-cyan-500/35 bg-cyan-500/10">
-          <AlertTitle>Wallet status</AlertTitle>
-          <AlertDescription>{status}</AlertDescription>
-        </Alert>
-        {!data?.configured ? (
-          <Alert className="border-amber-500/40 bg-amber-500/10">
-            <AlertTitle>Wallet required</AlertTitle>
-            <AlertDescription>No valid session wallet is linked. Log out and sign in again with your wallet.</AlertDescription>
-          </Alert>
-        ) : null}
-      </CardContent>
-    </Card>
+  return (
+    <div className="surface-elevated p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Wallet layer</p>
+          <p className="text-lg font-semibold">Agent wallet</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadWallet} disabled={loading}>
+          <RefreshCw className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      {data?.publicKey ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.4)] p-4">
+            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Public key</p>
+            <p className="mt-1 font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
+          </div>
+          <div className="rounded-xl bg-[hsl(var(--muted)/0.4)] p-4">
+            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Balance</p>
+            <p className="mt-1 text-xl font-semibold">{data.balance ?? "0"} <span className="text-sm font-normal">XLM</span></p>
+          </div>
+          {data.network ? (
+            <p className="text-xs text-[hsl(var(--muted-foreground))] sm:col-span-2">Network: {data.network}</p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200/90">
+          {data?.error ?? data?.message ?? "No wallet linked. Sign in with Freighter to bind your session wallet."}
+        </p>
+      )}
+    </div>
   );
 }

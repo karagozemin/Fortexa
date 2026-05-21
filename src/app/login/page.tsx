@@ -1,31 +1,71 @@
+import { Suspense } from "react";
+import Link from "next/link";
 import { LoginForm } from "@/components/login-form";
-import { ShieldCheck, Wallet } from "lucide-react";
+import { PublicPageBackground } from "@/components/public-page-background";
+import Image from "next/image";
+import { Shield, Lock, Loader2 } from "lucide-react";
+
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function LoginPage() {
   return (
-    <main className="mx-auto grid min-h-screen max-w-7xl items-center gap-6 px-4 py-10 md:grid-cols-2 md:px-8">
-      <section className="premium-panel rounded-3xl p-6 md:p-8">
-        <div className="space-y-5">
-        <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-cyan-200">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Secure Access
-        </p>
-        <h1 className="text-4xl font-semibold leading-tight md:text-5xl">Authenticate with your Stellar wallet.</h1>
-        <p className="max-w-lg text-[hsl(var(--muted-foreground))]">
-          Fortexa binds session identity to wallet context. No server-side private-key custody. Signed transaction flow remains wallet-native.
-        </p>
-        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4 text-sm text-[hsl(var(--muted-foreground))]">
-          <p className="mb-2 inline-flex items-center gap-2 text-cyan-200"><Wallet className="h-4 w-4" /> Wallet-bound trust model</p>
-          <p>Operators can evaluate and execute flows; viewers remain read-only on sensitive controls.</p>
-        </div>
-        <div className="rounded-xl border border-cyan-300/25 bg-cyan-500/10 p-4 text-sm text-cyan-100">
-          Fortexa never performs server-side signing. Transaction authorization remains in your wallet boundary.
-        </div>
-        </div>
-      </section>
-      <section>
-        <LoginForm />
-      </section>
+    <>
+      <PublicPageBackground hueShift={0} speed={0.9} />
+
+      <main className="relative z-10 flex min-h-screen items-center justify-center px-6 py-12">
+
+      <div className="relative grid w-full max-w-4xl gap-12 lg:grid-cols-2 lg:items-center">
+        <section className="space-y-6">
+          <Link href="/" className="inline-flex items-center gap-3 transition-opacity hover:opacity-80">
+            <Image src="/fortexa-logo.jpeg" alt="Fortexa" width={48} height={48} className="rounded-xl" priority />
+            <div>
+              <p className="text-lg font-semibold">Fortexa</p>
+              <p className="text-xs uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Control Room</p>
+            </div>
+          </Link>
+
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
+            Sign in with your Stellar wallet
+          </h1>
+
+          <p className="max-w-md text-[hsl(var(--muted-foreground))]">
+            Session identity binds to your wallet. Operators run evaluations and payments; viewers get read-only access.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--accent))]" />
+              <div className="text-sm">
+                <p className="font-medium">Wallet-bound sessions</p>
+                <p className="text-[hsl(var(--muted-foreground))]">Freighter connects once; no password flows.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--accent))]" />
+              <div className="text-sm">
+                <p className="font-medium">Zero custody</p>
+                <p className="text-[hsl(var(--muted-foreground))]">Signing stays in your wallet extension.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <Suspense
+            fallback={
+              <Card className="border-[hsl(var(--accent)/0.15)]">
+                <CardContent className="flex items-center justify-center gap-2 py-16 text-sm text-[hsl(var(--muted-foreground))]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </CardContent>
+              </Card>
+            }
+          >
+            <LoginForm />
+          </Suspense>
+        </section>
+      </div>
     </main>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type SessionPayload = {
   authenticated?: boolean;
@@ -12,69 +12,67 @@ type SessionPayload = {
   };
 };
 
+function parseWalletFromEmail(email: string | null | undefined) {
+  if (!email?.startsWith("wallet:")) {
+    return null;
+  }
+  return email.slice("wallet:".length);
+}
+
 export function useAuthSession() {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<"operator" | "viewer" | null>(null);
+  const [wallet, setWallet] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const payload = (await response.json()) as SessionPayload;
+
+      if (payload.authenticated && payload.user?.role) {
+        setAuthenticated(true);
+        setEmail(payload.user.email ?? null);
+        setRole(payload.user.role);
+        setWallet(parseWalletFromEmail(payload.user.email));
+
+        const now = Math.floor(Date.now() / 1000);
+        const exp = payload.user.exp ?? 0;
+        if (exp > 0 && exp - now < 60 * 60 * 24) {
+          void fetch("/api/auth/refresh", { method: "POST" });
+        }
+        return;
+      }
+
+      setAuthenticated(false);
+      setEmail(null);
+      setRole(null);
+      setWallet(null);
+    } catch {
+      setAuthenticated(false);
+      setEmail(null);
+      setRole(null);
+      setWallet(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = (await response.json()) as SessionPayload;
-        return payload;
-      })
-      .then((payload) => {
-        if (cancelled) {
-          return;
-        }
-
-        if (payload.authenticated && payload.user?.role) {
-          setAuthenticated(true);
-          setEmail(payload.user.email ?? null);
-          setRole(payload.user.role);
-
-          const now = Math.floor(Date.now() / 1000);
-          const exp = payload.user.exp ?? 0;
-          const shouldRefresh = exp > 0 && exp - now < 60 * 60 * 24;
-
-          if (shouldRefresh) {
-            void fetch("/api/auth/refresh", { method: "POST" });
-          }
-
-          setLoading(false);
-          return;
-        }
-
-        setAuthenticated(false);
-        setEmail(null);
-        setRole(null);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (cancelled) {
-          return;
-        }
-
-        setAuthenticated(false);
-        setEmail(null);
-        setRole(null);
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   return {
     loading,
     authenticated,
     email,
     role,
+    wallet,
     isOperator: role === "operator",
     isViewer: role === "viewer",
+    refresh,
   };
 }

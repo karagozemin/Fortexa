@@ -2,261 +2,183 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
-  BrainCircuit,
   CheckCircle2,
-  CircuitBoard,
-  FileLock2,
   Hand,
   OctagonX,
-  Sparkles,
+  Shield,
   TriangleAlert,
+  Zap,
+  Lock,
+  Eye,
+  Wallet,
 } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PublicPageBackground } from "@/components/public-page-background";
+import { Button } from "@/components/ui/button";
 
 const decisions = [
-  {
-    title: "APPROVE",
-    tone: "border-emerald-300/30 bg-emerald-500/10",
-    icon: CheckCircle2,
-    text: "Policy and risk posture are acceptable. Wallet-native flow can continue.",
-  },
-  {
-    title: "WARN",
-    tone: "border-amber-300/30 bg-amber-500/10",
-    icon: TriangleAlert,
-    text: "Execution is allowed with elevated caution and expanded audit rationale.",
-  },
-  {
-    title: "REQUIRE_APPROVAL",
-    tone: "border-violet-300/30 bg-violet-500/10",
-    icon: Hand,
-    text: "Automation pauses until operator intent is explicitly confirmed.",
-  },
-  {
-    title: "BLOCK",
-    tone: "border-rose-300/30 bg-rose-500/10",
-    icon: OctagonX,
-    text: "Policy or risk controls reject economic execution before transaction submission.",
-  },
+  { label: "APPROVE", icon: CheckCircle2, color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" },
+  { label: "WARN", icon: TriangleAlert, color: "text-amber-400 border-amber-500/30 bg-amber-500/10" },
+  { label: "REQUIRE_APPROVAL", icon: Hand, color: "text-violet-400 border-violet-500/30 bg-violet-500/10" },
+  { label: "BLOCK", icon: OctagonX, color: "text-rose-400 border-rose-500/30 bg-rose-500/10" },
 ];
 
-const previewRoutes = [
-  { title: "Decision Console", desc: "Live decision chamber for policy/risk findings and signed XDR execution.", href: "/console" },
-  { title: "Audit Activity", desc: "Structured evidence timeline for what happened and why.", href: "/activity" },
-  { title: "Policies", desc: "Deterministic controls, thresholds, and version rollback operations.", href: "/policies" },
-  { title: "Wallet", desc: "Wallet-bound identity and signing boundary verification.", href: "/wallet" },
-  { title: "Ops", desc: "Real-time telemetry for reliability and execution confidence.", href: "/ops" },
+const steps = [
+  { icon: Zap, title: "Agent proposes", desc: "Payment intent arrives" },
+  { icon: Shield, title: "Policy + risk", desc: "Deterministic evaluation" },
+  { icon: Eye, title: "Decision", desc: "Explicit outcome returned" },
+  { icon: Wallet, title: "Wallet signs", desc: "Native XDR submission" },
 ];
 
 export default function LandingPage() {
   return (
-    <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 md:px-8 md:pt-10">
-      <section className="premium-panel relative overflow-hidden rounded-3xl px-6 py-8 md:px-10 md:py-12">
-        <div className="absolute -left-24 -top-20 h-60 w-60 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="absolute -right-24 bottom-0 h-60 w-60 rounded-full bg-indigo-500/15 blur-3xl" />
+    <>
+      <PublicPageBackground hueShift={0} speed={0.9} />
 
-        <div className="relative grid gap-8 xl:grid-cols-2">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.25)] p-2 pr-4">
-              <Image src="/fortexa-logo.jpeg" alt="Fortexa logo" width={56} height={56} className="h-14 w-14 rounded-xl" priority />
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Fortexa</p>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">Agentic Payment Firewall</p>
-              </div>
-            </div>
-            
-            
-            <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-white md:text-6xl">
-              The Payment Firewall for Autonomous Agent Actions on Stellar
+      <main className="relative z-10 min-h-screen">
+
+      {/* Hero */}
+      <section className="relative mx-auto flex min-h-[90vh] max-w-6xl flex-col items-center justify-start px-6 pb-20 pt-[14vh] text-center md:pt-[18vh]">
+        <div className="animate-fade-up mb-6 flex flex-col items-center gap-5">
+          <Image
+            src="/fortexa-logo.jpeg"
+            alt="Fortexa"
+            width={72}
+            height={72}
+            className="rounded-2xl shadow-[0_0_48px_-8px_hsl(var(--accent)/0.45)]"
+            priority
+          />
+          <div className="space-y-3">
+            <h1 className="text-6xl font-semibold tracking-tight md:text-8xl">
+              <span className="text-gradient">Fortexa</span>
             </h1>
-            <p className="max-w-2xl text-base text-[hsl(var(--muted-foreground))] md:text-lg">
-              Fortexa sits between agent intent and economic execution, enforces policy and risk controls, and permits only wallet-native signed transaction flow with full audit evidence.
+            <p className="text-xs font-medium uppercase tracking-[0.28em] text-[hsl(var(--muted-foreground))] md:text-sm">
+              Agentic Payment Firewall on Stellar
             </p>
-
-            <div className="flex flex-wrap gap-3">
-              <Link href="/overview" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/40 bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950">
-                Launch Mission Console <ArrowRight className="h-4 w-4" />
-              </Link>
-              <a href="#architecture" className="inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]">
-                See Trust Architecture
-              </a>
-            </div>
           </div>
+        </div>
 
-          <Card className="overflow-hidden border-cyan-300/20 bg-[linear-gradient(180deg,rgba(12,22,42,0.88),rgba(8,14,28,0.86))]">
-            <CardHeader>
-              <CardDescription>Product Preview</CardDescription>
-              <CardTitle className="text-xl">Decision Chamber Snapshot</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-[hsl(var(--muted-foreground))]">
-              <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.2)] p-3">
-                <p className="mb-2 inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-cyan-200"><BrainCircuit className="h-4 w-4" /> Agent Proposal</p>
-                <p>“Transfer 42 XLM for premium market data query settlement.”</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-[hsl(var(--border))] p-3">
-                  <p className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-200">Policy Findings</p>
-                  <p>Domain allowlist pass · daily cap posture safe.</p>
-                </div>
-                <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-3">
-                  <p className="mb-1 text-xs uppercase tracking-[0.18em] text-amber-200">Risk Findings</p>
-                  <p>Low confidence anomaly, operator visibility recommended.</p>
-                </div>
-              </div>
-              <div className="rounded-xl border border-violet-300/30 bg-violet-500/10 p-3 text-violet-100">
-                Decision: REQUIRE_APPROVAL → wallet-sign path locked until operator confirms.
-              </div>
-            </CardContent>
-          </Card>
+        <h2
+          className="animate-fade-up max-w-4xl text-4xl font-semibold leading-[1.1] tracking-tight md:text-6xl"
+          style={{ animationDelay: "0.1s" }}
+        >
+          <span className="text-gradient">Safe-by-default</span>
+          <br />
+          autonomous payments
+        </h2>
+
+        <p className="animate-fade-up mt-6 max-w-2xl text-lg text-[hsl(var(--muted-foreground))] md:text-xl" style={{ animationDelay: "0.2s" }}>
+          Policy enforcement, risk controls, and human approval gates — before any Stellar transaction is signed.
+        </p>
+
+        <div className="animate-fade-up mt-10 flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: "0.3s" }}>
+          <Link href="/login">
+            <Button size="lg" className="gap-2">
+              Launch Console <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <Link href="/dashboard">
+            <Button variant="outline" size="lg">
+              View Dashboard
+            </Button>
+          </Link>
+        </div>
+
+        {/* Decision mock */}
+        <div className="animate-fade-up mt-16 w-full max-w-lg" style={{ animationDelay: "0.4s" }}>
+          <div className="surface-elevated overflow-hidden p-6 text-left">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-xs uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Live evaluation</span>
+              <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-300">
+                REQUIRE_APPROVAL
+              </span>
+            </div>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              Transfer 42 XLM → api.safe-research.ai
+            </p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
+              <div className="h-full w-[34%] rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500" />
+            </div>
+            <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">Risk score: 34 · Awaiting operator</p>
+          </div>
         </div>
       </section>
 
-      <section className="section-divider mt-14 pt-12">
-        <div className="mb-7 max-w-3xl space-y-3">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">Why This Matters</p>
-          <h2 className="text-3xl font-semibold md:text-4xl">When agents control money, safety cannot be optional.</h2>
-          <p className="text-[hsl(var(--muted-foreground))]">
-            Autonomous systems now trigger real economic outcomes. Without hard controls, model errors become financial errors. Fortexa introduces policy, risk scoring, operator approvals, and immutable decision evidence before transaction submission.
-          </p>
-        </div>
-      </section>
-
-      <section className="section-divider mt-10 pt-12">
-        <div className="mb-7 max-w-3xl space-y-3">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">How It Works</p>
-          <h2 className="text-3xl font-semibold md:text-4xl">Deterministic control loop from intent to settlement.</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            "Agent proposes payment intent",
-            "Fortexa evaluates policy and risk",
-            "Decision and rationale returned",
-            "Wallet signs and submits if allowed",
-          ].map((step, index) => (
-            <Card key={step} className="premium-panel">
-              <CardHeader>
-                <CardDescription>Step {index + 1}</CardDescription>
-                <CardTitle className="text-lg">{step}</CardTitle>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="section-divider mt-10 pt-12">
-        <div className="mb-7 max-w-3xl space-y-3">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">Decision States</p>
-          <h2 className="text-3xl font-semibold md:text-4xl">Four explicit outcomes. No ambiguous execution behavior.</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {decisions.map((decision) => {
-            const Icon = decision.icon;
+      {/* Decision pills */}
+      <section className="mx-auto max-w-5xl px-6 pb-20">
+        <div className="flex flex-wrap justify-center gap-3">
+          {decisions.map((d) => {
+            const Icon = d.icon;
             return (
-              <Card key={decision.title} className={decision.tone}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-lg">
-                    {decision.title}
-                    <Icon className="h-5 w-5" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">{decision.text}</CardContent>
-              </Card>
+              <div
+                key={d.label}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wider ${d.color}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {d.label}
+              </div>
             );
           })}
         </div>
       </section>
 
-      <section id="architecture" className="section-divider mt-10 pt-12">
-        <div className="grid gap-6 lg:grid-cols-5">
-          <Card className="lg:col-span-3 premium-panel">
-            <CardHeader>
-              <CardDescription>Trust Layer Snapshot</CardDescription>
-              <CardTitle className="text-2xl">Architecture boundary is explicit and auditable.</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 text-sm text-[hsl(var(--muted-foreground))] md:grid-cols-2">
-              <div className="rounded-xl border border-[hsl(var(--border))] p-3">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-200">Browser / Agent</p>
-                <p>Proposes actions, receives decisions, and requests wallet signatures.</p>
-              </div>
-              <div className="rounded-xl border border-[hsl(var(--border))] p-3">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-200">Fortexa Control Plane</p>
-                <p>Policy engine, risk analyzer, decision engine, and evidence persistence.</p>
-              </div>
-              <div className="rounded-xl border border-cyan-300/25 bg-cyan-500/10 p-3 text-cyan-100">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-200">Wallet Signing Boundary</p>
-                <p>No server-side signing. XDR signatures remain client-side wallet-native.</p>
-              </div>
-              <div className="rounded-xl border border-[hsl(var(--border))] p-3">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-cyan-200">Stellar + Audit Trail</p>
-                <p>Signed transaction submits to Stellar; outcome and rationale are auditable.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-2 premium-panel">
-            <CardHeader>
-              <CardDescription>Core Capabilities</CardDescription>
-              <CardTitle className="text-2xl">Built for real economic automation.</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
-              {[
-                "Wallet-bound execution model",
-                "Policy engine and guardrails",
-                "Risk scoring and findings",
-                "Operator approval flow",
-                "Stellar-native signed XDR path",
-                "Audit-grade evidence logging",
-              ].map((item) => (
-                <p key={item} className="rounded-lg border border-[hsl(var(--border))] px-3 py-2">{item}</p>
-              ))}
-            </CardContent>
-          </Card>
+      {/* How it works */}
+      <section className="border-t border-[hsl(var(--border)/0.5)] bg-[hsl(var(--muted)/0.15)] py-20">
+        <div className="mx-auto max-w-5xl px-6">
+          <p className="text-center text-xs font-medium uppercase tracking-[0.2em] text-[hsl(var(--accent))]">How it works</p>
+          <h2 className="mt-3 text-center text-3xl font-semibold tracking-tight md:text-4xl">Intent to settlement, guarded.</h2>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((step, i) => {
+              const Icon = step.icon;
+              return (
+                <div key={step.title} className="relative text-center">
+                  {i < steps.length - 1 ? (
+                    <div className="absolute left-[calc(50%+28px)] top-6 hidden h-px w-[calc(100%-56px)] bg-[hsl(var(--border))] lg:block" />
+                  ) : null}
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)]">
+                    <Icon className="h-5 w-5 text-[hsl(var(--accent))]" />
+                  </div>
+                  <p className="font-medium">{step.title}</p>
+                  <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{step.desc}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      <section className="section-divider mt-10 pt-12">
-        <div className="mb-7 max-w-3xl space-y-3">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">Product Preview</p>
-          <h2 className="text-3xl font-semibold md:text-4xl">Live product surfaces, not marketing fiction.</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {previewRoutes.map((route) => (
-            <Link key={route.href} href={route.href}>
-              <Card className="premium-panel h-full transition duration-200 hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-500/5">
-                <CardHeader>
-                  <CardTitle>{route.title}</CardTitle>
-                  <CardDescription>{route.desc}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+      {/* Trust boundary */}
+      <section className="py-20">
+        <div className="mx-auto max-w-3xl px-6">
+          <div className="surface-elevated p-8 md:p-10">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--accent)/0.3)] bg-[hsl(var(--accent)/0.08)] px-3 py-1 text-xs font-medium text-[hsl(var(--accent))]">
+              <Lock className="h-3.5 w-3.5" />
+              Wallet-native trust boundary
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">No server-side signing. Ever.</h2>
+            <p className="mt-4 text-[hsl(var(--muted-foreground))]">
+              Fortexa evaluates policy and risk, builds unsigned XDR, and your wallet signs. Private keys never leave the client.
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="section-divider mt-10 pt-12">
-        <Card className="premium-panel overflow-hidden border-cyan-300/20 bg-[linear-gradient(180deg,rgba(13,26,49,0.9),rgba(8,14,26,0.86))]">
-          <CardHeader>
-            <CardTitle className="text-3xl md:text-4xl">Fortexa makes autonomous finance governable.</CardTitle>
-            <CardDescription className="text-base">Move fast with agents without losing control over economic execution.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Link href="/overview" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/40 bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950">
-              Open App <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] px-4 py-2.5 text-sm">
-              Connect Wallet
-            </Link>
-          </CardContent>
-        </Card>
+      {/* CTA */}
+      <section className="border-t border-[hsl(var(--border)/0.5)] py-16">
+        <div className="mx-auto max-w-5xl px-6 text-center">
+          <h2 className="text-2xl font-semibold md:text-3xl">Ready to govern agent payments?</h2>
+          <Link href="/login" className="mt-6 inline-block">
+            <Button size="lg" className="gap-2">
+              Connect Wallet <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
       </section>
 
-      <footer className="mt-12 border-t border-[hsl(var(--border))] pt-6 text-sm text-[hsl(var(--muted-foreground))]">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="inline-flex items-center gap-2"><CircuitBoard className="h-4 w-4" /> Fortexa · Policy-Controlled Payment Firewall</p>
-          <p className="inline-flex items-center gap-1"><FileLock2 className="h-4 w-4" /> Wallet-native trust boundary on Stellar</p>
-        </div>
+      <footer className="border-t border-[hsl(var(--border)/0.5)] py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        Fortexa · Policy-controlled payment firewall on Stellar
       </footer>
     </main>
+    </>
   );
 }

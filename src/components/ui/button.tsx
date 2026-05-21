@@ -4,22 +4,23 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+  "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all duration-200 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]",
   {
     variants: {
       variant: {
         default:
-          "border border-cyan-300/40 bg-cyan-300/[0.92] text-slate-950 shadow-[0_8px_24px_rgba(56,189,248,0.26)] hover:-translate-y-0.5 hover:bg-cyan-200",
+          "bg-[hsl(var(--accent))] text-[hsl(var(--primary-foreground))] shadow-[0_0_24px_rgba(34,211,238,0.2)] hover:brightness-110",
         secondary:
-          "border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.82)] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/1)]",
+          "border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/0.8)]",
         outline:
-          "border border-[hsl(var(--border))] bg-transparent text-[hsl(var(--foreground))] hover:border-cyan-300/40 hover:bg-cyan-400/10",
-        danger: "border border-rose-400/30 bg-[hsl(var(--danger)/0.2)] text-rose-200 hover:bg-[hsl(var(--danger)/0.3)]",
+          "border border-[hsl(var(--border))] bg-transparent text-[hsl(var(--foreground))] hover:border-[hsl(var(--accent)/0.4)] hover:bg-[hsl(var(--accent)/0.06)]",
+        ghost: "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]",
+        danger: "border border-[hsl(var(--danger)/0.35)] bg-[hsl(var(--danger)/0.12)] text-rose-200 hover:bg-[hsl(var(--danger)/0.2)]",
       },
       size: {
         default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-lg px-3",
-        lg: "h-11 px-8",
+        sm: "h-8 rounded-lg px-3 text-xs",
+        lg: "h-11 px-6 text-base",
       },
     },
     defaultVariants: {

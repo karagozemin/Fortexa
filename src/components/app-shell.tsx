@@ -1,38 +1,89 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, Wallet, Bot, FileSearch, ScrollText, Activity, Lock, ChevronRight, Radar, Shield } from "lucide-react";
+import {
+  LayoutDashboard,
+  Terminal,
+  Settings,
+  LogOut,
+  Radio,
+  Loader2,
+} from "lucide-react";
 
+import { AppWorkspaceBackground } from "@/components/app-workspace-background";
 import { Button } from "@/components/ui/button";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
-
 import { cn } from "@/lib/utils/cn";
 import { truncateMiddle } from "@/lib/utils/format";
 
 const navItems = [
-  { href: "/overview", label: "Overview", icon: ShieldCheck },
-  { href: "/wallet", label: "Agent Wallet", icon: Wallet },
-  { href: "/policies", label: "Policies", icon: FileSearch },
-  { href: "/console", label: "Decision Console", icon: Bot },
-  { href: "/scenarios", label: "Scenarios", icon: Bot },
-  { href: "/activity", label: "Audit Trail", icon: ScrollText },
-  { href: "/ops", label: "Ops", icon: Activity },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/console", label: "Console", icon: Terminal },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-const writeSensitivePages = new Set(["/policies", "/console", "/ops"]);
+const pageTitles: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/console": "Console",
+  "/settings": "Settings",
+};
+
+function getPageTitle(pathname: string) {
+  if (pathname.startsWith("/settings")) return "Settings";
+  return pageTitles[pathname] ?? "Fortexa";
+}
+
+function SessionChip({
+  loading,
+  wallet,
+  role,
+}: {
+  loading: boolean;
+  wallet: string | null;
+  role: "operator" | "viewer" | null;
+}) {
+  if (loading) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-1 text-xs text-[hsl(var(--muted-foreground))]">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Session
+      </span>
+    );
+  }
+
+  if (!wallet) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-1 font-mono text-xs">
+      {truncateMiddle(wallet, 6, 6)}
+      {role ? (
+        <span className="rounded bg-[hsl(var(--accent)/0.12)] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[hsl(var(--accent))]">
+          {role}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = pathname === "/" || pathname === "/login";
-  const { email, role, isViewer, authenticated, loading } = useAuthSession();
+  const { wallet, role, loading } = useAuthSession();
 
-  const identityLabel = email
-    ? email.startsWith("wallet:")
-      ? truncateMiddle(email.slice("wallet:".length), 8, 8)
-      : email
-    : "wallet-session";
+  useEffect(() => {
+    if (isPublicRoute) {
+      document.body.classList.remove("app-shell");
+      return;
+    }
+
+    document.body.classList.add("app-shell");
+    return () => document.body.classList.remove("app-shell");
+  }, [isPublicRoute]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -43,125 +94,114 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const pageTitle = getPageTitle(pathname);
+
   return (
-    <div className="fortexa-shell mx-auto min-h-screen max-w-7xl px-3 pb-10 pt-4 md:px-6">
-      <div className="app-frame flex min-h-[calc(100vh-2rem)] overflow-hidden rounded-3xl">
-        <aside className="hidden w-70 border-r border-[hsl(var(--border))] bg-[linear-gradient(180deg,rgba(10,17,30,0.95),rgba(7,12,22,0.95))] p-5 lg:flex lg:flex-col">
-          <div className="mb-8">
-            <div className="mb-3 inline-flex items-center gap-3">
-              <Image src="/fortexa-logo.jpeg" alt="Fortexa logo" width={52} height={52} className="h-13 w-13 rounded-xl" priority />
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">Fortexa</p>
-                <h2 className="text-xl font-semibold">Mission Console</h2>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-              Policy decisioning layer between AI intent and Stellar execution.
-            </p>
+    <div className="relative flex min-h-screen">
+      <AppWorkspaceBackground />
+
+      <aside className="glass-sidebar fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col lg:flex">
+        <Link
+          href="/"
+          className="flex items-center gap-3 border-b border-[hsl(var(--border)/0.5)] px-5 py-5 transition-opacity hover:opacity-80"
+        >
+          <Image src="/fortexa-logo.jpeg" alt="Fortexa" width={36} height={36} className="rounded-lg" priority />
+          <div>
+            <p className="text-sm font-semibold tracking-tight">Fortexa</p>
+            <p className="text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Control Room</p>
           </div>
+        </Link>
 
-          <nav className="space-y-1.5">
-            {navItems.map((item) => {
-              const active = pathname === item.href || (item.href === "/overview" && pathname === "/app");
-              const Icon = item.icon;
+        <nav className="flex-1 space-y-1 px-3 py-4">
+          {navItems.map((item) => {
+            const active =
+              pathname === item.href ||
+              (item.href === "/settings" && pathname.startsWith("/settings"));
+            const Icon = item.icon;
 
-              return (
-                <Link
-                  href={item.href}
-                  key={item.href}
-                  className={cn(
-                    "group flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition",
-                    active
-                      ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                      : "border-transparent text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--border))] hover:bg-[hsl(var(--muted)/0.35)] hover:text-white"
-                  )}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </span>
-                  {isViewer && writeSensitivePages.has(item.href) ? (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">RO</span>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="mt-auto space-y-3">
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.22)] p-3 text-xs text-[hsl(var(--muted-foreground))]">
-              <p className="mb-1 inline-flex items-center gap-1 text-cyan-200"><Shield className="h-3.5 w-3.5" /> Wallet-native signing</p>
-              <p>No server-side key custody.</p>
-            </div>
-            <Link href="/" className="inline-flex items-center gap-1 text-xs text-cyan-200 hover:text-cyan-100">
-              Public site <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </aside>
-
-        <div className="flex min-h-full flex-1 flex-col">
-          <header className="border-b border-[hsl(var(--border))] px-4 py-4 md:px-6">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="inline-flex items-center gap-3">
-                  <Image src="/fortexa-logo.jpeg" alt="Fortexa logo" width={40} height={40} className="h-10 w-10 rounded-lg" priority />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Mission Control</p>
-                    <h1 className="text-xl font-semibold md:text-2xl">Autonomous Payment Security Plane</h1>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-                <span className="hidden items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.28)] px-2.5 py-1 md:inline-flex">
-                  <Radar className="h-3.5 w-3.5 text-cyan-300" /> Stellar Testnet
-                </span>
-                {loading ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] px-2.5 py-1">
-                    Checking session...
-                  </span>
-                ) : authenticated ? (
-                  <>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] px-2.5 py-1">
-                      <Lock className="h-3.5 w-3.5" />
-                      {identityLabel} {role ? `(${role})` : ""}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={logout}>Logout</Button>
-                  </>
-                ) : (
-                  <Link href="/login" className="underline-offset-2 hover:underline">Login</Link>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  active
+                    ? "bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/0.5)] hover:text-[hsl(var(--foreground))]"
                 )}
-              </div>
-            </div>
+              >
+                {active ? (
+                  <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-[hsl(var(--accent))]" />
+                ) : null}
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:hidden">
-              {navItems.map((item) => {
-                const active = pathname === item.href || (item.href === "/overview" && pathname === "/app");
-                const Icon = item.icon;
-                return (
-                  <Link
-                    href={item.href}
-                    key={item.href}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-                      active
-                        ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                        : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.24)] text-[hsl(var(--muted-foreground))]"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" /> {item.label}
-                    {isViewer && writeSensitivePages.has(item.href) ? (
-                      <span className="ml-auto rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">RO</span>
-                    ) : null}
-                  </Link>
-                );
-              })}
+        <div className="border-t border-[hsl(var(--border)/0.5)] p-4">
+          {wallet ? (
+            <div className="mb-3 rounded-xl bg-[hsl(var(--muted)/0.4)] px-3 py-2">
+              <p className="truncate font-mono text-xs">{truncateMiddle(wallet, 8, 8)}</p>
+              {role ? (
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">{role}</p>
+              ) : null}
             </div>
-          </header>
-
-          <main className="flex-1 px-4 py-5 md:px-6 md:py-6">{children}</main>
+          ) : null}
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={logout}>
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </Button>
         </div>
+      </aside>
+
+      <div className="relative z-10 flex min-h-screen flex-1 flex-col lg:pl-[220px]">
+        <header className="app-header sticky top-0 z-30">
+          <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-8">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[hsl(var(--muted-foreground))]">
+                Mission Control
+              </p>
+              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{pageTitle}</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="hidden items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-1 text-xs text-[hsl(var(--muted-foreground))] sm:inline-flex">
+                <Radio className="h-3 w-3 text-[hsl(var(--accent))]" />
+                Stellar Testnet
+              </span>
+              <SessionChip loading={loading} wallet={wallet} role={role} />
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 lg:pb-8">{children}</main>
       </div>
+
+      <nav className="app-mobile-nav fixed inset-x-0 bottom-0 z-40 lg:hidden">
+        <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 py-2">
+          {navItems.map((item) => {
+            const active =
+              pathname === item.href ||
+              (item.href === "/settings" && pathname.startsWith("/settings"));
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-medium transition",
+                  active ? "text-[hsl(var(--accent))]" : "text-[hsl(var(--muted-foreground))]"
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

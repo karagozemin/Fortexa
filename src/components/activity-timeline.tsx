@@ -1,0 +1,80 @@
+import { DecisionBadge } from "@/components/decision-badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Clock4, ScrollText } from "lucide-react";
+
+import type { AuditEntry } from "@/lib/types/domain";
+
+export function ActivityTimeline({
+  entries,
+  compact = false,
+}: {
+  entries: AuditEntry[];
+  compact?: boolean;
+}) {
+  if (entries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-[hsl(var(--muted-foreground))]">
+          No audit entries yet. Run an evaluation in the Console to populate this timeline.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const visible = compact ? entries.slice(0, 5) : entries;
+
+  return (
+    <div className="relative space-y-3">
+      {!compact ? (
+        <div className="absolute bottom-0 left-[7px] top-0 hidden w-px bg-[hsl(var(--border))] md:block" />
+      ) : null}
+      {visible.map((entry) => (
+        <div
+          key={entry.id}
+          className={`relative surface rounded-xl p-4 transition hover:border-[hsl(var(--accent)/0.15)] ${compact ? "" : "md:ml-5"}`}
+        >
+          {!compact ? (
+            <div className="absolute -left-[3px] top-6 hidden h-2 w-2 rounded-full border border-[hsl(var(--accent)/0.5)] bg-[hsl(var(--accent)/0.3)] md:block" />
+          ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-medium">{entry.action.name}</p>
+              <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+                {new Date(entry.timestamp).toLocaleString()} · {entry.action.amountXLM} XLM
+              </p>
+            </div>
+            <DecisionBadge decision={entry.decision} />
+          </div>
+          {!compact ? (
+            <div className="mt-3 space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
+              <p className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2">{entry.explanation}</p>
+              <p className="inline-flex items-center gap-1 text-xs">
+                <ScrollText className="h-3 w-3" /> {entry.id}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 truncate text-xs text-[hsl(var(--muted-foreground))]">{entry.explanation}</p>
+          )}
+          {!compact ? (
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 text-xs">
+                <p className="mb-0.5 uppercase tracking-wider text-[hsl(var(--accent))]">Tool</p>
+                {entry.action.name}
+              </div>
+              <div className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 text-xs">
+                <p className="mb-0.5 uppercase tracking-wider text-[hsl(var(--accent))]">Amount</p>
+                {entry.action.amountXLM} XLM
+              </div>
+              <div className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 text-xs">
+                <p className="mb-0.5 inline-flex items-center gap-1 uppercase tracking-wider text-[hsl(var(--accent))]">
+                  <Clock4 className="h-3 w-3" /> Time
+                </p>
+                {new Date(entry.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}

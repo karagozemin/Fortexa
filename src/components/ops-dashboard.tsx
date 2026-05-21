@@ -174,17 +174,7 @@ export function OpsDashboard() {
   }, [metrics]);
 
   return (
-    <>
-      <Card className="premium-panel">
-        <CardHeader>
-          <CardDescription>Telemetry Control Surface</CardDescription>
-          <CardTitle className="text-2xl">Operations Dashboard</CardTitle>
-          <CardDescription>
-            Live health, request/error telemetry, and signed transaction trend snapshot.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
+    <div className="space-y-6">
       {error ? (
         <Card>
           <CardContent className="py-6 text-sm text-red-300">{error}</CardContent>
@@ -192,7 +182,7 @@ export function OpsDashboard() {
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardDescription>Service Health</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -203,7 +193,7 @@ export function OpsDashboard() {
           <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">{health?.timestamp ?? "-"}</CardContent>
         </Card>
 
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardDescription>Total Requests</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -216,7 +206,7 @@ export function OpsDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardDescription>Error Rate</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -229,7 +219,7 @@ export function OpsDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="premium-panel">
+        <Card>
           <CardHeader>
             <CardDescription>Signed TX Count</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -244,31 +234,33 @@ export function OpsDashboard() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-5">
-        <Card className="premium-panel lg:col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Traffic Trend</CardTitle>
             <CardDescription>Rolling 15 samples (8s interval)</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
-            {samples.length === 0 ? (
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">No samples yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={samples}>
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Line yAxisId="left" type="monotone" dataKey="requests" stroke="#22d3ee" strokeWidth={2} dot={false} />
-                  <Line yAxisId="left" type="monotone" dataKey="errors" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                  <Line yAxisId="right" type="monotone" dataKey="errorRatePct" stroke="#ef4444" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+          <CardContent>
+            <div className="h-72 w-full min-w-0">
+              {samples.length === 0 ? (
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">No samples yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={288} minWidth={1}>
+                  <LineChart data={samples}>
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Line yAxisId="left" type="monotone" dataKey="requests" stroke="#22d3ee" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="errors" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                    <Line yAxisId="right" type="monotone" dataKey="errorRatePct" stroke="#ef4444" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="premium-panel lg:col-span-2">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Top Routes</CardTitle>
             <CardDescription>Highest request counts</CardDescription>
@@ -289,6 +281,6 @@ export function OpsDashboard() {
           </CardContent>
         </Card>
       </section>
-    </>
+    </div>
   );
 }

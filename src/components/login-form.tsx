@@ -1,99 +1,126 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ExternalLink, Loader2, Wallet } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { loginWithFreighter } from "@/lib/auth/freighter";
+import { truncateMiddle } from "@/lib/utils/format";
 
 export function LoginForm() {
   const router = useRouter();
-  const [publicKey, setPublicKey] = useState("");
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next") || "/dashboard";
+
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successWallet, setSuccessWallet] = useState<string | null>(null);
 
-  async function connectFreighter() {
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json()) as { authenticated?: boolean };
+        if (!cancelled && payload.authenticated) {
+          router.replace(nextPath.startsWith("/") ? nextPath : "/dashboard");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCheckingSession(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, nextPath]);
+
+  async function handleSignIn() {
     setLoading(true);
-    setMessage(null);
+    setError(null);
+    setSuccessWallet(null);
 
-    try {
-      const { requestAccess } = await import("@stellar/freighter-api");
-      const access = await requestAccess();
+    const result = await loginWithFreighter();
 
-      if (!access.address) {
-        setMessage(access.error ?? "Wallet connection failed.");
-        return;
-      }
-
-      setPublicKey(access.address);
-      setMessage("Wallet connected. You can sign in now.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected wallet connection error.");
-    } finally {
+    if (!result.ok) {
+      setError(
+        result.retryAfterSeconds
+          ? `${result.message} Try again in ${result.retryAfterSeconds}s.`
+          : result.message
+      );
       setLoading(false);
-    }
-  }
-
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!publicKey.trim()) {
-      setMessage("Connect your wallet first.");
       return;
     }
 
-    setLoading(true);
-    setMessage(null);
+    setSuccessWallet(result.wallet);
+    const destination = nextPath.startsWith("/") ? nextPath : "/dashboard";
+    window.location.assign(destination);
+  }
 
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicKey: publicKey.trim() }),
-      });
-
-      const payload = (await response.json()) as { error?: string; role?: string };
-
-      if (!response.ok || payload.error) {
-        setMessage(payload.error ?? "Login failed.");
-        return;
-      }
-
-      setMessage(`Login successful (${payload.role ?? "unknown"}). Redirecting...`);
-      router.push("/console");
-      router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unexpected login error.");
-    } finally {
-      setLoading(false);
-    }
+  if (checkingSession) {
+    return (
+      <Card className="border-[hsl(var(--accent)/0.15)]">
+        <CardContent className="flex items-center justify-center gap-2 py-16 text-sm text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking session...
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <Card className="mx-auto max-w-md border-cyan-300/20 bg-[linear-gradient(180deg,rgba(16,27,50,0.82),rgba(9,14,27,0.85))]">
+    <Card className="border-[hsl(var(--accent)/0.15)]">
       <CardHeader>
-        <CardDescription>Wallet-First Authentication</CardDescription>
-        <CardTitle className="text-2xl">Fortexa Login</CardTitle>
-        <CardDescription>Connect Freighter and establish a wallet-bound session.</CardDescription>
+        <CardDescription>Wallet access</CardDescription>
+        <CardTitle className="text-2xl">Sign in with Freighter</CardTitle>
+        <CardDescription>
+          One step — connect your Stellar wallet and start a secure session. No passwords.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="space-y-3">
-          <Button type="button" variant="outline" onClick={connectFreighter} disabled={loading} className="w-full">
-            {loading ? "Connecting..." : "Connect Wallet"}
-          </Button>
-          <Input type="text" value={publicKey} placeholder="Connected wallet address will appear here" readOnly />
-          <Button type="submit" disabled={loading || !publicKey.trim()} className="w-full">
-            {loading ? "Signing in..." : "Sign In"}
-          </Button>
-        </form>
-        {message ? (
-          <Alert className="mt-4 border-blue-500/40 bg-blue-500/10">
-            <AlertTitle>Auth status</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+      <CardContent className="space-y-4">
+        <Button onClick={handleSignIn} disabled={loading} className="h-12 w-full gap-2 text-base">
+          {loading ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {successWallet ? "Opening console..." : "Waiting for Freighter..."}
+            </>
+          ) : (
+            <>
+              <Wallet className="h-5 w-5" />
+              Sign in with Freighter
+            </>
+          )}
+        </Button>
+
+        {successWallet ? (
+          <p className="text-center font-mono text-xs text-[hsl(var(--muted-foreground))]">
+            {truncateMiddle(successWallet, 10, 10)} · redirecting
+          </p>
+        ) : null}
+
+        {error ? (
+          <Alert className="border-rose-500/25 bg-rose-500/8">
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
+
+        <p className="text-center text-xs text-[hsl(var(--muted-foreground))]">
+          Need Freighter?{" "}
+          <a
+            href="https://www.freighter.app/"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[hsl(var(--accent))] hover:underline"
+          >
+            Get extension <ExternalLink className="h-3 w-3" />
+          </a>
+        </p>
       </CardContent>
     </Card>
   );

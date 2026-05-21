@@ -1,9 +1,5 @@
-import { OpsDashboard } from "@/components/ops-dashboard";
+import { redirect } from "next/navigation";
 
-export default function OpsPage() {
-  return (
-    <main className="space-y-6">
-      <OpsDashboard />
-    </main>
-  );
+export default function OpsRedirect() {
+  redirect("/settings?tab=ops");
 }

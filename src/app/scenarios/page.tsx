@@ -1,42 +1,5 @@
-import { DecisionBadge } from "@/components/decision-badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { demoScenarios } from "@/lib/scenarios/seed";
+import { redirect } from "next/navigation";
 
-export default function ScenariosPage() {
-  return (
-    <main className="space-y-6">
-      <Card className="premium-panel border-cyan-300/20 bg-[linear-gradient(180deg,rgba(11,22,42,0.82),rgba(9,14,26,0.84))]">
-        <CardHeader>
-          <CardDescription>Demo Readiness</CardDescription>
-          <CardTitle className="text-2xl">Scenario Runner Catalog</CardTitle>
-          <CardDescription>Curated demo journeys showcasing approve, warn, manual-approval, and block outcomes.</CardDescription>
-        </CardHeader>
-      </Card>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        {demoScenarios.map((scenario) => (
-          <Card key={scenario.id} className="premium-panel">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>{scenario.title}</CardTitle>
-                <DecisionBadge decision={scenario.expectedDecision} />
-              </div>
-              <CardDescription>{scenario.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
-              <p>
-                <span className="text-white">Target:</span> {scenario.action.target}
-              </p>
-              <p>
-                <span className="text-white">Domain:</span> {scenario.action.domain}
-              </p>
-              <p>
-                <span className="text-white">Amount:</span> {scenario.action.amountXLM} XLM
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
-    </main>
-  );
+export default function ScenariosRedirect() {
+  redirect("/settings?tab=scenarios");
 }
