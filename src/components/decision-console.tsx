@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Loader2,
   Sparkles,
@@ -21,6 +21,7 @@ import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import type { AgentAction } from "@/lib/types/domain";
 import { cn } from "@/lib/utils/cn";
+import { truncateMiddle } from "@/lib/utils/format";
 
 type DecisionApiResponse = {
   result: {
@@ -68,6 +69,7 @@ export function DecisionConsole() {
   const [intentMode, setIntentMode] = useState<"scenario" | "ai">("scenario");
   const [selectedScenarioId, setSelectedScenarioId] = useState(demoScenarios[0]?.id ?? "");
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
+  const [executeAmount, setExecuteAmount] = useState("");
   const [decisionData, setDecisionData] = useState<DecisionApiResponse | null>(null);
   const [lastTxExplorerUrl, setLastTxExplorerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,6 +82,7 @@ export function DecisionConsole() {
   const [agentContext, setAgentContext] = useState("Need reliable source with low risk and clear policy-compliant endpoint.");
   const [generatedAction, setGeneratedAction] = useState<AgentAction | null>(null);
   const [generatingAction, setGeneratingAction] = useState(false);
+  const [preparingXdr, setPreparingXdr] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const selectedScenario = useMemo(
@@ -87,10 +90,27 @@ export function DecisionConsole() {
     [selectedScenarioId]
   );
 
-  const writeDisabled = loading || sessionLoading || !isOperator;
+  const writeDisabled = loading || preparingXdr || sessionLoading || !isOperator;
   const canHumanApprove = decisionData?.result.decision === "REQUIRE_APPROVAL";
 
   const activeAction = generatedAction ?? selectedScenario?.action;
+  const evaluatedAmount = activeAction?.amountXLM;
+  const parsedExecuteAmount = Number(executeAmount);
+  const sendAmount =
+    Number.isFinite(parsedExecuteAmount) && parsedExecuteAmount > 0 ? parsedExecuteAmount : evaluatedAmount;
+  const destinationPreview = destination.trim().toUpperCase();
+
+  useEffect(() => {
+    if (step === 4 && evaluatedAmount != null && !executeAmount) {
+      setExecuteAmount(String(evaluatedAmount));
+    }
+  }, [step, evaluatedAmount, executeAmount]);
+
+  function resetPreparedXdr() {
+    setUnsignedXdr("");
+    setSignedXdrInput("");
+    setSourcePublicKey("");
+  }
 
   function getExplorerUrl(hash: string) {
     return `https://stellar.expert/explorer/testnet/tx/${hash}`;
@@ -192,7 +212,7 @@ export function DecisionConsole() {
   async function prepareStellarPaymentXdr() {
     if (!ensureOperator()) return;
     const normalizedDestination = destination.trim().toUpperCase();
-    if (!selectedScenario || !normalizedDestination) {
+    if (!activeAction || !normalizedDestination) {
       setMessage("Provide a valid destination address.");
       return;
     }
@@ -201,7 +221,16 @@ export function DecisionConsole() {
       return;
     }
 
-    setLoading(true);
+    const amount = Number(executeAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage("Enter a valid amount in XLM (e.g. 5).");
+      return;
+    }
+
+    setPreparingXdr(true);
+    setMessage(null);
+    resetPreparedXdr();
+
     try {
       const balanceResponse = await fetch("/api/stellar/balance");
       const balancePayload = (await balanceResponse.json()) as BalanceApiResponse;
@@ -221,8 +250,8 @@ export function DecisionConsole() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           destination: normalizedDestination,
-          amountXLM: selectedScenario.action.amountXLM.toFixed(7),
-          memo: `fortexa:${selectedScenario.id}`.slice(0, 28),
+          amountXLM: amount.toFixed(7),
+          memo: `fortexa:${activeAction.id}`.slice(0, 28),
         }),
       });
 
@@ -234,13 +263,16 @@ export function DecisionConsole() {
 
       setUnsignedXdr(buildPayload.xdr);
       setSignedXdrInput(buildPayload.xdr);
-      setSourcePublicKey(buildPayload.sourcePublicKey ?? "");
+      setSourcePublicKey(buildPayload.sourcePublicKey ?? balancePayload.publicKey ?? "");
       setNetworkPassphrase(buildPayload.networkPassphrase ?? "TESTNET");
-      pushToast("success", "XDR prepared.");
+      setMessage(
+        `XDR prepared: ${amount} XLM → ${truncateMiddle(normalizedDestination, 8, 8)}. Click Sign & submit.`
+      );
+      pushToast("success", `${amount} XLM payment ready to sign.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Payment preparation failed.");
     } finally {
-      setLoading(false);
+      setPreparingXdr(false);
     }
   }
 
@@ -510,6 +542,39 @@ export function DecisionConsole() {
             <CardDescription>Build XDR, sign with Freighter, submit to Stellar testnet.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {decisionData && activeAction ? (
+              <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.35)] p-5">
+                <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Payment summary
+                </p>
+                <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+                  <p className="text-3xl font-semibold tracking-tight">
+                    {sendAmount ?? "—"}{" "}
+                    <span className="text-lg font-normal text-[hsl(var(--muted-foreground))]">XLM</span>
+                  </p>
+                  <span className="rounded-full border border-[hsl(var(--border))] px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                    Stellar Testnet
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                  <p>
+                    <span className="text-[hsl(var(--muted-foreground))]">Action: </span>
+                    {activeAction.name}
+                  </p>
+                  <p className="font-mono text-xs break-all">
+                    <span className="font-sans text-[hsl(var(--muted-foreground))]">To: </span>
+                    {destinationPreview || "Enter destination below"}
+                  </p>
+                  {sourcePublicKey ? (
+                    <p className="font-mono text-xs break-all">
+                      <span className="font-sans text-[hsl(var(--muted-foreground))]">From: </span>
+                      {sourcePublicKey}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             {decisionData ? (
               <div className="flex items-center gap-3 rounded-xl bg-[hsl(var(--muted)/0.35)] p-4">
                 <DecisionBadge decision={decisionData.result.decision} />
@@ -517,19 +582,70 @@ export function DecisionConsole() {
               </div>
             ) : null}
 
-            <Input
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="G... destination public key"
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Amount (XLM)
+                </label>
+                <Input
+                  type="number"
+                  min="0.0000001"
+                  step="0.0000001"
+                  value={executeAmount}
+                  onChange={(e) => {
+                    setExecuteAmount(e.target.value);
+                    resetPreparedXdr();
+                  }}
+                  placeholder={evaluatedAmount != null ? String(evaluatedAmount) : "5"}
+                />
+                {evaluatedAmount != null && sendAmount != null && sendAmount !== evaluatedAmount ? (
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                    Policy evaluated for {evaluatedAmount} XLM — you are sending {sendAmount} XLM.
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Destination address
+                </label>
+                <Input
+                  value={destination}
+                  onChange={(e) => {
+                    setDestination(e.target.value);
+                    resetPreparedXdr();
+                  }}
+                  placeholder="G... destination public key"
+                />
+              </div>
+            </div>
+
+            {unsignedXdr ? (
+              <Alert className="border-emerald-500/25 bg-emerald-500/8">
+                <AlertTitle>XDR prepared</AlertTitle>
+                <AlertDescription>
+                  {sendAmount} XLM will be sent to{" "}
+                  <span className="font-mono">{truncateMiddle(destinationPreview, 10, 10)}</span>. Use{" "}
+                  <strong>Sign & submit</strong> to open Freighter.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={prepareStellarPaymentXdr} disabled={writeDisabled || !decisionData}>
-                Prepare XDR
+              <Button
+                variant="outline"
+                onClick={prepareStellarPaymentXdr}
+                disabled={writeDisabled || !decisionData || !destinationPreview || !executeAmount}
+                className="gap-2"
+              >
+                {preparingXdr ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {preparingXdr ? "Preparing XDR..." : "Prepare XDR"}
               </Button>
               <Button
                 onClick={() => (signedXdrInput.trim() ? submitSignedXdr() : signWithFreighter())}
                 disabled={writeDisabled || (!signedXdrInput.trim() && !unsignedXdr)}
+                className="gap-2"
               >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Sign & submit
               </Button>
             </div>
