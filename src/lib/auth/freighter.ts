@@ -42,6 +42,143 @@ export async function connectFreighterWallet(): Promise<FreighterConnectResult> 
   }
 }
 
+export type FreighterSignErrorCode =
+  | "missing"
+  | "rejected"
+  | "passphrase_mismatch"
+  | "invalid_key"
+  | "unknown";
+
+export type FreighterSignResult =
+  | { ok: true; signedXdr: string; signerAddress: string }
+  | { ok: false; code: FreighterSignErrorCode; message: string };
+
+type FreighterApiError = { code?: number; message?: string };
+
+type FreighterSignClient = {
+  isConnected: () => Promise<{ isConnected: boolean; error?: FreighterApiError }>;
+  getNetwork: () => Promise<{
+    network?: string;
+    networkPassphrase?: string;
+    error?: FreighterApiError;
+  }>;
+  signTransaction: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => Promise<{
+    signedTxXdr?: string;
+    signerAddress?: string;
+    error?: FreighterApiError;
+  }>;
+};
+
+function isMissingExtensionMessage(message: string) {
+  return /not installed|no extension|cannot find|freighter is not|userAgent|undefined.*api/i.test(message);
+}
+
+function isUserRejectMessage(message: string) {
+  return /reject|cancel|denied|declined|refused/i.test(message);
+}
+
+function isPassphraseMismatchMessage(message: string) {
+  return /passphrase|network mismatch|wrong network/i.test(message);
+}
+
+function categorizeSignError(message: string): FreighterSignErrorCode {
+  if (isPassphraseMismatchMessage(message)) return "passphrase_mismatch";
+  if (isUserRejectMessage(message)) return "rejected";
+  if (isMissingExtensionMessage(message)) return "missing";
+  return "unknown";
+}
+
+export async function signFreighterXdr(input: {
+  unsignedXdr: string;
+  expectedNetworkPassphrase: string;
+  sourcePublicKey?: string;
+  freighter?: FreighterSignClient;
+}): Promise<FreighterSignResult> {
+  let freighter: FreighterSignClient;
+  try {
+    freighter = input.freighter ?? ((await import("@stellar/freighter-api")) as unknown as FreighterSignClient);
+  } catch {
+    return {
+      ok: false,
+      code: "missing",
+      message: "Freighter extension not found. Install it from freighter.app and refresh.",
+    };
+  }
+
+  try {
+    const connection = await freighter.isConnected();
+    if (connection.error || !connection.isConnected) {
+      return {
+        ok: false,
+        code: "missing",
+        message:
+          connection.error?.message ??
+          "Freighter is not connected. Install or unlock the extension and refresh.",
+      };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Freighter not detected.";
+    return {
+      ok: false,
+      code: isMissingExtensionMessage(message) ? "missing" : "unknown",
+      message: isMissingExtensionMessage(message)
+        ? "Freighter extension not found. Install it from freighter.app and refresh."
+        : message,
+    };
+  }
+
+  try {
+    const network = await freighter.getNetwork();
+    if (!network.error && network.networkPassphrase && network.networkPassphrase !== input.expectedNetworkPassphrase) {
+      return {
+        ok: false,
+        code: "passphrase_mismatch",
+        message: `Freighter is on "${network.network ?? "an unknown network"}". Switch the wallet to the expected network and retry.`,
+      };
+    }
+  } catch {
+    // Pre-flight network check is best-effort; fall through to signTransaction.
+  }
+
+  let signResponse: Awaited<ReturnType<FreighterSignClient["signTransaction"]>>;
+  try {
+    signResponse = await freighter.signTransaction(input.unsignedXdr, {
+      networkPassphrase: input.expectedNetworkPassphrase,
+      address: input.sourcePublicKey || undefined,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Freighter signing failed.";
+    return { ok: false, code: categorizeSignError(message), message };
+  }
+
+  if (signResponse.error) {
+    const message = signResponse.error.message || "Freighter signing failed.";
+    return { ok: false, code: categorizeSignError(message), message };
+  }
+
+  const signedXdr = signResponse.signedTxXdr;
+  if (!signedXdr) {
+    return { ok: false, code: "rejected", message: "Signing rejected in Freighter. No signed XDR returned." };
+  }
+
+  if (
+    input.sourcePublicKey &&
+    signResponse.signerAddress &&
+    signResponse.signerAddress.toUpperCase() !== input.sourcePublicKey.toUpperCase()
+  ) {
+    return {
+      ok: false,
+      code: "invalid_key",
+      message: `Freighter signed with a different key (${signResponse.signerAddress}) than the linked wallet.`,
+    };
+  }
+
+  return { ok: true, signedXdr, signerAddress: signResponse.signerAddress ?? "" };
+}
+
 export async function loginWithFreighter(): Promise<
   | { ok: true; role: string; wallet: string }
   | { ok: false; message: string; retryAfterSeconds?: number }
