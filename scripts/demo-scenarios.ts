@@ -5,7 +5,7 @@ import { demoScenarios, defaultDailyUsage } from "../src/lib/scenarios/seed";
 console.log("Fortexa Scenario Demo Runner\n");
 
 for (const scenario of demoScenarios) {
-  const result = evaluateDecision(scenario.action, defaultPolicyConfig, defaultDailyUsage);
+  const result = await evaluateDecision(scenario.action, defaultPolicyConfig, defaultDailyUsage);
   console.log(`Scenario: ${scenario.title}`);
   console.log(`Expected: ${scenario.expectedDecision} | Actual: ${result.decision}`);
   console.log(`Risk Score: ${result.riskScore}`);

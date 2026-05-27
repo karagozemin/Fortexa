@@ -172,6 +172,11 @@ FORTEXA_AUTH_MAX_ATTEMPTS=5
 FORTEXA_AUTH_LOCK_MINUTES=10
 
 NEXT_PUBLIC_STELLAR_DESTINATION=
+
+# Optional external blocklist URL for dynamic threat-intel
+# Accepts JSON array of domains or plain-text (one domain per line, # comments ignored)
+# Cached in-memory for 5 minutes; feed failures fall back silently
+FORTEXA_BLOCKLIST_URL=
 ```
 
 ---

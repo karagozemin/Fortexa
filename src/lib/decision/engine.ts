@@ -18,9 +18,9 @@ function decideExplanation(result: DecisionResult): string {
   return "Fortexa approved this action. Policy checks and risk analysis are within trusted operating bounds.";
 }
 
-export function evaluateDecision(action: AgentAction, policy: PolicyConfig, usage: DailyUsage): DecisionResult {
+export async function evaluateDecision(action: AgentAction, policy: PolicyConfig, usage: DailyUsage): Promise<DecisionResult> {
   const policyResult = evaluatePolicy(action, policy, usage);
-  const security = evaluateSecurity(action);
+  const security = await evaluateSecurity(action);
 
   const severeSecurityFinding = security.findings.some((finding) => finding.severity === "high");
   const mediumSecurityFinding = security.findings.some((finding) => finding.severity === "medium");

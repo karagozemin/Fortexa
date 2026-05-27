@@ -10,27 +10,27 @@ const testPolicy = {
 };
 
 describe("Fortexa decision engine", () => {
-  it("approves safe scenario", () => {
+  it("approves safe scenario", async () => {
     const action = demoScenarios.find((scenario) => scenario.id === "safe-research-payment")!.action;
-    const result = evaluateDecision(action, testPolicy, defaultDailyUsage);
+    const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
     expect(result.decision).toBe("APPROVE");
   });
 
-  it("blocks malicious endpoint", () => {
+  it("blocks malicious endpoint", async () => {
     const action = demoScenarios.find((scenario) => scenario.id === "blocked-malicious-endpoint")!.action;
-    const result = evaluateDecision(action, testPolicy, defaultDailyUsage);
+    const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
     expect(result.decision).toBe("BLOCK");
   });
 
-  it("requires approval for over-budget payment", () => {
+  it("requires approval for over-budget payment", async () => {
     const action = demoScenarios.find((scenario) => scenario.id === "over-budget-transfer")!.action;
-    const result = evaluateDecision(action, testPolicy, defaultDailyUsage);
+    const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
     expect(result.decision).toBe("REQUIRE_APPROVAL");
   });
 
-  it("blocks prompt injection payload", () => {
+  it("blocks prompt injection payload", async () => {
     const action = demoScenarios.find((scenario) => scenario.id === "prompt-injection-output")!.action;
-    const result = evaluateDecision(action, testPolicy, defaultDailyUsage);
+    const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
     expect(result.decision).toBe("BLOCK");
     expect(result.riskFindings.some((finding) => finding.code === "PROMPT_INJECTION_PATTERN")).toBe(true);
   });

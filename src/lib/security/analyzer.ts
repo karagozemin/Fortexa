@@ -1,4 +1,5 @@
 import type { AgentAction, SecurityEvaluation, SecurityFinding } from "@/lib/types/domain";
+import { fetchBlocklist } from "@/lib/security/blocklist";
 
 const suspiciousPatterns = [
   /ignore\s+all\s+previous\s+instructions/i,
@@ -105,16 +106,33 @@ function targetCheck(action: AgentAction): SecurityFinding[] {
   return findings;
 }
 
-export function evaluateSecurity(action: AgentAction): SecurityEvaluation {
-  const findings = [...reputationCheck(action.domain), ...outputSafetyCheck(action.outputPreview), ...targetCheck(action)];
+function blocklistCheck(domain: string, blocklist: string[]): SecurityFinding[] {
+  if (blocklist.includes(domain)) {
+    return [{
+      code: "BLOCKLIST_MATCH",
+      title: "Domain on external blocklist",
+      detail: `Domain ${domain} is present in the configured threat-intel blocklist.`,
+      severity: "high",
+      scoreDelta: 50,
+    }];
+  }
+  return [];
+}
+
+export async function evaluateSecurity(action: AgentAction): Promise<SecurityEvaluation> {
+  const blocklist = await fetchBlocklist();
+
+  const findings = [
+    ...reputationCheck(action.domain),
+    ...blocklistCheck(action.domain, blocklist),
+    ...outputSafetyCheck(action.outputPreview),
+    ...targetCheck(action),
+  ];
 
   const riskScore = Math.min(
     100,
     findings.reduce((acc, finding) => acc + finding.scoreDelta, 10)
   );
 
-  return {
-    riskScore,
-    findings,
-  };
+  return { riskScore, findings };
 }
