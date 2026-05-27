@@ -251,6 +251,8 @@ npm run db:migrate
 
 Ops dashboard initial load is optimized so core telemetry renders first; slow TX-count fetch no longer blocks first paint.
 
+See [docs/observability.md](docs/observability.md) for the Prometheus scrape config, sample PromQL (request rate, error rate, p95 latency), and an example alert rule.
+
 ---
 
 ## 14) 💾 Persistence (Appendix)
