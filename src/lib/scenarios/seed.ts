@@ -88,6 +88,58 @@ export const demoScenarios: Scenario[] = [
       outputPreview: "Compute risk-sensitive synthetic report for treasury.",
     },
   },
+  // ── Adversarial scenarios ──────────────────────────────────────────────────
+  {
+    id: "typosquat-domain-block",
+    title: "Typosquat domain payment attempt",
+    description:
+      "Agent targets a lookalike domain (api.safe-researsh.ai) that contains 'drainer' characteristics. Security reputation check flags it as high-risk, triggering a hard BLOCK.",
+    expectedDecision: "BLOCK",
+    action: {
+      id: "act-adv-1",
+      name: "Pay lookalike research API",
+      kind: "api_payment",
+      target: "lookalike-research:query/beta",
+      domain: "api.safe-researsh-drainer.xyz",
+      amountXLM: 15,
+      tool: "research-pro",
+      outputPreview: "Premium market data bundle — payment required to unlock.",
+    },
+  },
+  {
+    id: "daily-cap-exhaustion",
+    title: "Daily spending cap exhaustion",
+    description:
+      "Agent attempts a 270 XLM transfer when 42 XLM has already been spent today. Combined spend (312 XLM) exceeds the 300 XLM daily cap, triggering REQUIRE_APPROVAL.",
+    expectedDecision: "REQUIRE_APPROVAL",
+    action: {
+      id: "act-adv-2",
+      name: "Bulk dataset settlement",
+      kind: "transfer",
+      target: "worker:data-annotation-batch",
+      domain: "workers.fortexa-demo.stellar",
+      amountXLM: 270,
+      tool: "settlement-worker",
+      outputPreview: "End-of-day batch payout for completed annotation tasks.",
+    },
+  },
+  {
+    id: "suspicious-tool-output-warn",
+    title: "Suspicious tool output — redirect mirror",
+    description:
+      "Tool response comes from an unlisted mirror domain. No hard-block pattern is present, but the domain triggers POTENTIAL_REDIRECT_TRAP and UNLISTED_DOMAIN (both medium), surfacing a WARN guardrail.",
+    expectedDecision: "WARN",
+    action: {
+      id: "act-adv-3",
+      name: "Fetch cached market snapshot",
+      kind: "tool_access",
+      target: "market-mirror:snapshot/latest",
+      domain: "cache-mirror.fast-data.io",
+      amountXLM: 5,
+      tool: "market-feed",
+      outputPreview: "Cached snapshot of top-20 asset prices from mirror node.",
+    },
+  },
 ];
 
 export const editablePolicyTemplate = defaultPolicyConfig;
