@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   const context = getRequestLogContext(request, "/api/auth/login");
   const clientIp = readClientIp(request.headers);
 
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "auth-login",
     limit: 15,
     windowMs: 60_000,
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const lockState = isLoginLocked(parsed.data.publicKey, clientIp);
+    const lockState = await isLoginLocked(parsed.data.publicKey, clientIp);
     if (lockState.locked) {
       logWarn("Auth login blocked by lockout", { ...context, wallet: parsed.data.publicKey, ip: clientIp });
       return jsonWithRequestContext(request, {
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     const role = resolveRoleByWallet(parsed.data.publicKey);
 
     if (!role) {
-      const failure = registerLoginFailure(parsed.data.publicKey, clientIp);
+      const failure = await registerLoginFailure(parsed.data.publicKey, clientIp);
       logWarn("Auth login unknown wallet", { ...context, wallet: parsed.data.publicKey });
       return jsonWithRequestContext(request, {
         route: "/api/auth/login",
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    clearLoginFailures(normalizedWallet, clientIp);
+    await clearLoginFailures(normalizedWallet, clientIp);
 
     logInfo("Auth login success", { ...context, wallet: normalizedWallet, role });
 

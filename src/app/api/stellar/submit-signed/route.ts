@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
   const context = getRequestLogContext(request, "/api/stellar/submit-signed");
 
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "stellar-submit-signed",
     limit: 30,
     windowMs: 60_000,

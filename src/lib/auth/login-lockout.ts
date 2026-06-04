@@ -42,10 +42,10 @@ export function readClientIp(headers: Headers) {
   return headers.get("x-real-ip")?.trim() ?? "unknown";
 }
 
-export function isLoginLocked(email: string, ip: string) {
+export async function isLoginLocked(email: string, ip: string) {
   const key = keyOf(email, ip);
   const useSharedState = isSharedSecurityStateEnabled();
-  const record = useSharedState ? readSharedLockout(key) : records.get(key);
+  const record = useSharedState ? await readSharedLockout(key) : records.get(key);
 
   if (!record) {
     return { locked: false as const, retryAfterSeconds: 0 };
@@ -54,7 +54,7 @@ export function isLoginLocked(email: string, ip: string) {
   const now = Date.now();
   if (record.lockedUntilMs <= now) {
     if (useSharedState) {
-      removeSharedLockout(key);
+      await removeSharedLockout(key);
     } else {
       records.delete(key);
     }
@@ -67,14 +67,14 @@ export function isLoginLocked(email: string, ip: string) {
   };
 }
 
-export function registerLoginFailure(email: string, ip: string) {
+export async function registerLoginFailure(email: string, ip: string) {
   const now = Date.now();
   const maxAttempts = getMaxAttempts();
   const lockMs = Math.max(1000, getLockMinutes() * 60 * 1000);
   const useSharedState = isSharedSecurityStateEnabled();
 
   const key = keyOf(email, ip);
-  const current = (useSharedState ? readSharedLockout(key) : records.get(key)) ?? {
+  const current = (useSharedState ? await readSharedLockout(key) : records.get(key)) ?? {
     attempts: 0,
     lockedUntilMs: 0,
   };
@@ -85,7 +85,7 @@ export function registerLoginFailure(email: string, ip: string) {
   }
 
   if (useSharedState) {
-    writeSharedLockout(key, current);
+    await writeSharedLockout(key, current);
   } else {
     records.set(key, current);
   }
@@ -97,19 +97,19 @@ export function registerLoginFailure(email: string, ip: string) {
   };
 }
 
-export function clearLoginFailures(email: string, ip: string) {
+export async function clearLoginFailures(email: string, ip: string) {
   const key = keyOf(email, ip);
   if (isSharedSecurityStateEnabled()) {
-    removeSharedLockout(key);
+    await removeSharedLockout(key);
     return;
   }
 
   records.delete(key);
 }
 
-export function resetLoginLockoutStore() {
+export async function resetLoginLockoutStore() {
   records.clear();
   if (isSharedSecurityStateEnabled()) {
-    clearSharedLockouts();
+    await clearSharedLockouts();
   }
 }

@@ -5,7 +5,7 @@ import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { stellarBuildPaymentRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "stellar-pay-legacy",
     limit: 20,
     windowMs: 60_000,

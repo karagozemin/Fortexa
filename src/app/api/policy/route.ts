@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     return auth.response;
   }
 
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "policy-get",
     limit: 30,
     windowMs: 60_000,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     return auth.response;
   }
 
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "policy-update",
     limit: 20,
     windowMs: 60_000,

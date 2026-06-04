@@ -9,7 +9,7 @@ import { stellarSetupRequestSchema } from "@/lib/validation/schemas";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "stellar-setup",
     limit: 20,
     windowMs: 60_000,

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     return auth.response;
   }
 
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "agent-plan",
     limit: 20,
     windowMs: 60_000,

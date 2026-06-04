@@ -38,13 +38,13 @@ function getClientIp(request: NextRequest) {
   return realIp?.trim() || "unknown";
 }
 
-export function consumeRateLimit(request: NextRequest, config: BucketConfig): RateLimitResult {
+export async function consumeRateLimit(request: NextRequest, config: BucketConfig): Promise<RateLimitResult> {
   const now = Date.now();
   const ip = getClientIp(request);
   const bucketKey = `${config.key}:${ip}`;
   const useSharedState = isSharedSecurityStateEnabled();
 
-  const current = useSharedState ? readSharedRateLimit(bucketKey) : buckets.get(bucketKey);
+  const current = useSharedState ? await readSharedRateLimit(bucketKey) : buckets.get(bucketKey);
 
   if (!current || now >= current.resetAt) {
     const fresh: BucketState = {
@@ -53,7 +53,7 @@ export function consumeRateLimit(request: NextRequest, config: BucketConfig): Ra
     };
 
     if (useSharedState) {
-      writeSharedRateLimit(bucketKey, fresh);
+      await writeSharedRateLimit(bucketKey, fresh);
     } else {
       buckets.set(bucketKey, fresh);
     }
@@ -80,7 +80,7 @@ export function consumeRateLimit(request: NextRequest, config: BucketConfig): Ra
   current.count += 1;
 
   if (useSharedState) {
-    writeSharedRateLimit(bucketKey, current);
+    await writeSharedRateLimit(bucketKey, current);
   } else {
     buckets.set(bucketKey, current);
   }
@@ -103,9 +103,9 @@ export function rateLimitHeaders(result: RateLimitResult) {
   };
 }
 
-export function resetRateLimitStore() {
+export async function resetRateLimitStore() {
   buckets.clear();
   if (isSharedSecurityStateEnabled()) {
-    clearSharedRateLimits();
+    await clearSharedRateLimits();
   }
 }

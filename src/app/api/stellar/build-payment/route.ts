@@ -7,7 +7,7 @@ import { getUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarBuildPaymentRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "stellar-build-payment",
     limit: 30,
     windowMs: 60_000,

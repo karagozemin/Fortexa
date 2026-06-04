@@ -8,35 +8,35 @@ import {
 } from "@/lib/auth/login-lockout";
 
 describe("login lockout", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.FORTEXA_AUTH_MAX_ATTEMPTS = "2";
     process.env.FORTEXA_AUTH_LOCK_MINUTES = "1";
-    resetLoginLockoutStore();
+    await resetLoginLockoutStore();
   });
 
-  it("increments failed login attempt counters", () => {
+  it("increments failed login attempt counters", async () => {
     const email = "operator@fortexa.local";
     const ip = "127.0.0.1";
 
-    expect(isLoginLocked(email, ip).locked).toBe(false);
+    expect((await isLoginLocked(email, ip)).locked).toBe(false);
 
-    const first = registerLoginFailure(email, ip);
-    const second = registerLoginFailure(email, ip);
+    const first = await registerLoginFailure(email, ip);
+    const second = await registerLoginFailure(email, ip);
 
     expect(first.attempts).toBeGreaterThanOrEqual(1);
     expect(second.attempts).toBeGreaterThan(first.attempts);
   });
 
-  it("clears lockout state on success", () => {
+  it("clears lockout state on success", async () => {
     const email = "viewer@fortexa.local";
     const ip = "127.0.0.2";
 
-    registerLoginFailure(email, ip);
-    registerLoginFailure(email, ip);
+    await registerLoginFailure(email, ip);
+    await registerLoginFailure(email, ip);
 
-    expect(isLoginLocked(email, ip).locked).toBe(true);
+    expect((await isLoginLocked(email, ip)).locked).toBe(true);
 
-    clearLoginFailures(email, ip);
-    expect(isLoginLocked(email, ip).locked).toBe(false);
+    await clearLoginFailures(email, ip);
+    expect((await isLoginLocked(email, ip)).locked).toBe(false);
   });
 });
