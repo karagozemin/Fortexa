@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
   const context = getRequestLogContext(request, "/api/decision");
 
-  const rate = consumeRateLimit(request, {
+  const rate = await consumeRateLimit(request, {
     key: "decision",
     limit: 40,
     windowMs: 60_000,

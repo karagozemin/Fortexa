@@ -1,12 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import Redis from "ioredis";
 
-type SharedRateLimitState = {
+export type SharedRateLimitState = {
   count: number;
   resetAt: number;
 };
 
-type SharedLockoutState = {
+export type SharedLockoutState = {
   attempts: number;
   lockedUntilMs: number;
 };
@@ -20,6 +21,52 @@ const defaultState: SharedSecurityState = {
   rateLimits: {},
   lockouts: {},
 };
+
+let redisClient: Redis | null = null;
+let isRedisUnreachable = false;
+
+function getRedisClient(): Redis | null {
+  const redisUrl = process.env.REDIS_URL?.trim();
+  if (!redisUrl) {
+    return null;
+  }
+
+  if (!redisClient) {
+    try {
+      redisClient = new Redis(redisUrl, {
+        connectTimeout: 1000,
+        maxRetriesPerRequest: 0,
+        enableOfflineQueue: false,
+      });
+
+      redisClient.on("error", (err) => {
+        console.error("Redis connection error:", err);
+        isRedisUnreachable = true;
+      });
+
+      redisClient.on("connect", () => {
+        isRedisUnreachable = false;
+      });
+    } catch (err) {
+      console.error("Failed to initialize Redis client:", err);
+      isRedisUnreachable = true;
+    }
+  }
+
+  return redisClient;
+}
+
+export function resetRedisClient() {
+  if (redisClient) {
+    try {
+      redisClient.disconnect();
+    } catch {
+      // ignore
+    }
+    redisClient = null;
+  }
+  isRedisUnreachable = false;
+}
 
 function getSharedStatePath() {
   const configured = process.env.FORTEXA_SHARED_STATE_PATH?.trim();
@@ -36,7 +83,7 @@ function getSharedStatePath() {
 }
 
 export function isSharedSecurityStateEnabled() {
-  return Boolean(getSharedStatePath());
+  return Boolean(process.env.REDIS_URL?.trim()) || Boolean(getSharedStatePath());
 }
 
 function readSharedState(): SharedSecurityState {
@@ -74,49 +121,149 @@ function writeSharedState(next: SharedSecurityState) {
   renameSync(tempPath, filePath);
 }
 
-export function readSharedRateLimit(key: string) {
-  return readSharedState().rateLimits[key];
+async function runWithRedisFallback<T>(
+  redisOp: (client: Redis) => Promise<T>,
+  fileOp: () => T
+): Promise<T> {
+  const client = getRedisClient();
+  if (client && !isRedisUnreachable) {
+    try {
+      return await redisOp(client);
+    } catch (error) {
+      console.warn("Redis operation failed, falling back to file store:", error);
+    }
+  }
+  return fileOp();
 }
 
-export function writeSharedRateLimit(key: string, value: SharedRateLimitState) {
-  const current = readSharedState();
-  current.rateLimits[key] = value;
-  writeSharedState(current);
+export async function readSharedRateLimit(key: string): Promise<SharedRateLimitState | undefined> {
+  return runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:rate-limit:${key}`;
+      const raw = await client.get(redisKey);
+      if (!raw) {
+        return undefined;
+      }
+      return JSON.parse(raw) as SharedRateLimitState;
+    },
+    () => readSharedState().rateLimits[key]
+  );
 }
 
-export function clearSharedRateLimits() {
-  const current = readSharedState();
-  current.rateLimits = {};
-  writeSharedState(current);
+export async function writeSharedRateLimit(key: string, value: SharedRateLimitState): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:rate-limit:${key}`;
+      const now = Date.now();
+      const ttlSeconds = Math.max(1, Math.ceil((value.resetAt - now) / 1000));
+      await client.set(redisKey, JSON.stringify(value), "EX", ttlSeconds);
+    },
+    () => {
+      const current = readSharedState();
+      current.rateLimits[key] = value;
+      writeSharedState(current);
+    }
+  );
 }
 
-export function readSharedLockout(key: string) {
-  return readSharedState().lockouts[key];
+export async function clearSharedRateLimits(): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const keys = await client.keys("fortexa:rate-limit:*");
+      if (keys.length > 0) {
+        await client.del(keys);
+      }
+    },
+    () => {
+      const current = readSharedState();
+      current.rateLimits = {};
+      writeSharedState(current);
+    }
+  );
 }
 
-export function writeSharedLockout(key: string, value: SharedLockoutState) {
-  const current = readSharedState();
-  current.lockouts[key] = value;
-  writeSharedState(current);
+export async function readSharedLockout(key: string): Promise<SharedLockoutState | undefined> {
+  return runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:lockout:${key}`;
+      const raw = await client.get(redisKey);
+      if (!raw) {
+        return undefined;
+      }
+      return JSON.parse(raw) as SharedLockoutState;
+    },
+    () => readSharedState().lockouts[key]
+  );
 }
 
-export function removeSharedLockout(key: string) {
-  const current = readSharedState();
-  delete current.lockouts[key];
-  writeSharedState(current);
+export async function writeSharedLockout(key: string, value: SharedLockoutState): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:lockout:${key}`;
+      const now = Date.now();
+      let ttlSeconds = 86400; // 24 hours fallback
+      if (value.lockedUntilMs > now) {
+        ttlSeconds = Math.max(1, Math.ceil((value.lockedUntilMs - now) / 1000));
+      }
+      await client.set(redisKey, JSON.stringify(value), "EX", ttlSeconds);
+    },
+    () => {
+      const current = readSharedState();
+      current.lockouts[key] = value;
+      writeSharedState(current);
+    }
+  );
 }
 
-export function clearSharedLockouts() {
-  const current = readSharedState();
-  current.lockouts = {};
-  writeSharedState(current);
+export async function removeSharedLockout(key: string): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:lockout:${key}`;
+      await client.del(redisKey);
+    },
+    () => {
+      const current = readSharedState();
+      delete current.lockouts[key];
+      writeSharedState(current);
+    }
+  );
 }
 
-export function clearSharedSecurityStateFile() {
+export async function clearSharedLockouts(): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const keys = await client.keys("fortexa:lockout:*");
+      if (keys.length > 0) {
+        await client.del(keys);
+      }
+    },
+    () => {
+      const current = readSharedState();
+      current.lockouts = {};
+      writeSharedState(current);
+    }
+  );
+}
+
+export async function clearSharedSecurityStateFile(): Promise<void> {
   const filePath = getSharedStatePath();
-  if (!filePath) {
-    return;
+  if (filePath) {
+    try {
+      rmSync(filePath, { force: true });
+    } catch (err) {
+      console.error("Failed to delete shared state file:", err);
+    }
   }
 
-  rmSync(filePath, { force: true });
+  const client = getRedisClient();
+  if (client && !isRedisUnreachable) {
+    try {
+      const keys = await client.keys("fortexa:*");
+      if (keys.length > 0) {
+        await client.del(keys);
+      }
+    } catch (err) {
+      console.warn("Failed to clear Redis keys in clearSharedSecurityStateFile:", err);
+    }
+  }
 }

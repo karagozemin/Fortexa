@@ -25,9 +25,9 @@ describe("rate limit shared state", () => {
     process.env.FORTEXA_SHARED_STATE_PATH = sharedStatePath;
 
     const firstModule = await import("@/lib/security/rate-limit");
-    firstModule.resetRateLimitStore();
+    await firstModule.resetRateLimitStore();
 
-    const firstResult = firstModule.consumeRateLimit(requestFromIp("10.0.0.4"), {
+    const firstResult = await firstModule.consumeRateLimit(requestFromIp("10.0.0.4"), {
       key: "shared-test",
       limit: 1,
       windowMs: 60_000,
@@ -38,7 +38,7 @@ describe("rate limit shared state", () => {
     vi.resetModules();
 
     const secondModule = await import("@/lib/security/rate-limit");
-    const secondResult = secondModule.consumeRateLimit(requestFromIp("10.0.0.4"), {
+    const secondResult = await secondModule.consumeRateLimit(requestFromIp("10.0.0.4"), {
       key: "shared-test",
       limit: 1,
       windowMs: 60_000,

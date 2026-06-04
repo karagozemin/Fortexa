@@ -19,16 +19,16 @@ describe("login lockout shared state", () => {
     process.env.FORTEXA_AUTH_LOCK_MINUTES = "1";
 
     const firstModule = await import("@/lib/auth/login-lockout");
-    firstModule.resetLoginLockoutStore();
-    firstModule.registerLoginFailure("operator@fortexa.local", "10.9.0.1");
-    firstModule.registerLoginFailure("operator@fortexa.local", "10.9.0.1");
+    await firstModule.resetLoginLockoutStore();
+    await firstModule.registerLoginFailure("operator@fortexa.local", "10.9.0.1");
+    await firstModule.registerLoginFailure("operator@fortexa.local", "10.9.0.1");
 
-    expect(firstModule.isLoginLocked("operator@fortexa.local", "10.9.0.1").locked).toBe(true);
+    expect((await firstModule.isLoginLocked("operator@fortexa.local", "10.9.0.1")).locked).toBe(true);
 
     vi.resetModules();
 
     const secondModule = await import("@/lib/auth/login-lockout");
-    const lockState = secondModule.isLoginLocked("operator@fortexa.local", "10.9.0.1");
+    const lockState = await secondModule.isLoginLocked("operator@fortexa.local", "10.9.0.1");
 
     expect(lockState.locked).toBe(true);
     expect(lockState.retryAfterSeconds).toBeGreaterThan(0);
