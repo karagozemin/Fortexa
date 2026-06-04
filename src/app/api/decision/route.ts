@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const { policy } = await getPolicyConfig();
     const usage = await getDailyUsage(userId);
-    const decision = evaluateDecision(action, policy, usage);
+    const decision = await evaluateDecision(action, policy, usage);
 
     let finalDecision = decision.decision;
     let explanation = decision.explanation;
