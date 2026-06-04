@@ -16,12 +16,15 @@ type PolicyResponse = {
   error?: string;
 };
 
+type PolicyHistoryEntry = {
+  version: number;
+  updatedAt: string;
+  updatedBy?: string;
+  policy?: PolicyConfig;
+};
+
 type PolicyHistoryResponse = {
-  entries?: Array<{
-    version: number;
-    updatedAt: string;
-    updatedBy?: string;
-  }>;
+  entries?: PolicyHistoryEntry[];
   error?: string;
 };
 
@@ -45,9 +48,11 @@ export function PolicyEditor() {
   const [blockedTools, setBlockedTools] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [version, setVersion] = useState<number | null>(null);
-  const [history, setHistory] = useState<Array<{ version: number; updatedAt: string; updatedBy?: string }>>([]);
+  const [history, setHistory] = useState<PolicyHistoryEntry[]>([]);
   const [status, setStatus] = useState<string>("Loading policy...");
   const [loading, setLoading] = useState(false);
+  const [diffA, setDiffA] = useState<number | null>(null);
+  const [diffB, setDiffB] = useState<number | null>(null);
 
   const writeDisabled = loading || sessionLoading || !isOperator;
 
@@ -304,29 +309,66 @@ export function PolicyEditor() {
       <Card>
         <CardHeader>
           <CardTitle>Policy Version History</CardTitle>
-          <CardDescription>Latest saved policy versions with optional rollback.</CardDescription>
+          <CardDescription>
+            Select two versions to compare, or rollback to a prior version.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {history.length === 0 ? <p className="text-sm text-[hsl(var(--muted-foreground))]">No history records.</p> : null}
-          {history.map((entry) => (
-            <div key={entry.version} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] p-2 text-sm">
-              <div>
-                <p className="font-medium">v{entry.version}</p>
-                <p className="text-[hsl(var(--muted-foreground))]">
-                  {entry.updatedAt}
-                  {entry.updatedBy ? ` • ${entry.updatedBy}` : ""}
-                </p>
+          {history.map((entry) => {
+            const isA = diffA === entry.version;
+            const isB = diffB === entry.version;
+            return (
+              <div key={entry.version} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] p-2 text-sm">
+                <div>
+                  <p className="font-medium">v{entry.version}</p>
+                  <p className="text-[hsl(var(--muted-foreground))]">
+                    {entry.updatedAt}
+                    {entry.updatedBy ? ` • ${entry.updatedBy}` : ""}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={isA ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDiffA(isA ? null : entry.version)}
+                    title="Select as version A for diff"
+                  >
+                    A
+                  </Button>
+                  <Button
+                    variant={isB ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setDiffB(isB ? null : entry.version)}
+                    title="Select as version B for diff"
+                  >
+                    B
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={writeDisabled || version === entry.version}
+                    onClick={() => rollback(entry.version)}
+                  >
+                    Rollback
+                  </Button>
+                </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={writeDisabled || version === entry.version}
-                onClick={() => rollback(entry.version)}
-              >
-                Rollback
-              </Button>
-            </div>
-          ))}
+            );
+          })}
+
+          {diffA !== null && diffB !== null && diffA !== diffB ? (
+            <PolicyDiff
+              entryA={history.find((e) => e.version === diffA)!}
+              entryB={history.find((e) => e.version === diffB)!}
+            />
+          ) : diffA !== null && diffB !== null && diffA === diffB ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))] pt-2">Select two different versions to compare.</p>
+          ) : diffA !== null || diffB !== null ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))] pt-2">
+              Select one more version ({diffA !== null ? "B" : "A"}) to compare.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -343,6 +385,140 @@ export function PolicyEditor() {
           {updatedAt ? ` Last updated: ${updatedAt}` : ""}
         </AlertDescription>
       </Alert>
+    </div>
+  );
+}
+
+// ── PolicyDiff ────────────────────────────────────────────────────────────────
+
+type DiffStatus = "added" | "removed" | "unchanged";
+
+function diffLists(a: string[], b: string[]): Array<{ value: string; status: DiffStatus }> {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const all = Array.from(new Set([...a, ...b]));
+  return all.map((value) => {
+    if (setA.has(value) && !setB.has(value)) return { value, status: "removed" };
+    if (!setA.has(value) && setB.has(value)) return { value, status: "added" };
+    return { value, status: "unchanged" };
+  });
+}
+
+const STATUS_STYLE: Record<DiffStatus, string> = {
+  added: "bg-emerald-500/15 text-emerald-400",
+  removed: "bg-red-500/15 text-red-400 line-through",
+  unchanged: "text-[hsl(var(--muted-foreground))]",
+};
+
+const STATUS_PREFIX: Record<DiffStatus, string> = { added: "+ ", removed: "− ", unchanged: "  " };
+
+function NumericDiffRow({ label, a, b }: { label: string; a: number | undefined; b: number | undefined }) {
+  const changed = a !== b;
+  return (
+    <div className={`flex items-center justify-between rounded px-2 py-1 text-sm ${changed ? "bg-amber-500/15" : ""}`}>
+      <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
+      <span>
+        {changed ? (
+          <>
+            <span className="text-red-400 line-through mr-2">{a ?? "—"}</span>
+            <span className="text-emerald-400">{b ?? "—"}</span>
+          </>
+        ) : (
+          <span className="text-[hsl(var(--muted-foreground))]">{a ?? "—"}</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function ListDiffSection({ label, a, b }: { label: string; a: string[]; b: string[] }) {
+  const items = diffLists(a, b);
+  const hasChanges = items.some((i) => i.status !== "unchanged");
+  return (
+    <div>
+      <p className={`text-xs font-semibold mb-1 ${hasChanges ? "text-amber-400" : "text-[hsl(var(--muted-foreground))]"}`}>
+        {label}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-xs text-[hsl(var(--muted-foreground))] italic">empty</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {items.map((item) => (
+            <li key={item.value} className={`rounded px-2 py-0.5 text-xs font-mono ${STATUS_STYLE[item.status]}`}>
+              {STATUS_PREFIX[item.status]}{item.value}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function PolicyDiff({ entryA, entryB }: { entryA: PolicyHistoryEntry; entryB: PolicyHistoryEntry }) {
+  const a = entryA.policy;
+  const b = entryB.policy;
+
+  if (!a || !b) {
+    return (
+      <Alert className="mt-3 border-amber-500/40 bg-amber-500/10">
+        <AlertTitle>Diff unavailable</AlertTitle>
+        <AlertDescription>Policy data not available for one or both selected versions.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const hoursChanged = a.allowedHours?.start !== b.allowedHours?.start || a.allowedHours?.end !== b.allowedHours?.end;
+
+  return (
+    <div className="mt-4 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.2)] p-4 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-sm font-semibold">
+          Diff: <span className="text-red-400">v{entryA.version}</span>
+          {" → "}
+          <span className="text-emerald-400">v{entryB.version}</span>
+        </p>
+        <div className="flex gap-3 text-xs text-[hsl(var(--muted-foreground))]">
+          <span className="text-red-400">− removed</span>
+          <span className="text-emerald-400">+ added</span>
+          <span className="text-amber-400">~ changed</span>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-1">Caps &amp; Thresholds</p>
+        <NumericDiffRow label="Per-tx cap (XLM)" a={a.perTxCapXLM} b={b.perTxCapXLM} />
+        <NumericDiffRow label="Daily cap (XLM)" a={a.dailyCapXLM} b={b.dailyCapXLM} />
+        <NumericDiffRow label="Max tool calls/day" a={a.maxToolCallsPerDay} b={b.maxToolCallsPerDay} />
+        <NumericDiffRow label="Risk threshold" a={a.riskThreshold} b={b.riskThreshold} />
+        {(a.allowedHours ?? b.allowedHours) ? (
+          <div className={`flex items-center justify-between rounded px-2 py-1 text-sm ${hoursChanged ? "bg-amber-500/15" : ""}`}>
+            <span className="text-[hsl(var(--muted-foreground))]">Allowed hours</span>
+            <span>
+              {hoursChanged ? (
+                <>
+                  <span className="text-red-400 line-through mr-2">
+                    {a.allowedHours ? `${a.allowedHours.start}–${a.allowedHours.end}` : "—"}
+                  </span>
+                  <span className="text-emerald-400">
+                    {b.allowedHours ? `${b.allowedHours.start}–${b.allowedHours.end}` : "—"}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[hsl(var(--muted-foreground))]">
+                  {a.allowedHours ? `${a.allowedHours.start}–${a.allowedHours.end}` : "—"}
+                </span>
+              )}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ListDiffSection label="Allowed domains" a={a.allowedDomains} b={b.allowedDomains} />
+        <ListDiffSection label="Blocked domains" a={a.blockedDomains} b={b.blockedDomains} />
+        <ListDiffSection label="Allowed tools" a={a.allowedTools} b={b.allowedTools} />
+        <ListDiffSection label="Blocked tools" a={a.blockedTools} b={b.blockedTools} />
+      </div>
     </div>
   );
 }
