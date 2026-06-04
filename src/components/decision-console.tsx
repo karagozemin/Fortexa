@@ -364,12 +364,12 @@ export function DecisionConsole() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Toasts */}
-      <div className="fixed right-4 top-20 z-50 space-y-2">
+      <div className="fixed left-4 right-4 top-20 z-50 space-y-2 sm:left-auto sm:right-4 sm:max-w-sm">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={cn(
-              "max-w-sm rounded-xl border px-4 py-2.5 text-sm shadow-xl backdrop-blur",
+              "rounded-xl border px-4 py-2.5 text-sm shadow-xl backdrop-blur",
               toast.kind === "success"
                 ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-100"
                 : "border-rose-500/30 bg-rose-500/15 text-rose-100"
@@ -430,8 +430,10 @@ export function DecisionConsole() {
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className="font-medium">{scenario.title}</p>
-                      <DecisionBadge decision={scenario.expectedDecision} />
+                      <p className="min-w-0 flex-1 font-medium break-words">{scenario.title}</p>
+                      <div className="shrink-0">
+                        <DecisionBadge decision={scenario.expectedDecision} />
+                      </div>
                     </div>
                     <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{scenario.description}</p>
                   </button>
@@ -561,14 +563,16 @@ export function DecisionConsole() {
                 <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
                   Payment summary
                 </p>
-                <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-                  <p className="text-3xl font-semibold tracking-tight">
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl">
                     {sendAmount ?? "—"}{" "}
                     <span className="text-lg font-normal text-[hsl(var(--muted-foreground))]">XLM</span>
                   </p>
-                  <span className="rounded-full border border-[hsl(var(--border))] px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                    Stellar Testnet
-                  </span>
+                  <div className="flex">
+                    <span className="rounded-full border border-[hsl(var(--border))] px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                      Stellar Testnet
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-4 space-y-2 text-sm">
                   <p>
@@ -662,18 +666,18 @@ export function DecisionConsole() {
               </Alert>
             ) : null}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button
                 variant="outline"
                 onClick={prepareStellarPaymentXdr}
                 disabled={writeDisabled || !decisionData || !destinationPreview || !executeAmount}
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
               >
                 {preparingXdr ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {preparingXdr ? "Preparing XDR..." : "Prepare XDR"}
               </Button>
               {signError && unsignedXdr ? (
-                <Button onClick={signWithFreighter} disabled={writeDisabled} className="gap-2">
+                <Button onClick={signWithFreighter} disabled={writeDisabled} className="w-full gap-2 sm:w-auto">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                   Retry sign
                 </Button>
@@ -681,7 +685,7 @@ export function DecisionConsole() {
                 <Button
                   onClick={() => (signedXdrInput.trim() && signedXdrInput.trim() !== unsignedXdr.trim() ? submitSignedXdr() : signWithFreighter())}
                   disabled={writeDisabled || (!signedXdrInput.trim() && !unsignedXdr)}
-                  className="gap-2"
+                  className="w-full gap-2 sm:w-auto"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Sign & submit

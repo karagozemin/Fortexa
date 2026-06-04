@@ -36,20 +36,27 @@ export function ActivityTimeline({
           {!compact ? (
             <div className="absolute -left-[3px] top-6 hidden h-2 w-2 rounded-full border border-[hsl(var(--accent)/0.5)] bg-[hsl(var(--accent)/0.3)] md:block" />
           ) : null}
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="font-medium">{entry.action.name}</p>
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium break-words">{entry.action.name}</p>
               <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                {new Date(entry.timestamp).toLocaleString()} · {entry.action.amountXLM} XLM
+                <span className="hidden sm:inline">{new Date(entry.timestamp).toLocaleString()}</span>
+                <span className="sm:hidden">
+                  {new Date(entry.timestamp).toLocaleDateString()}{" "}
+                  {new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+                {" "}· {entry.action.amountXLM} XLM
               </p>
             </div>
-            <DecisionBadge decision={entry.decision} />
+            <div className="flex shrink-0 sm:block">
+              <DecisionBadge decision={entry.decision} />
+            </div>
           </div>
           {!compact ? (
             <div className="mt-3 space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
-              <p className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2">{entry.explanation}</p>
-              <p className="inline-flex items-center gap-1 text-xs">
-                <ScrollText className="h-3 w-3" /> {entry.id}
+              <p className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 break-words">{entry.explanation}</p>
+              <p className="inline-flex items-center gap-1 text-xs break-all">
+                <ScrollText className="h-3 w-3 shrink-0" /> {entry.id}
               </p>
             </div>
           ) : (
@@ -59,7 +66,9 @@ export function ActivityTimeline({
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
               <div className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 text-xs">
                 <p className="mb-0.5 uppercase tracking-wider text-[hsl(var(--accent))]">Tool</p>
-                {entry.action.name}
+                <p className="truncate" title={entry.action.name}>
+                  {entry.action.name}
+                </p>
               </div>
               <div className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 text-xs">
                 <p className="mb-0.5 uppercase tracking-wider text-[hsl(var(--accent))]">Amount</p>
@@ -69,7 +78,7 @@ export function ActivityTimeline({
                 <p className="mb-0.5 inline-flex items-center gap-1 uppercase tracking-wider text-[hsl(var(--accent))]">
                   <Clock4 className="h-3 w-3" /> Time
                 </p>
-                {new Date(entry.timestamp).toLocaleTimeString()}
+                {new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </div>
             </div>
           ) : null}
