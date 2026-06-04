@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Play,
   Hand,
+  RefreshCcw,
 } from "lucide-react";
 
 import { DecisionBadge } from "@/components/decision-badge";
@@ -17,11 +18,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Stepper } from "@/components/ui/stepper";
+import { signFreighterXdr, type FreighterSignErrorCode } from "@/lib/auth/freighter";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import type { AgentAction } from "@/lib/types/domain";
 import { cn } from "@/lib/utils/cn";
 import { truncateMiddle } from "@/lib/utils/format";
+
+const SIGN_ERROR_HINTS: Record<FreighterSignErrorCode, string> = {
+  missing: "Install Freighter from freighter.app, refresh, then retry signing.",
+  rejected: "Open Freighter and approve the transaction, then retry signing.",
+  passphrase_mismatch: "Switch Freighter to Stellar Testnet, then retry signing.",
+  invalid_key: "Unlock the matching account in Freighter, then retry signing.",
+  unknown: "Retry signing, or prepare the XDR again if the problem persists.",
+};
+
+const SIGN_ERROR_TITLES: Record<FreighterSignErrorCode, string> = {
+  missing: "Freighter not detected",
+  rejected: "Signing was rejected",
+  passphrase_mismatch: "Wrong network in Freighter",
+  invalid_key: "Wrong signing key",
+  unknown: "Signing failed",
+};
 
 type DecisionApiResponse = {
   result: {
@@ -84,6 +102,7 @@ export function DecisionConsole() {
   const [generatingAction, setGeneratingAction] = useState(false);
   const [preparingXdr, setPreparingXdr] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [signError, setSignError] = useState<{ code: FreighterSignErrorCode; message: string } | null>(null);
 
   const selectedScenario = useMemo(
     () => demoScenarios.find((s) => s.id === selectedScenarioId),
@@ -110,6 +129,7 @@ export function DecisionConsole() {
     setUnsignedXdr("");
     setSignedXdrInput("");
     setSourcePublicKey("");
+    setSignError(null);
   }
 
   function getExplorerUrl(hash: string) {
@@ -279,29 +299,23 @@ export function DecisionConsole() {
   async function signWithFreighter() {
     if (!ensureOperator() || !unsignedXdr) return;
     setLoading(true);
+    setMessage(null);
+    setSignError(null);
     try {
-      const freighter = await import("@stellar/freighter-api");
-      const signedResult = await freighter.signTransaction(unsignedXdr, {
-        networkPassphrase,
-        address: sourcePublicKey || undefined,
-        accountToSign: sourcePublicKey || undefined,
-      } as never);
+      const result = await signFreighterXdr({
+        unsignedXdr,
+        expectedNetworkPassphrase: networkPassphrase,
+        sourcePublicKey: sourcePublicKey || undefined,
+      });
 
-      const signedXdr =
-        typeof signedResult === "string"
-          ? signedResult
-          : (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTxXdr ??
-            (signedResult as { signedTxXdr?: string; signedTransaction?: string }).signedTransaction;
-
-      if (!signedXdr) {
-        pushToast("error", "Signing rejected.");
+      if (!result.ok) {
+        setSignError({ code: result.code, message: result.message });
+        pushToast("error", `${SIGN_ERROR_TITLES[result.code]}: ${result.message}`);
         return;
       }
 
-      setSignedXdrInput(signedXdr);
-      await submitSignedXdr(signedXdr);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Freighter signing failed.");
+      setSignedXdrInput(result.signedXdr);
+      await submitSignedXdr(result.signedXdr);
     } finally {
       setLoading(false);
     }
@@ -630,6 +644,24 @@ export function DecisionConsole() {
               </Alert>
             ) : null}
 
+            {signError ? (
+              <Alert className="border-rose-500/30 bg-rose-500/10" role="alert">
+                <AlertTitle className="flex items-center gap-2 text-rose-200">
+                  <ShieldAlert className="h-4 w-4" />
+                  {SIGN_ERROR_TITLES[signError.code]}
+                </AlertTitle>
+                <AlertDescription className="space-y-2 text-rose-100/90">
+                  <p>{signError.message}</p>
+                  <p className="text-xs text-rose-100/70">{SIGN_ERROR_HINTS[signError.code]}</p>
+                  {unsignedXdr ? (
+                    <p className="text-xs text-rose-100/60">
+                      Prepared XDR is preserved — retry without rebuilding.
+                    </p>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
@@ -640,14 +672,21 @@ export function DecisionConsole() {
                 {preparingXdr ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {preparingXdr ? "Preparing XDR..." : "Prepare XDR"}
               </Button>
-              <Button
-                onClick={() => (signedXdrInput.trim() ? submitSignedXdr() : signWithFreighter())}
-                disabled={writeDisabled || (!signedXdrInput.trim() && !unsignedXdr)}
-                className="gap-2"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Sign & submit
-              </Button>
+              {signError && unsignedXdr ? (
+                <Button onClick={signWithFreighter} disabled={writeDisabled} className="gap-2">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                  Retry sign
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => (signedXdrInput.trim() && signedXdrInput.trim() !== unsignedXdr.trim() ? submitSignedXdr() : signWithFreighter())}
+                  disabled={writeDisabled || (!signedXdrInput.trim() && !unsignedXdr)}
+                  className="gap-2"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Sign & submit
+                </Button>
+              )}
             </div>
 
             {lastTxExplorerUrl ? (
