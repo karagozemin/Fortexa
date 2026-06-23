@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Database } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Database, Shield, ShieldOff } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+type BlocklistHealth = {
+  configured: boolean;
+  lastRefreshAt: string | null;
+  domainCount: number;
+  lastError: string | null;
+};
 
 type HealthResponse = {
   ok: boolean;
@@ -15,6 +22,7 @@ type HealthResponse = {
     hasAuthSecret: boolean;
     hasHorizonUrl: boolean;
   };
+  blocklist: BlocklistHealth;
 };
 
 type MetricsResponse = {
@@ -229,6 +237,38 @@ export function OpsDashboard() {
           </CardHeader>
           <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">
             From audit export (`scope=all`)
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardDescription>Blocklist Feed</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              {health?.blocklist.configured ? (
+                <Shield className="h-5 w-5 text-emerald-300" />
+              ) : (
+                <ShieldOff className="h-5 w-5 text-amber-400" />
+              )}
+              {health ? (health.blocklist.configured ? "Active" : "Unconfigured") : loading ? "Loading" : "-"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm text-[hsl(var(--muted-foreground))]">
+            {health?.blocklist.configured ? (
+              <>
+                <p>Domains: {health.blocklist.domainCount}</p>
+                <p>
+                  Last refresh:{" "}
+                  {health.blocklist.lastRefreshAt
+                    ? new Date(health.blocklist.lastRefreshAt).toLocaleString()
+                    : "never"}
+                </p>
+                {health.blocklist.lastError ? (
+                  <p className="text-red-300">Last error: {health.blocklist.lastError}</p>
+                ) : null}
+              </>
+            ) : (
+              <p>Set FORTEXA_BLOCKLIST_URL to enable threat-intel feed.</p>
+            )}
           </CardContent>
         </Card>
       </section>

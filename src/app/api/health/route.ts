@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logInfo } from "@/lib/observability/logger";
+import { getBlocklistHealth } from "@/lib/security/blocklist";
 
 export async function GET(request: NextRequest) {
   const startedAtMs = Date.now();
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
       service: "fortexa",
       timestamp: new Date().toISOString(),
       env,
+      blocklist: getBlocklistHealth(),
     },
   });
 }

@@ -2,6 +2,25 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 let cachedDomains: string[] = [];
 let cacheExpiresAt = 0;
+let lastRefreshAt: string | null = null;
+let lastErrorSummary: string | null = null;
+
+export type BlocklistHealth = {
+  configured: boolean;
+  lastRefreshAt: string | null;
+  domainCount: number;
+  lastError: string | null;
+};
+
+/** Return current blocklist feed health without triggering a refresh. */
+export function getBlocklistHealth(): BlocklistHealth {
+  return {
+    configured: Boolean(process.env.FORTEXA_BLOCKLIST_URL),
+    lastRefreshAt,
+    domainCount: cachedDomains.length,
+    lastError: lastErrorSummary,
+  };
+}
 
 /** Fetch and cache the external blocklist. Returns [] on any failure. */
 export async function fetchBlocklist(): Promise<string[]> {
@@ -30,8 +49,10 @@ export async function fetchBlocklist(): Promise<string[]> {
 
     cachedDomains = domains;
     cacheExpiresAt = Date.now() + CACHE_TTL_MS;
-  } catch {
-    // feed unavailable — return last good cache (or empty)
+    lastRefreshAt = new Date().toISOString();
+    lastErrorSummary = null;
+  } catch (err) {
+    lastErrorSummary = err instanceof Error ? err.message : "Unknown fetch error";
   }
 
   return cachedDomains;
@@ -41,4 +62,6 @@ export async function fetchBlocklist(): Promise<string[]> {
 export function resetBlocklistCache(): void {
   cachedDomains = [];
   cacheExpiresAt = 0;
+  lastRefreshAt = null;
+  lastErrorSummary = null;
 }

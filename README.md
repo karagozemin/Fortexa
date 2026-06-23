@@ -259,13 +259,14 @@ npm run db:migrate
 
 ## 13) 📈 Ops / Observability (Appendix)
 
-- Health endpoint: `GET /api/health`
+- Health endpoint: `GET /api/health` — returns `blocklist` object with `configured`, `lastRefreshAt`, `domainCount`, `lastError`
 - Metrics endpoint: `GET /api/metrics` + Prometheus format
 - `/ops` dashboard shows:
   - service health
   - total requests
   - error rate
   - signed tx count
+  - blocklist feed health (configured, domain count, last refresh, errors)
   - top routes + rolling trend
 
 Ops dashboard initial load is optimized so core telemetry renders first; slow TX-count fetch no longer blocks first paint.
