@@ -247,6 +247,7 @@ erDiagram
     text user_id
     timestamptz timestamp
     jsonb payload
+    text entry_hash
   }
 
   FORTEXA_USER_WALLETS {
@@ -258,7 +259,31 @@ erDiagram
   }
 ```
 
-### 6.2 DB-first fallback behavior
+### 6.2 Audit Hash Chain
+
+Each audit entry appended via `appendAuditEntry` is enriched with two fields before persistence:
+
+- **`previousHash`** — the `entryHash` of the most recent already-stored entry for the same user, or the 64-zero genesis sentinel (`0000…0000`) if no prior hashed entry exists.
+- **`entryHash`** — a SHA-256 hex digest computed over a canonicalized JSON object that includes `id`, `timestamp`, `action`, `decision`, `explanation`, `triggeredPolicies`, `riskFindings`, `stellarTxHash`, and `previousHash`. All object keys are sorted before hashing to guarantee DB-stored and file-stored entries produce identical digests.
+
+The `entry_hash` column on `FORTEXA_AUDIT_ENTRIES` (migration `002_audit_hash_chain`) holds this value for fast lookup of the previous hash during inserts.
+
+**Verification** — `verifyHashChain(entries)` (`src/lib/audit/hash-chain.ts`):
+
+1. Sorts entries chronologically by `timestamp`.
+2. Skips entries without `entryHash`/`previousHash` (legacy, pre-chain entries).
+3. For each hashed entry, checks that `previousHash` equals the preceding hashed entry's `entryHash` (or `GENESIS_HASH` for the first).
+4. Recomputes `entryHash` from current field values and compares to the stored value.
+5. Returns `{ valid: false, reason, entryId }` on the first violation found.
+
+This detects:
+- **Modified entries** — any field change invalidates `entryHash`.
+- **Deleted entries** — the next entry's `previousHash` no longer matches.
+- **Reordered entries** — the chain order breaks even if timestamps are adjusted.
+
+Limitations: the chain is append-only tamper evidence, not a cryptographically signed ledger. An adversary with full write access to the store can rewrite the entire chain. The design goal is detection of unintended or casual tampering, not adversarial forgery.
+
+### 6.3 DB-first fallback behavior
 
 - If `DATABASE_URL` is set and DB is reachable: uses Postgres tables.
 - On DB unavailability or operation failure: falls back to local JSON files.
@@ -268,7 +293,7 @@ erDiagram
 
 This fallback is intentional for local resilience, but introduces consistency tradeoffs in multi-instance deployments.
 
-### 6.3 Migrations
+### 6.4 Migrations
 
 - Migration definitions: `src/lib/storage/migrations.ts`
 - Runtime bootstrap: `src/lib/storage/db.ts`

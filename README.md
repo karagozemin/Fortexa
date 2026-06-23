@@ -140,6 +140,21 @@ Additional behavior:
 - `/activity` reads entries by authenticated session user id.
 - Export endpoint supports `mine` and `all` scopes in JSON/CSV.
 
+### Hash chain integrity
+
+Every new audit entry is linked into a tamper-evident SHA-256 hash chain:
+
+| Field | Description |
+|---|---|
+| `previousHash` | `entryHash` of the immediately preceding entry, or `0000…0000` (64 zeroes) for the first hashed entry. |
+| `entryHash` | SHA-256 of the entry's canonical fields (`id`, `timestamp`, `action`, `decision`, `explanation`, `triggeredPolicies`, `riskFindings`, `stellarTxHash`, `previousHash`). Object keys are sorted before hashing so DB-stored and file-stored entries produce identical digests. |
+
+Both fields are included in JSON exports. CSV exports add `entryHash` and `previousHash` columns.
+
+Verification helper: `verifyHashChain(entries)` in `src/lib/audit/hash-chain.ts` — returns `{ valid: true }` for an untouched log and `{ valid: false, reason }` when it detects a modified, deleted, or reordered entry.
+
+Entries written before this feature was introduced carry no hash fields and are treated as **legacy** entries; they do not break verification of newer hashed entries.
+
 ---
 
 ## 8) 🛠️ Local Setup

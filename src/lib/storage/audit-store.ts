@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 
+import { GENESIS_HASH, computeEntryHash } from "@/lib/audit/hash-chain";
 import { runWithDatabase } from "@/lib/storage/db";
 import { getFortexaStoreDir, getFortexaStorePath } from "@/lib/storage/paths";
 import type { AuditEntry, DailyUsage } from "@/lib/types/domain";
@@ -100,12 +101,28 @@ export async function listAllAuditEntriesByUser() {
 
 export async function appendAuditEntry(userId: string, entry: AuditEntry) {
   const db = await runWithDatabase("appendAuditEntry", async (pool) => {
+    const prevResult = await pool.query<{ entry_hash: string }>(
+      `
+        SELECT entry_hash
+        FROM fortexa_audit_entries
+        WHERE user_id = $1
+          AND entry_hash IS NOT NULL
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `,
+      [userId]
+    );
+
+    const previousHash = prevResult.rows[0]?.entry_hash ?? GENESIS_HASH;
+    const entryHash = computeEntryHash({ ...entry, previousHash });
+    const enriched: AuditEntry = { ...entry, previousHash, entryHash };
+
     await pool.query(
       `
-        INSERT INTO fortexa_audit_entries (id, user_id, timestamp, payload)
-        VALUES ($1, $2, $3::timestamptz, $4::jsonb)
+        INSERT INTO fortexa_audit_entries (id, user_id, timestamp, payload, entry_hash)
+        VALUES ($1, $2, $3::timestamptz, $4::jsonb, $5)
       `,
-      [entry.id, userId, entry.timestamp, JSON.stringify(entry)]
+      [enriched.id, userId, enriched.timestamp, JSON.stringify(enriched), enriched.entryHash]
     );
   });
 
@@ -114,9 +131,15 @@ export async function appendAuditEntry(userId: string, entry: AuditEntry) {
   }
 
   const store = await readStore();
-  const entries = store.auditByUser[userId] ?? [];
-  entries.push(entry);
-  store.auditByUser[userId] = entries;
+  const existing = store.auditByUser[userId] ?? [];
+  const sorted = [...existing].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+  const lastHashed = [...sorted].reverse().find((e) => e.entryHash);
+  const previousHash = lastHashed?.entryHash ?? GENESIS_HASH;
+  const entryHash = computeEntryHash({ ...entry, previousHash });
+  const enriched: AuditEntry = { ...entry, previousHash, entryHash };
+
+  existing.push(enriched);
+  store.auditByUser[userId] = existing;
   await writeStore(store);
 }
 
