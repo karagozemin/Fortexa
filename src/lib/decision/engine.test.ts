@@ -10,10 +10,16 @@ const testPolicy = {
 };
 
 describe("Fortexa decision engine", () => {
+  it("ensures all demo scenario ids are unique", () => {
+    const ids = demoScenarios.map((s) => s.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size, "Found duplicate scenario ids").toBe(ids.length);
+  });
+
   it("keeps every demo scenario aligned with its expected decision", async () => {
     for (const scenario of demoScenarios) {
       const result = await evaluateDecision(scenario.action, testPolicy, defaultDailyUsage);
-      expect(result.decision, scenario.id).toBe(scenario.expectedDecision);
+      expect(result.decision, `Scenario "${scenario.id}" ("${scenario.title}"): expected ${scenario.expectedDecision} but got ${result.decision}`).toBe(scenario.expectedDecision);
     }
   });
 
