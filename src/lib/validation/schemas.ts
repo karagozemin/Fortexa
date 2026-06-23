@@ -68,6 +68,13 @@ export const policyRollbackSchema = z.object({
   targetVersion: z.number().int().positive(),
 });
 
+export const policySimulateRequestSchema = z.object({
+  policy: policyConfigSchema,
+  includeAudit: z.boolean().optional(),
+  auditSampleSize: z.number().int().min(1).max(10).optional(),
+});
+
 export type AgentActionInput = z.infer<typeof agentActionSchema>;
 export type DecisionRequestInput = z.infer<typeof decisionRequestSchema>;
 export type AgentPlanRequestInput = z.infer<typeof agentPlanRequestSchema>;
+export type PolicySimulateRequestInput = z.infer<typeof policySimulateRequestSchema>;
