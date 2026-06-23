@@ -41,6 +41,7 @@ export const stellarBuildPaymentRequestSchema = z.object({
 
 export const stellarSubmitSignedRequestSchema = z.object({
   signedXdr: z.string().min(20).max(120000),
+  idempotencyKey: z.string().min(8).max(255).optional(),
 });
 
 export const agentPlanRequestSchema = z.object({

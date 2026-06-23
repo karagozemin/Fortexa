@@ -5,6 +5,11 @@ import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { submitSignedTransactionXdr } from "@/lib/stellar/client";
+import {
+  getIdempotencyRecord,
+  hashSignedXdr,
+  putIdempotencyRecord,
+} from "@/lib/storage/submit-idempotency-store";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
 
 function getTestnetExplorerUrl(hash: string) {
@@ -93,6 +98,52 @@ export async function POST(request: NextRequest) {
 
     const payload = parsedPayload.data;
 
+    // Resolve the idempotency key: the Idempotency-Key header wins over the body field.
+    const headerKey = request.headers.get("idempotency-key")?.trim();
+    const bodyKey = payload.idempotencyKey?.trim();
+    const idempotencyKey = headerKey && headerKey.length > 0 ? headerKey : bodyKey;
+
+    if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 255)) {
+      logWarn("Submit signed invalid idempotency key", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 400,
+        body: { error: "Idempotency-Key must be between 8 and 255 characters." },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    const xdrHash = idempotencyKey ? hashSignedXdr(payload.signedXdr) : null;
+
+    if (idempotencyKey && xdrHash) {
+      const existing = await getIdempotencyRecord(userId, idempotencyKey);
+
+      if (existing && existing.xdrHash === xdrHash) {
+        logInfo("Signed transaction idempotent replay", { ...context, userId, idempotencyKey });
+        return jsonWithRequestContext(request, {
+          route: "/api/stellar/submit-signed",
+          startedAtMs,
+          status: 200,
+          body: existing.result,
+          headers: { ...rateLimitHeaders(rate), "Idempotency-Replayed": "true" },
+        });
+      }
+
+      if (existing) {
+        logWarn("Signed transaction idempotency conflict", { ...context, userId, idempotencyKey });
+        return jsonWithRequestContext(request, {
+          route: "/api/stellar/submit-signed",
+          startedAtMs,
+          status: 409,
+          body: {
+            error: "Idempotency-Key was already used with a different signed transaction.",
+          },
+          headers: { ...rateLimitHeaders(rate), "Idempotency-Replayed": "false" },
+        });
+      }
+    }
+
     const submitted = await submitSignedTransactionXdr(payload.signedXdr);
 
     logInfo("Signed transaction submitted", {
@@ -102,20 +153,28 @@ export async function POST(request: NextRequest) {
       ledger: submitted.ledger,
     });
 
+    const responseBody = {
+      ok: true,
+      userId,
+      payment: {
+        mode: "real",
+        ...submitted,
+      },
+      explorerUrl: getTestnetExplorerUrl(submitted.hash),
+    };
+
+    if (idempotencyKey && xdrHash) {
+      await putIdempotencyRecord(userId, idempotencyKey, { xdrHash, result: responseBody });
+    }
+
     return jsonWithRequestContext(request, {
       route: "/api/stellar/submit-signed",
       startedAtMs,
       status: 200,
-      body: {
-        ok: true,
-        userId,
-        payment: {
-          mode: "real",
-          ...submitted,
-        },
-        explorerUrl: getTestnetExplorerUrl(submitted.hash),
-      },
-      headers: rateLimitHeaders(rate),
+      body: responseBody,
+      headers: idempotencyKey
+        ? { ...rateLimitHeaders(rate), "Idempotency-Replayed": "false" }
+        : rateLimitHeaders(rate),
     });
   } catch (error) {
     const formatted = formatSubmitError(error);
