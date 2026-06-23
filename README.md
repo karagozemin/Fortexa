@@ -230,7 +230,13 @@ npm run db:migrate
 
 ### Audit / Observability
 - `GET /api/audit`
-- `GET /api/audit/export?format=json|csv&scope=mine|all`
+- `GET /api/audit/export?format=json|csv&scope=mine|all&from=<ISO8601>&to=<ISO8601>&decision=APPROVE|WARN|REQUIRE_APPROVAL|BLOCK&domain=<string>&actionId=<string>`
+  - **Filters:** `from` / `to` (ISO 8601 date), `decision`, `domain`, `actionId` — all optional
+  - **Scope:** `mine` (own entries) or `all` (operator only)
+  - **Examples:**
+    - `GET /api/audit/export?format=csv&scope=mine&from=2025-06-01T00:00:00Z&to=2025-06-30T23:59:59Z`
+    - `GET /api/audit/export?format=json&scope=all&decision=BLOCK&domain=malicious.example.com`
+    - `GET /api/audit/export?format=json&scope=mine&actionId=evt_abc123`
 - `GET /api/health`
 - `GET /api/metrics` (`?format=prometheus`)
 

@@ -2,12 +2,51 @@ import { promises as fs } from "node:fs";
 
 import { runWithDatabase } from "@/lib/storage/db";
 import { getFortexaStoreDir, getFortexaStorePath } from "@/lib/storage/paths";
-import type { AuditEntry, DailyUsage } from "@/lib/types/domain";
+import type { AuditEntry, DailyUsage, DecisionType } from "@/lib/types/domain";
 
 type AuditStoreFile = {
   auditByUser: Record<string, AuditEntry[]>;
   usageByUser: Record<string, DailyUsage>;
 };
+
+export type AuditFilter = {
+  from?: string;
+  to?: string;
+  decision?: string;
+  domain?: string;
+  actionId?: string;
+};
+
+const VALID_DECISIONS: DecisionType[] = ["APPROVE", "WARN", "REQUIRE_APPROVAL", "BLOCK"];
+const VALID_DECISION_SET = new Set<string>(VALID_DECISIONS);
+
+export function validateAuditFilter(filter: AuditFilter): string | null {
+  if (filter.from !== undefined && isNaN(Date.parse(filter.from))) {
+    return "Invalid 'from' date. Use ISO 8601 format (e.g. 2025-01-01T00:00:00Z).";
+  }
+  if (filter.to !== undefined && isNaN(Date.parse(filter.to))) {
+    return "Invalid 'to' date. Use ISO 8601 format (e.g. 2025-01-01T00:00:00Z).";
+  }
+  if (filter.decision !== undefined && !VALID_DECISION_SET.has(filter.decision)) {
+    return `Invalid decision '${filter.decision}'. Must be one of: ${VALID_DECISIONS.join(", ")}.`;
+  }
+  return null;
+}
+
+function applyFilter(entries: AuditEntry[], filter?: AuditFilter): AuditEntry[] {
+  if (!filter) return entries;
+
+  const { from, to, decision, domain, actionId } = filter;
+
+  return entries.filter((entry) => {
+    if (from !== undefined && entry.timestamp < from) return false;
+    if (to !== undefined && entry.timestamp > to) return false;
+    if (decision !== undefined && entry.decision !== decision) return false;
+    if (domain !== undefined && !entry.action.domain.toLowerCase().includes(domain.toLowerCase())) return false;
+    if (actionId !== undefined && !entry.action.id.toLowerCase().includes(actionId.toLowerCase())) return false;
+    return true;
+  });
+}
 
 const storePath = getFortexaStorePath("audit.json");
 
@@ -40,7 +79,7 @@ async function writeStore(store: AuditStoreFile) {
   await fs.writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
 }
 
-export async function listAuditEntries(userId: string) {
+export async function listAuditEntries(userId: string, filter?: AuditFilter) {
   const db = await runWithDatabase("listAuditEntries", async (pool) => {
     const result = await pool.query<{ payload: AuditEntry }>(
       `
@@ -52,7 +91,7 @@ export async function listAuditEntries(userId: string) {
       [userId]
     );
 
-    return result.rows.map((row) => row.payload);
+    return applyFilter(result.rows.map((row) => row.payload), filter);
   });
 
   if (db.available) {
@@ -61,10 +100,13 @@ export async function listAuditEntries(userId: string) {
 
   const store = await readStore();
   const entries = store.auditByUser[userId] ?? [];
-  return [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  return applyFilter(
+    [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)),
+    filter
+  );
 }
 
-export async function listAllAuditEntriesByUser() {
+export async function listAllAuditEntriesByUser(filter?: AuditFilter) {
   const db = await runWithDatabase("listAllAuditEntriesByUser", async (pool) => {
     const result = await pool.query<{ user_id: string; payload: AuditEntry }>(
       `
@@ -81,6 +123,10 @@ export async function listAllAuditEntriesByUser() {
       grouped[row.user_id].push(row.payload);
     }
 
+    for (const userId of Object.keys(grouped)) {
+      grouped[userId] = applyFilter(grouped[userId], filter);
+    }
+
     return grouped;
   });
 
@@ -92,7 +138,13 @@ export async function listAllAuditEntriesByUser() {
   const result: Record<string, AuditEntry[]> = {};
 
   for (const [userId, entries] of Object.entries(store.auditByUser)) {
-    result[userId] = [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+    const filtered = applyFilter(
+      [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)),
+      filter
+    );
+    if (filtered.length > 0) {
+      result[userId] = filtered;
+    }
   }
 
   return result;

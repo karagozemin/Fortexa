@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
-import { listAllAuditEntriesByUser, listAuditEntries } from "@/lib/storage/audit-store";
+import { listAllAuditEntriesByUser, listAuditEntries, validateAuditFilter } from "@/lib/storage/audit-store";
+import type { AuditFilter } from "@/lib/storage/audit-store";
 
 function toCsv(rows: Array<Record<string, string | number | boolean | null>>) {
   if (rows.length === 0) {
@@ -35,9 +36,37 @@ export async function GET(request: NextRequest) {
   const format = request.nextUrl.searchParams.get("format")?.toLowerCase() ?? "json";
   const scope = request.nextUrl.searchParams.get("scope")?.toLowerCase() ?? "mine";
 
+  const filter: AuditFilter = {
+    from: request.nextUrl.searchParams.get("from") ?? undefined,
+    to: request.nextUrl.searchParams.get("to") ?? undefined,
+    decision: request.nextUrl.searchParams.get("decision") ?? undefined,
+    domain: request.nextUrl.searchParams.get("domain") ?? undefined,
+    actionId: request.nextUrl.searchParams.get("actionId") ?? undefined,
+  };
+
+  const validationError = validateAuditFilter(filter);
+  if (validationError) {
+    return jsonWithRequestContext(request, {
+      route: "/api/audit/export",
+      startedAtMs,
+      status: 400,
+      body: { error: validationError },
+    });
+  }
+
   try {
     const isOperator = auth.session.role === "operator";
+    const viewerScopeAll = !isOperator && scope === "all";
     const exportAll = isOperator && scope === "all";
+
+    if (viewerScopeAll) {
+      return jsonWithRequestContext(request, {
+        route: "/api/audit/export",
+        startedAtMs,
+        status: 400,
+        body: { error: "Viewer role is limited to scope=mine." },
+      });
+    }
 
     if (format !== "json" && format !== "csv") {
       return jsonWithRequestContext(request, {
@@ -49,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (exportAll) {
-      const all = await listAllAuditEntriesByUser();
+      const all = await listAllAuditEntriesByUser(filter);
 
       if (format === "json") {
         logInfo("Audit export success (all/json)", { ...context, userId: auth.session.userId });
@@ -93,7 +122,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const mine = await listAuditEntries(auth.session.userId);
+    const mine = await listAuditEntries(auth.session.userId, filter);
 
     if (format === "json") {
       logInfo("Audit export success (mine/json)", { ...context, userId: auth.session.userId });
