@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { clearLoginFailures, isLoginLocked, readClientIp, registerLoginFailure } from "@/lib/auth/login-lockout";
-import { AUTH_COOKIE_KEY, type AuthRole, createSessionToken } from "@/lib/auth/session";
+import { AUTH_COOKIE_KEY, createSessionToken } from "@/lib/auth/session";
+import { verifyWalletChallenge } from "@/lib/auth/wallet-challenge";
+import { normalizeWalletPublicKey, resolveRoleByWallet } from "@/lib/auth/wallet-role";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
@@ -10,40 +12,23 @@ import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
 
 const loginSchema = z.object({
   publicKey: z.string().regex(/^G[A-Z2-7]{55}$/u, "Invalid Stellar public key."),
+  challengeId: z.string().uuid("Challenge id is required."),
+  signature: z.string().min(1, "Wallet signature is required."),
 });
 
-function parseWalletList(value: string | undefined) {
-  if (!value?.trim()) {
-    return new Set<string>();
+function challengeErrorMessage(code: "missing" | "expired" | "replayed" | "wallet_mismatch" | "invalid_signature") {
+  switch (code) {
+    case "expired":
+      return "Login challenge expired. Request a new challenge and sign again.";
+    case "replayed":
+      return "Login challenge was already used. Request a new challenge and sign again.";
+    case "wallet_mismatch":
+      return "Challenge does not match the connected wallet.";
+    case "invalid_signature":
+      return "Wallet signature verification failed.";
+    default:
+      return "Login challenge is invalid or expired.";
   }
-
-  return new Set(
-    value
-      .split(",")
-      .map((item) => item.trim().toUpperCase())
-      .filter((item) => /^G[A-Z2-7]{55}$/u.test(item))
-  );
-}
-
-function resolveRoleByWallet(publicKey: string): AuthRole | null {
-  const normalizedKey = publicKey.trim().toUpperCase();
-
-  const operatorWallets = parseWalletList(process.env.FORTEXA_OPERATOR_WALLETS);
-  const viewerWallets = parseWalletList(process.env.FORTEXA_VIEWER_WALLETS);
-
-  if (operatorWallets.has(normalizedKey)) {
-    return "operator";
-  }
-
-  if (viewerWallets.has(normalizedKey)) {
-    return "viewer";
-  }
-
-  if (operatorWallets.size === 0 && viewerWallets.size === 0) {
-    return "operator";
-  }
-
-  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -83,9 +68,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const lockState = await isLoginLocked(parsed.data.publicKey, clientIp);
+    const normalizedWallet = normalizeWalletPublicKey(parsed.data.publicKey);
+
+    const lockState = await isLoginLocked(normalizedWallet, clientIp);
     if (lockState.locked) {
-      logWarn("Auth login blocked by lockout", { ...context, wallet: parsed.data.publicKey, ip: clientIp });
+      logWarn("Auth login blocked by lockout", { ...context, wallet: normalizedWallet, ip: clientIp });
       return jsonWithRequestContext(request, {
         route: "/api/auth/login",
         startedAtMs,
@@ -101,11 +88,43 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const role = resolveRoleByWallet(parsed.data.publicKey);
+    const challengeResult = await verifyWalletChallenge({
+      challengeId: parsed.data.challengeId,
+      publicKey: normalizedWallet,
+      signature: parsed.data.signature,
+    });
+
+    if (!challengeResult.ok) {
+      const countsAsFailure = challengeResult.code === "invalid_signature";
+      const failure = countsAsFailure ? await registerLoginFailure(normalizedWallet, clientIp) : null;
+
+      logWarn("Auth login challenge verification failed", {
+        ...context,
+        wallet: normalizedWallet,
+        code: challengeResult.code,
+      });
+
+      return jsonWithRequestContext(request, {
+        route: "/api/auth/login",
+        startedAtMs,
+        status: challengeResult.code === "invalid_signature" ? 401 : 400,
+        body: {
+          error: failure?.justLocked
+            ? `${challengeErrorMessage(challengeResult.code)} Login temporarily locked due to repeated failures.`
+            : challengeErrorMessage(challengeResult.code),
+          retryAfterSeconds: failure?.justLocked
+            ? Math.max(1, Math.ceil((failure.lockedUntilMs - Date.now()) / 1000))
+            : undefined,
+        },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    const role = resolveRoleByWallet(normalizedWallet);
 
     if (!role) {
-      const failure = await registerLoginFailure(parsed.data.publicKey, clientIp);
-      logWarn("Auth login unknown wallet", { ...context, wallet: parsed.data.publicKey });
+      const failure = await registerLoginFailure(normalizedWallet, clientIp);
+      logWarn("Auth login unknown wallet", { ...context, wallet: normalizedWallet });
       return jsonWithRequestContext(request, {
         route: "/api/auth/login",
         startedAtMs,
@@ -119,7 +138,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const normalizedWallet = parsed.data.publicKey.trim().toUpperCase();
     const userId = `wallet:${normalizedWallet}`;
 
     await upsertUserWallet(userId, {

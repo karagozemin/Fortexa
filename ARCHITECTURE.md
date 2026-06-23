@@ -17,7 +17,7 @@ Core intent:
 ## 2) 📌 Scope and Non-Goals (Current)
 
 ### In scope
-- Wallet-address-based login via public-key allowlists (`/api/auth/login`)
+- Wallet challenge-signature login (`/api/auth/challenge` + `/api/auth/login`)
 - Role-based route protection (`operator`, `viewer`)
 - Policy + security-based decisioning
 - Signed XDR submission to Stellar Testnet
@@ -109,16 +109,16 @@ flowchart TB
 
 ## 5) 🔄 Primary Request Flows
 
-### 5.1 Wallet-Address-Based Login
+### 5.1 Wallet Challenge-Signature Login
 
-1. Client posts wallet `publicKey` to `/api/auth/login`.
-2. Input validation enforces Stellar public key format.
-3. Role resolves via `FORTEXA_OPERATOR_WALLETS` / `FORTEXA_VIEWER_WALLETS`.
-4. Lockout + rate-limit checks apply.
-5. Session token is issued in `fortexa_session` cookie.
-6. Wallet mapping is upserted for that `userId`.
-
-Current implementation note: this login path is allowlist + session-token based; it is not a cryptographic challenge-signature authentication flow.
+1. Client posts wallet `publicKey` to `/api/auth/challenge`.
+2. Server returns `challengeId`, `message`, and `expiresAt` (one-time, short-lived).
+3. Client signs the challenge message with the wallet (SEP-53 via Freighter `signMessage`).
+4. Client posts `publicKey`, `challengeId`, and `signature` to `/api/auth/login`.
+5. Server verifies signature, enforces challenge expiry + one-time use, then resolves role via allowlists.
+6. Lockout + rate-limit checks apply on login verification failures.
+7. Session token is issued in `fortexa_session` cookie.
+8. Wallet mapping is upserted for that `userId`.
 
 Honest note: if both allowlists are empty, current behavior allows any valid wallet as `operator` (developer-friendly, not production-safe).
 
@@ -126,25 +126,35 @@ Honest note: if both allowlists are empty, current behavior allows any valid wal
 sequenceDiagram
   autonumber
   participant U as User/Browser
+  participant CH as /api/auth/challenge
   participant API as /api/auth/login
   participant RL as Rate Limit + Lockout
   participant AUTH as Session Signer
   participant UW as user-wallet-store
 
-  U->>API: POST { publicKey }
+  U->>CH: POST { publicKey }
+  CH-->>U: challengeId + message + expiresAt
+  U->>U: signMessage(challenge) via Freighter
+  U->>API: POST { publicKey, challengeId, signature }
   API->>RL: consumeRateLimit + isLoginLocked
   alt Limited or locked
     RL-->>API: deny
     API-->>U: 429/423 + headers
   else Allowed
-    API->>API: validate Stellar key + resolve role
-    alt Unauthorized wallet
-      API->>RL: register failure
-      API-->>U: 401
-    else Authorized wallet
-      API->>UW: upsertUserWallet(userId, publicKey)
-      API->>AUTH: createSessionToken(userId, role)
-      API-->>U: 200 + fortexa_session cookie
+    API->>API: verify challenge + SEP-53 signature
+    alt Invalid/expired/replayed challenge or bad signature
+      API->>RL: register failure (bad signature)
+      API-->>U: 400/401
+    else Signature verified
+      API->>API: resolve role via allowlists
+      alt Unauthorized wallet
+        API->>RL: register failure
+        API-->>U: 401
+      else Authorized wallet
+        API->>UW: upsertUserWallet(userId, publicKey)
+        API->>AUTH: createSessionToken(userId, role)
+        API-->>U: 200 + fortexa_session cookie
+      end
     end
   end
 ```

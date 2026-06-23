@@ -179,19 +179,174 @@ export async function signFreighterXdr(input: {
   return { ok: true, signedXdr, signerAddress: signResponse.signerAddress ?? "" };
 }
 
-export async function loginWithFreighter(): Promise<
+export type FreighterSignMessageResult =
+  | { ok: true; signature: string; signerAddress: string }
+  | { ok: false; code: FreighterSignErrorCode; message: string };
+
+type FreighterMessageClient = {
+  isConnected: () => Promise<{ isConnected: boolean; error?: FreighterApiError }>;
+  signMessage: (
+    message: string,
+    opts?: { address?: string }
+  ) => Promise<{
+    signedMessage?: string | { toString: (encoding: string) => string } | null;
+    signerAddress?: string;
+    error?: FreighterApiError;
+  }>;
+};
+
+function normalizeSignedMessage(
+  signedMessage: string | { toString: (encoding: string) => string } | null | undefined
+) {
+  if (!signedMessage) {
+    return null;
+  }
+
+  if (typeof signedMessage === "string") {
+    return signedMessage;
+  }
+
+  return signedMessage.toString("base64");
+}
+
+export async function signFreighterMessage(input: {
+  message: string;
+  sourcePublicKey?: string;
+  freighter?: FreighterMessageClient;
+}): Promise<FreighterSignMessageResult> {
+  let freighter: FreighterMessageClient;
+  try {
+    freighter = input.freighter ?? ((await import("@stellar/freighter-api")) as unknown as FreighterMessageClient);
+  } catch {
+    return {
+      ok: false,
+      code: "missing",
+      message: "Freighter extension not found. Install it from freighter.app and refresh.",
+    };
+  }
+
+  try {
+    const connection = await freighter.isConnected();
+    if (connection.error || !connection.isConnected) {
+      return {
+        ok: false,
+        code: "missing",
+        message:
+          connection.error?.message ??
+          "Freighter is not connected. Install or unlock the extension and refresh.",
+      };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Freighter not detected.";
+    return {
+      ok: false,
+      code: isMissingExtensionMessage(message) ? "missing" : "unknown",
+      message: isMissingExtensionMessage(message)
+        ? "Freighter extension not found. Install it from freighter.app and refresh."
+        : message,
+    };
+  }
+
+  let signResponse: Awaited<ReturnType<FreighterMessageClient["signMessage"]>>;
+  try {
+    signResponse = await freighter.signMessage(input.message, {
+      address: input.sourcePublicKey || undefined,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Freighter message signing failed.";
+    return { ok: false, code: categorizeSignError(message), message };
+  }
+
+  if (signResponse.error) {
+    const message = signResponse.error.message || "Freighter message signing failed.";
+    return { ok: false, code: categorizeSignError(message), message };
+  }
+
+  const signature = normalizeSignedMessage(signResponse.signedMessage);
+  if (!signature) {
+    return {
+      ok: false,
+      code: "rejected",
+      message: "Signing rejected in Freighter. No signature returned.",
+    };
+  }
+
+  if (
+    input.sourcePublicKey &&
+    signResponse.signerAddress &&
+    signResponse.signerAddress.toUpperCase() !== input.sourcePublicKey.toUpperCase()
+  ) {
+    return {
+      ok: false,
+      code: "invalid_key",
+      message: `Freighter signed with a different key (${signResponse.signerAddress}) than the linked wallet.`,
+    };
+  }
+
+  return {
+    ok: true,
+    signature,
+    signerAddress: signResponse.signerAddress ?? "",
+  };
+}
+
+export type LoginWithFreighterStep =
+  | "connecting"
+  | "challenge"
+  | "signing"
+  | "verifying";
+
+export async function loginWithFreighter(options?: {
+  onStep?: (step: LoginWithFreighterStep) => void;
+}): Promise<
   | { ok: true; role: string; wallet: string }
   | { ok: false; message: string; retryAfterSeconds?: number }
 > {
+  options?.onStep?.("connecting");
   const connected = await connectFreighterWallet();
   if (!connected.ok) {
     return { ok: false, message: connected.message };
   }
 
-  const response = await fetch("/api/auth/login", {
+  options?.onStep?.("challenge");
+  const challengeResponse = await fetch("/api/auth/challenge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ publicKey: connected.publicKey }),
+  });
+
+  const challengePayload = (await challengeResponse.json()) as {
+    error?: string;
+    challengeId?: string;
+    message?: string;
+  };
+
+  if (!challengeResponse.ok || !challengePayload.challengeId || !challengePayload.message) {
+    return {
+      ok: false,
+      message: challengePayload.error ?? "Could not create login challenge.",
+    };
+  }
+
+  options?.onStep?.("signing");
+  const signed = await signFreighterMessage({
+    message: challengePayload.message,
+    sourcePublicKey: connected.publicKey,
+  });
+
+  if (!signed.ok) {
+    return { ok: false, message: signed.message };
+  }
+
+  options?.onStep?.("verifying");
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      publicKey: connected.publicKey,
+      challengeId: challengePayload.challengeId,
+      signature: signed.signature,
+    }),
   });
 
   const payload = (await response.json()) as {

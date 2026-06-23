@@ -7,7 +7,7 @@ import { ExternalLink, Loader2, Wallet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { loginWithFreighter } from "@/lib/auth/freighter";
+import { loginWithFreighter, type LoginWithFreighterStep } from "@/lib/auth/freighter";
 import { truncateMiddle } from "@/lib/utils/format";
 
 export function LoginForm() {
@@ -16,6 +16,7 @@ export function LoginForm() {
   const nextPath = searchParams.get("next") || "/dashboard";
 
   const [loading, setLoading] = useState(false);
+  const [loginStep, setLoginStep] = useState<LoginWithFreighterStep | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successWallet, setSuccessWallet] = useState<string | null>(null);
@@ -45,8 +46,11 @@ export function LoginForm() {
     setLoading(true);
     setError(null);
     setSuccessWallet(null);
+    setLoginStep("connecting");
 
-    const result = await loginWithFreighter();
+    const result = await loginWithFreighter({
+      onStep: (step) => setLoginStep(step),
+    });
 
     if (!result.ok) {
       setError(
@@ -55,12 +59,28 @@ export function LoginForm() {
           : result.message
       );
       setLoading(false);
+      setLoginStep(null);
       return;
     }
 
     setSuccessWallet(result.wallet);
     const destination = nextPath.startsWith("/") ? nextPath : "/dashboard";
     window.location.assign(destination);
+  }
+
+  function loginStepLabel(step: LoginWithFreighterStep | null) {
+    switch (step) {
+      case "connecting":
+        return "Connecting wallet...";
+      case "challenge":
+        return "Preparing login challenge...";
+      case "signing":
+        return "Sign message in Freighter...";
+      case "verifying":
+        return "Verifying signature...";
+      default:
+        return "Waiting for Freighter...";
+    }
   }
 
   if (checkingSession) {
@@ -80,7 +100,7 @@ export function LoginForm() {
         <CardDescription>Wallet access</CardDescription>
         <CardTitle className="text-2xl">Sign in with Freighter</CardTitle>
         <CardDescription>
-          One step — connect your Stellar wallet and start a secure session. No passwords.
+          Connect your Stellar wallet, sign a one-time login challenge, and start a secure session. No passwords.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -88,7 +108,7 @@ export function LoginForm() {
           {loading ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              {successWallet ? "Opening console..." : "Waiting for Freighter..."}
+              {successWallet ? "Opening console..." : loginStepLabel(loginStep)}
             </>
           ) : (
             <>

@@ -12,14 +12,23 @@ export type SharedLockoutState = {
   lockedUntilMs: number;
 };
 
+export type SharedChallengeState = {
+  publicKey: string;
+  message: string;
+  expiresAtMs: number;
+  consumed: boolean;
+};
+
 type SharedSecurityState = {
   rateLimits: Record<string, SharedRateLimitState>;
   lockouts: Record<string, SharedLockoutState>;
+  challenges: Record<string, SharedChallengeState>;
 };
 
 const defaultState: SharedSecurityState = {
   rateLimits: {},
   lockouts: {},
+  challenges: {},
 };
 
 let redisClient: Redis | null = null;
@@ -103,6 +112,7 @@ function readSharedState(): SharedSecurityState {
     return {
       rateLimits: parsed.rateLimits ?? {},
       lockouts: parsed.lockouts ?? {},
+      challenges: parsed.challenges ?? {},
     };
   } catch {
     return defaultState;
@@ -240,6 +250,68 @@ export async function clearSharedLockouts(): Promise<void> {
     () => {
       const current = readSharedState();
       current.lockouts = {};
+      writeSharedState(current);
+    }
+  );
+}
+
+export async function readSharedChallenge(key: string): Promise<SharedChallengeState | undefined> {
+  return runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:challenge:${key}`;
+      const raw = await client.get(redisKey);
+      if (!raw) {
+        return undefined;
+      }
+      return JSON.parse(raw) as SharedChallengeState;
+    },
+    () => readSharedState().challenges[key]
+  );
+}
+
+export async function writeSharedChallenge(
+  key: string,
+  value: SharedChallengeState,
+  ttlSeconds: number
+): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:challenge:${key}`;
+      await client.set(redisKey, JSON.stringify(value), "EX", Math.max(1, ttlSeconds));
+    },
+    () => {
+      const current = readSharedState();
+      current.challenges[key] = value;
+      writeSharedState(current);
+    }
+  );
+}
+
+export async function deleteSharedChallenge(key: string): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const redisKey = `fortexa:challenge:${key}`;
+      await client.del(redisKey);
+    },
+    () => {
+      const current = readSharedState();
+      delete current.challenges[key];
+      writeSharedState(current);
+    }
+  );
+}
+
+export async function clearSharedChallenges(): Promise<void> {
+  await runWithRedisFallback(
+    async (client) => {
+      const keys = await client.keys("fortexa:challenge:*");
+      if (keys.length > 0) {
+        await client.del(keys);
+      }
+    },
+    () => {
+      const current = readSharedState();
+      current.challenges = {};
       writeSharedState(current);
     }
   );

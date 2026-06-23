@@ -58,12 +58,24 @@ Fortexa currently runs with a strict wallet-bound model:
 
 ### 4.1 Wallet-only Login
 
-- Login payload: wallet public key (`G...`).
-- Role is resolved via allowlists:
-  - `FORTEXA_OPERATOR_WALLETS`
-  - `FORTEXA_VIEWER_WALLETS`
-- If both allowlists are empty, current behavior falls back to `operator` role for any valid wallet (recommended only for local/dev).
-- Session cookie: `fortexa_session` (HMAC-signed).
+Fortexa uses a challenge-signature login flow:
+
+1. Client requests a one-time login challenge via `POST /api/auth/challenge` with the wallet public key (`G...`).
+2. The server returns a short-lived challenge message bound to that wallet.
+3. The wallet signs the challenge message (SEP-53 / Freighter `signMessage`).
+4. Client posts `publicKey`, `challengeId`, and `signature` to `POST /api/auth/login`.
+5. The server verifies the signature, enforces one-time challenge use + expiry, then issues `fortexa_session`.
+
+Role is still resolved via allowlists:
+
+- `FORTEXA_OPERATOR_WALLETS`
+- `FORTEXA_VIEWER_WALLETS`
+
+If both allowlists are empty, current behavior falls back to `operator` role for any valid wallet (recommended only for local/dev).
+
+Session cookie: `fortexa_session` (HMAC-signed).
+
+Challenge TTL: `FORTEXA_AUTH_CHALLENGE_TTL_SECONDS` (default `300`).
 
 ### 4.2 Role Permissions
 
@@ -200,6 +212,7 @@ npm run db:migrate
 ## 11) 🔌 API Surface (Reference)
 
 ### Auth
+- `POST /api/auth/challenge`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/auth/session`
