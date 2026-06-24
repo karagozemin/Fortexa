@@ -48,4 +48,15 @@ export const STORAGE_MIGRATIONS: SqlMigration[] = [
       );
     `,
   },
+  {
+    id: "002_audit_hash_chain",
+    sql: `
+      ALTER TABLE fortexa_audit_entries
+        ADD COLUMN IF NOT EXISTS entry_hash TEXT;
+
+      CREATE INDEX IF NOT EXISTS fortexa_audit_entries_entry_hash_idx
+        ON fortexa_audit_entries (entry_hash)
+        WHERE entry_hash IS NOT NULL;
+    `,
+  },
 ];

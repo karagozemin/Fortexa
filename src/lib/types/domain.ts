@@ -85,6 +85,10 @@ export interface AuditEntry {
   triggeredPolicies: string[];
   riskFindings: string[];
   stellarTxHash?: string;
+  /** SHA-256 digest of this entry's canonical fields + previousHash. */
+  entryHash?: string;
+  /** entryHash of the preceding entry, or the genesis sentinel for the first. */
+  previousHash?: string;
 }
 
 export interface StellarPaymentRequest {

@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
             domain: entry.action.domain,
             amountXLM: entry.action.amountXLM,
             explanation: entry.explanation,
+            entryHash: entry.entryHash ?? "",
+            previousHash: entry.previousHash ?? "",
           });
         }
       }
@@ -119,6 +121,8 @@ export async function GET(request: NextRequest) {
       domain: entry.action.domain,
       amountXLM: entry.action.amountXLM,
       explanation: entry.explanation,
+      entryHash: entry.entryHash ?? "",
+      previousHash: entry.previousHash ?? "",
     }));
 
     logInfo("Audit export success (mine/csv)", { ...context, userId: auth.session.userId });
