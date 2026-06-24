@@ -134,6 +134,8 @@ Simulation is strictly read-only: it never saves the policy and never consumes u
 4. Submit signed tx: `POST /api/stellar/submit-signed`.
 5. Explorer URL is returned and shown as clickable link.
 
+**Idempotent retries:** `POST /api/stellar/submit-signed` accepts an optional idempotency key, supplied either as an `Idempotency-Key` request header or an `idempotencyKey` body field (the header wins if both are present). Results are stored per authenticated user + key + signed-XDR hash. Replaying the same key with the same signed XDR returns the original result (`200`, with header `Idempotency-Replayed: true`) without resubmitting to Horizon. Reusing the same key with a different signed XDR returns `409 Conflict`. Omitting the key preserves the original submit-on-every-request behavior. Keys must be 8–255 characters.
+
 Additional behavior:
 - XDR build timeout configured to 180 seconds.
 - Submit errors include Horizon result codes when available.
@@ -266,7 +268,7 @@ npm run db:migrate
 - `GET /api/stellar/balance`
 - `POST /api/stellar/setup` (session-wallet bootstrap/sync helper; not manual wallet linking)
 - `POST /api/stellar/build-payment`
-- `POST /api/stellar/submit-signed`
+- `POST /api/stellar/submit-signed` (supports `Idempotency-Key` header/body for safe UI retries)
 - `POST /api/stellar/pay` (legacy disabled)
 - `POST /api/stellar/fund` (removed behavior, returns `410`)
 
@@ -311,6 +313,7 @@ Stores include:
 - `audit-store`
 - `policy-store`
 - `user-wallet-store`
+- `submit-idempotency-store`
 
 If `DATABASE_URL` is available and healthy, Postgres is used.
 Otherwise Fortexa falls back to local JSON files:

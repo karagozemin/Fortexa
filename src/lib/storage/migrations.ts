@@ -59,4 +59,17 @@ export const STORAGE_MIGRATIONS: SqlMigration[] = [
         WHERE entry_hash IS NOT NULL;
     `,
   },
+  {
+    id: "003_submit_idempotency",
+    sql: `
+      CREATE TABLE IF NOT EXISTS fortexa_submit_idempotency (
+        user_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        xdr_hash TEXT NOT NULL,
+        result JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (user_id, idempotency_key)
+      );
+    `,
+  },
 ];
