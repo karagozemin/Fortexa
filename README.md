@@ -118,6 +118,12 @@ Decision outcomes:
 
 `Human Approve & Re-run` applies only when prior result is `REQUIRE_APPROVAL`.
 
+### 6.1a Policy Simulation (Pre-Save Safety Check)
+
+Before committing a policy change, operators can dry-run the unsaved draft from the Policy editor (**Run simulation**). The draft is evaluated against the seeded demo scenarios — and, optionally, a small recent-audit sample — and the result shows each action's `current → proposed` decision so risky edits surface before they go live.
+
+Simulation is strictly read-only: it never saves the policy and never consumes usage. Saving still happens only through `POST /api/policy`. See `src/lib/decision/simulate.ts` and `POST /api/policy/simulate`.
+
 ### 6.2 Signed XDR Payment Path
 
 1. Evaluate action in `/console`.
@@ -236,6 +242,7 @@ npm run db:migrate
 ### Policy
 - `GET /api/policy`
 - `POST /api/policy` (`operator`)
+- `POST /api/policy/simulate` (`operator`) — read-only pre-save simulation
 - `GET /api/policy/history` (`operator`)
 - `POST /api/policy/rollback` (`operator`)
 

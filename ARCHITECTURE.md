@@ -97,7 +97,9 @@ flowchart TB
 - `src/lib/auth/session.ts`: signed cookie session token (`fortexa_session`).
 - `src/lib/auth/require-auth.ts`: role-based auth guard for protected APIs.
 - `src/app/api/decision/route.ts`: evaluates action, applies optional human-approval override, appends audit record.
+- `src/app/api/policy/simulate/route.ts`: read-only pre-save check; compares current vs proposed policy decisions without persisting.
 - `src/lib/decision/engine.ts`: combines policy checks + risk findings into decision outcome.
+- `src/lib/decision/simulate.ts`: pure helper that evaluates demo scenarios + a recent-audit sample against current and proposed policy.
 - `src/lib/policy/engine.ts`: deterministic policy rules (caps, tools, domains, hours, thresholds).
 - `src/lib/security/analyzer.ts`: heuristic risk findings + risk score.
 - `src/app/api/stellar/build-payment/route.ts`: builds unsigned TESTNET payment XDR.
@@ -168,6 +170,18 @@ sequenceDiagram
 5. Optional `approvedByHuman` can elevate `REQUIRE_APPROVAL` to `APPROVE`.
 6. Usage is consumed only for `APPROVE`/`WARN`.
 7. Audit entry is persisted.
+
+### 5.2a Policy Simulation (Pre-Save Safety Check)
+
+Operators can dry-run an unsaved policy draft before committing it, so the impact of a change is visible up front.
+
+1. Operator edits the policy in the UI and clicks **Run simulation** (optionally including a recent-audit sample).
+2. The draft is posted to `/api/policy/simulate` and schema-validated.
+3. The route loads read-only snapshots of the current policy (`policy-store`) and usage (`audit-store`); it builds cases from the seeded demo scenarios and, optionally, the newest few audit actions for that operator.
+4. `simulatePolicyChange` evaluates each action against **both** the current and proposed policy and reports `current → proposed` decisions plus a changed-count summary.
+5. Nothing is written: the policy is not saved and usage is not consumed. Saving still happens only via `/api/policy`.
+
+The audit sample is intentionally small and deterministic (newest-first, capped) to keep simulations cheap and reviewable.
 
 ### 5.3 Signed Payment Submission
 

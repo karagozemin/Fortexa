@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
-import type { PolicyConfig } from "@/lib/types/domain";
+import type { SimulationReport, SimulationSource } from "@/lib/decision/simulate";
+import type { DecisionType, PolicyConfig } from "@/lib/types/domain";
 
 type PolicyResponse = {
   policy?: PolicyConfig;
@@ -25,6 +26,12 @@ type PolicyHistoryEntry = {
 
 type PolicyHistoryResponse = {
   entries?: PolicyHistoryEntry[];
+  error?: string;
+};
+
+type SimulationResponse = {
+  report?: SimulationReport;
+  auditSampled?: number;
   error?: string;
 };
 
@@ -53,8 +60,23 @@ export function PolicyEditor() {
   const [loading, setLoading] = useState(false);
   const [diffA, setDiffA] = useState<number | null>(null);
   const [diffB, setDiffB] = useState<number | null>(null);
+  const [includeAudit, setIncludeAudit] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [simulation, setSimulation] = useState<SimulationReport | null>(null);
+  const [simStatus, setSimStatus] = useState<string | null>(null);
 
   const writeDisabled = loading || sessionLoading || !isOperator;
+
+  /** Assemble the unsaved draft policy from the current editor state. */
+  function buildDraftPolicy(base: PolicyConfig): PolicyConfig {
+    return {
+      ...base,
+      allowedDomains: textToList(allowedDomains),
+      blockedDomains: textToList(blockedDomains),
+      allowedTools: textToList(allowedTools),
+      blockedTools: textToList(blockedTools),
+    };
+  }
 
   async function loadPolicy() {
     setLoading(true);
@@ -95,13 +117,7 @@ export function PolicyEditor() {
 
     setLoading(true);
     try {
-      const nextPolicy: PolicyConfig = {
-        ...policy,
-        allowedDomains: textToList(allowedDomains),
-        blockedDomains: textToList(blockedDomains),
-        allowedTools: textToList(allowedTools),
-        blockedTools: textToList(blockedTools),
-      };
+      const nextPolicy = buildDraftPolicy(policy);
 
       const response = await fetch("/api/policy", {
         method: "POST",
@@ -125,6 +141,56 @@ export function PolicyEditor() {
       setStatus(error instanceof Error ? error.message : "Unexpected policy save error.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runSimulation() {
+    if (!isOperator) {
+      setSimStatus("Viewer role is read-only. Login as operator to simulate policy changes.");
+      return;
+    }
+
+    if (!policy) {
+      setSimStatus("Policy is not loaded yet.");
+      return;
+    }
+
+    setSimulating(true);
+    setSimStatus(null);
+    try {
+      const draftPolicy = buildDraftPolicy(policy);
+
+      const response = await fetch("/api/policy/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ policy: draftPolicy, includeAudit }),
+      });
+
+      const payload = (await response.json()) as SimulationResponse;
+
+      if (!response.ok || payload.error || !payload.report) {
+        setSimulation(null);
+        setSimStatus(payload.error ?? "Simulation failed. Check the policy values and try again.");
+        return;
+      }
+
+      setSimulation(payload.report);
+
+      const { changed, total } = payload.report.summary;
+      const auditNote =
+        includeAudit && (payload.auditSampled ?? 0) === 0
+          ? " No recent audit actions were available to sample."
+          : includeAudit
+            ? ` Included ${payload.auditSampled} recent audit action(s).`
+            : "";
+      setSimStatus(
+        `Simulated ${total} case(s): ${changed} decision(s) would change. Nothing was saved.${auditNote}`,
+      );
+    } catch (error) {
+      setSimulation(null);
+      setSimStatus(error instanceof Error ? error.message : "Unexpected simulation error.");
+    } finally {
+      setSimulating(false);
     }
   }
 
@@ -372,6 +438,45 @@ export function PolicyEditor() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Simulate before saving</CardTitle>
+          <CardDescription>
+            Dry-run the unsaved draft against demo scenarios (and optionally your recent audit actions) to compare
+            current vs proposed decisions. This is a pre-save safety check — it never saves the policy or consumes usage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={runSimulation} disabled={writeDisabled || simulating}>
+              {simulating ? "Simulating..." : "Run simulation"}
+            </Button>
+            <label className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+              <input
+                type="checkbox"
+                checked={includeAudit}
+                disabled={writeDisabled || simulating}
+                onChange={(event) => setIncludeAudit(event.target.checked)}
+              />
+              Include recent audit sample
+            </label>
+          </div>
+
+          {simStatus ? (
+            <Alert className="border-[hsl(var(--accent)/0.2)] bg-[hsl(var(--accent)/0.05)]">
+              <AlertTitle>Simulation status</AlertTitle>
+              <AlertDescription>{simStatus}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {simulating ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">Evaluating draft policy...</p>
+          ) : simulation ? (
+            <SimulationPanel report={simulation} />
+          ) : null}
+        </CardContent>
+      </Card>
+
       <div className="flex gap-2">
         <Button onClick={savePolicy} disabled={writeDisabled}>Save Policy</Button>
         <Button variant="outline" onClick={loadPolicy} disabled={loading}>Reload</Button>
@@ -450,6 +555,77 @@ function ListDiffSection({ label, a, b }: { label: string; a: string[]; b: strin
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// ── SimulationPanel ─────────────────────────────────────────────────────────
+
+const DECISION_STYLE: Record<DecisionType, string> = {
+  APPROVE: "bg-emerald-500/15 text-emerald-400",
+  WARN: "bg-amber-500/15 text-amber-400",
+  REQUIRE_APPROVAL: "bg-sky-500/15 text-sky-400",
+  BLOCK: "bg-red-500/15 text-red-400",
+};
+
+const SOURCE_LABEL: Record<SimulationSource, string> = {
+  scenario: "Demo scenario",
+  audit: "Recent audit",
+};
+
+function DecisionTag({ decision }: { decision: DecisionType }) {
+  return (
+    <span className={`rounded px-2 py-0.5 text-xs font-mono ${DECISION_STYLE[decision]}`}>{decision}</span>
+  );
+}
+
+function SimulationPanel({ report }: { report: SimulationReport }) {
+  if (report.cases.length === 0) {
+    return (
+      <p className="text-sm text-[hsl(var(--muted-foreground))]">
+        No cases were available to simulate.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-3 text-sm">
+        <span className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-1">
+          Cases: <span className="font-semibold">{report.summary.total}</span>
+        </span>
+        <span className="rounded-lg bg-amber-500/15 px-3 py-1 text-amber-400">
+          Changed: <span className="font-semibold">{report.summary.changed}</span>
+        </span>
+      </div>
+
+      <ul className="space-y-2">
+        {report.cases.map((entry) => (
+          <li
+            key={entry.id}
+            className={`rounded-lg border p-3 text-sm ${
+              entry.changed ? "border-amber-500/40 bg-amber-500/5" : "border-[hsl(var(--border))]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <p className="font-medium">{entry.label}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{SOURCE_LABEL[entry.source]}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <DecisionTag decision={entry.current.decision} />
+                <span className="text-[hsl(var(--muted-foreground))]">→</span>
+                <DecisionTag decision={entry.proposed.decision} />
+                {entry.changed ? (
+                  <span className="text-xs font-semibold text-amber-400">changed</span>
+                ) : (
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">same</span>
+                )}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
