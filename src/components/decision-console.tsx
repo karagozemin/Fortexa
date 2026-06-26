@@ -104,6 +104,14 @@ export function DecisionConsole() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [signError, setSignError] = useState<{ code: FreighterSignErrorCode; message: string } | null>(null);
 
+  
+  const [submitErrorDetails, setSubmitErrorDetails] = useState<{
+    explanation?: string;
+    nextStep?: string;
+    resultCode?: string;
+    operationCodes?: string[];
+    } | null>(null);
+
   const selectedScenario = useMemo(
     () => demoScenarios.find((s) => s.id === selectedScenarioId),
     [selectedScenarioId]
@@ -130,6 +138,7 @@ export function DecisionConsole() {
     setSignedXdrInput("");
     setSourcePublicKey("");
     setSignError(null);
+    setSubmitErrorDetails(null);
   }
 
   function getExplorerUrl(hash: string) {
@@ -301,6 +310,7 @@ export function DecisionConsole() {
     setLoading(true);
     setMessage(null);
     setSignError(null);
+    setSubmitErrorDetails(null);
     try {
       const result = await signFreighterXdr({
         unsignedXdr,
@@ -332,6 +342,7 @@ export function DecisionConsole() {
     }
 
     setLoading(true);
+    setSubmitErrorDetails(null);
     try {
       const submitResponse = await fetch("/api/stellar/submit-signed", {
         method: "POST",
@@ -343,10 +354,23 @@ export function DecisionConsole() {
         error?: string;
         explorerUrl?: string;
         payment?: { hash: string };
+        explanation?: string;
+        nextStep?: string;
+        resultCode?: string;
+        operationCodes?: string[];
       };
 
       if (!submitResponse.ok || submitPayload.error || !submitPayload.payment) {
         setMessage(submitPayload.error ?? "Submit failed.");
+        if (submitPayload.explanation) {
+          setSubmitErrorDetails({
+            explanation: submitPayload.explanation,
+            nextStep: submitPayload.nextStep,
+            resultCode: submitPayload.resultCode,
+            operationCodes: submitPayload.operationCodes,
+          });
+        }
+        pushToast("error", "Transaction submission failed.");
         return;
       }
 
@@ -712,12 +736,37 @@ export function DecisionConsole() {
       ) : null}
 
       {message ? (
-        <Alert className="border-[hsl(var(--accent)/0.2)] bg-[hsl(var(--accent)/0.05)]">
+        <Alert
+          className={cn(
+            "border-[hsl(var(--accent)/0.2)] bg-[hsl(var(--accent)/0.05)]",
+            submitErrorDetails && "border-rose-500/30 bg-rose-500/10 text-rose-200"
+          )}
+        >
           <AlertTitle className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4" />
             Status
           </AlertTitle>
-          <AlertDescription>{message}</AlertDescription>
+          <AlertDescription>
+            <div className="space-y-2">
+              <p>{message}</p>
+              {submitErrorDetails ? (
+                <div className="mt-3 space-y-1 rounded-md border border-rose-500/20 bg-rose-500/10 p-3">
+                  {submitErrorDetails.explanation ? (
+                    <p className="text-sm">{submitErrorDetails.explanation}</p>
+                  ) : null}
+                  {submitErrorDetails.nextStep ? (
+                    <p className="text-sm font-medium text-rose-100">{submitErrorDetails.nextStep}</p>
+                  ) : null}
+                  <p className="mt-2 font-mono text-[10px] opacity-70">
+                    Raw codes: tx {submitErrorDetails.resultCode}
+                    {submitErrorDetails.operationCodes?.length
+                      ? `, ops: ${submitErrorDetails.operationCodes.join(", ")}`
+                      : ""}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </AlertDescription>
         </Alert>
       ) : null}
     </div>

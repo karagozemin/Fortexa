@@ -12,11 +12,42 @@ import {
 } from "@/lib/storage/submit-idempotency-store";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
 
+type HorizonErrorContext = {
+  explanation: string;
+  nextStep: string;
+};
+
+const HORIZON_TX_ERRORS: Record<string, HorizonErrorContext> = {
+  tx_bad_seq: {
+    explanation: "The transaction sequence number is incorrect.",
+    nextStep: "Refresh your wallet or account data to synchronize the sequence number and try again.",
+  },
+  tx_insufficient_fee: {
+    explanation: "The network fee provided is too low.",
+    nextStep: "Increase the transaction fee.",
+  },
+  tx_failed: {
+    explanation: "The transaction failed during operation execution.",
+    nextStep: "Check the operation error codes for more details.",
+  },
+};
+
+const HORIZON_OP_ERRORS: Record<string, HorizonErrorContext> = {
+  op_no_destination: {
+    explanation: "The destination account does not exist on the network.",
+    nextStep: "Verify the destination address or ensure the account is funded.",
+  },
+  op_underfunded: {
+    explanation: "The source account lacks sufficient funds for this operation.",
+    nextStep: "Fund the source account with enough XLM to cover the payment and reserves.",
+  },
+};
+
 function getTestnetExplorerUrl(hash: string) {
   return `https://stellar.expert/explorer/testnet/tx/${hash}`;
 }
 
-function formatSubmitError(error: unknown) {
+export function formatSubmitError(error: unknown) {
   if (!(error instanceof Error)) {
     return { message: "Failed to submit signed transaction." };
   }
@@ -41,10 +72,29 @@ function formatSubmitError(error: unknown) {
     return { message: error.message };
   }
 
+  let explanation: string | undefined;
+  let nextStep: string | undefined;
+
+  if (opCodes && opCodes.length > 0) {
+    const firstOpError = opCodes.find((code) => HORIZON_OP_ERRORS[code]);
+    if (firstOpError) {
+      explanation = HORIZON_OP_ERRORS[firstOpError].explanation;
+      nextStep = HORIZON_OP_ERRORS[firstOpError].nextStep;
+    } else if (HORIZON_TX_ERRORS[txCode]) {
+      explanation = HORIZON_TX_ERRORS[txCode].explanation;
+      nextStep = HORIZON_TX_ERRORS[txCode].nextStep;
+    }
+  } else if (HORIZON_TX_ERRORS[txCode]) {
+    explanation = HORIZON_TX_ERRORS[txCode].explanation;
+    nextStep = HORIZON_TX_ERRORS[txCode].nextStep;
+  }
+
   return {
     message: `${error.message} (tx: ${txCode}${opCodes?.length ? `, ops: ${opCodes.join(",")}` : ""})`,
     txCode,
     opCodes,
+    explanation,
+    nextStep,
   };
 }
 
@@ -98,7 +148,6 @@ export async function POST(request: NextRequest) {
 
     const payload = parsedPayload.data;
 
-    // Resolve the idempotency key: the Idempotency-Key header wins over the body field.
     const headerKey = request.headers.get("idempotency-key")?.trim();
     const bodyKey = payload.idempotencyKey?.trim();
     const idempotencyKey = headerKey && headerKey.length > 0 ? headerKey : bodyKey;
@@ -190,6 +239,8 @@ export async function POST(request: NextRequest) {
         error: formatted.message,
         resultCode: formatted.txCode,
         operationCodes: formatted.opCodes,
+        explanation: formatted.explanation,
+        nextStep: formatted.nextStep,
       },
       headers: rateLimitHeaders(rate),
     });

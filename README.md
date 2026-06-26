@@ -361,13 +361,24 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
-## 17) 🛣️ Practical Next Steps
+## 17) ❓ Troubleshooting Payment Failures
+
+Common Stellar Horizon failures during the signed payment flow:
+
+- **`tx_bad_seq`**: The transaction sequence number is incorrect. Wait for pending transactions to clear or refresh your wallet state.
+- **`tx_insufficient_fee`**: The provided fee is below the current network minimum. Increase the base fee.
+- **`op_no_destination`**: The destination account does not exist on the network. Verify the destination address.
+- **`op_underfunded`**: Your source wallet lacks the XLM necessary to complete the payment and satisfy the network base reserve.
+
+---
+
+## 18) 🛣️ Practical Next Steps
 
 - Add stronger risk intelligence + anomaly detection.
 - Expand end-to-end payment verification and automated lifecycle tests.
 
 ---
 
-## 18) 📄 License
+## 19) 📄 License
 
 MIT (see `package.json`).
