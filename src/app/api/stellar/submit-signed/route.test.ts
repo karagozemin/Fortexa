@@ -35,7 +35,6 @@ vi.mock('@/lib/stellar/verify-xdr-source', () => ({
 import { POST } from './route';
 import { getWalletForSession } from '@/lib/storage/user-wallet-store';
 import { submitSignedXdr } from '@/lib/stellar/client';
-import { verifyXdrSource } from '@/lib/stellar/verify-xdr-source';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

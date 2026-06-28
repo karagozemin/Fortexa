@@ -11,7 +11,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyXdrSource } from '@/lib/stellar/verify-xdr-source';
 import { getWalletForSession } from '@/lib/storage/user-wallet-store';
 import { submitSignedXdr } from '@/lib/stellar/client';
 

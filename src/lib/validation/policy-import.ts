@@ -24,7 +24,7 @@ export function validatePolicyImport(raw: string): ImportResult {
   if (!result.success) {
     const fieldErrors: Record<string, string[]> = {};
     for (const issue of result.error.issues) {
-      const path = issue.path.join(".") || "ro
+      const path = issue.path.join(".") || "root"
       fieldErrors[path] = [...(fieldErrors[path] ?? []), issue.message];
     }
     return {
