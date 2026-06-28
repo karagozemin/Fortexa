@@ -382,3 +382,84 @@ Common Stellar Horizon failures during the signed payment flow:
 ## 19) 📄 License
 
 MIT (see `package.json`).
+---
+
+## Signed-XDR Submission Flow
+
+### Overview
+
+When a client submits a signed transaction via `POST /api/stellar/submit-signed`,
+Fortexa performs the following verification pipeline before forwarding to Horizon:
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/app/api/stellar/submit-signed/route.ts` | Route handler — orchestrates verification + submission |
+| `src/lib/stellar/verify-xdr-source.ts` | Pure verification utility — decode, wallet lookup, source match |
+| `src/lib/storage/user-wallet-store.ts` | Session → wallet mapping store |
+| `src/lib/stellar/client.ts` | Horizon submission client |
+
+### Security Notes
+
+- This is a **defense-in-depth** check only.
+- The server never signs transactions or holds private keys.
+- The verification prevents a session from submitting transactions
+  funded by a wallet they do not own.
+- Testnet only: non-Testnet XDR is rejected at the decode step.
+
+### Error Reference
+
+| Reason | HTTP | When |
+|--------|------|------|
+| `malformed_xdr` | 400 | XDR cannot be decoded or is not Testnet |
+| `missing_wallet` | 400 | No wallet mapped to the session key |
+| `source_mismatch` | 400 | XDR source ≠ session wallet |
+| _(Horizon error)_ | 400 | Valid tx rejected by Horizon — `resultCodes` included |
+| _(success)_ | 200 | Source verified, Horizon accepted |
+
+### Evidence Table (for PR submission)
+
+| Case | Expected status | Actual status |
+|------|-----------------|---------------|
+| Session wallet source | 200 or mocked Horizon result | |
+| Different source wallet | 400 `source_mismatch` | |
+| Malformed XDR | 400 `malformed_xdr` | |
+| Missing wallet mapping | 400 `missing_wallet` | |
+
+---
+
+## Policy Import / Export
+
+Operators can export the active policy as JSON and import a new one
+through the policy editor, with validation and a diff preview before saving.
+
+### Export
+
+Click **Export JSON** in the Import / Export panel. The current policy
+downloads as `policy.json`. Available to all roles including Viewer.
+
+### Import
+
+1. Click **Import file** (or **Paste JSON**) — Viewer role cannot import.
+2. Select or paste a `.json` file.
+3. Fortexa validates the JSON against `policyConfigSchema`:
+   - Invalid JSON or schema errors are shown inline.
+   - The current policy is **never mutated** on validation failure.
+4. A human-readable diff appears showing exactly what will change.
+5. Click **Save policy** to apply. Click **Cancel** to discard.
+
+### Role matrix
+
+| Action | Admin | Operator | Viewer |
+|--------|:-----:|:--------:|:------:|
+| Export | ✅ | ✅ | ✅ |
+| Import / Save | ✅ | ✅ | ❌ |
+
+### File map
+
+| File | Role |
+|------|------|
+| `src/componentyImportExport.tsx` | Import/export UI panel |
+| `src/components/policy/PolicyDiffViewer.tsx` | Diff renderer |
+| `src/lib/validation/policy-import.ts` | `validatePolicyImport`, `downloadPolicyJson` |
+| `src/lib/policy-diff.ts` | `diffPolicies`, `hasDiff` |
