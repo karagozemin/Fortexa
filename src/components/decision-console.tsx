@@ -50,6 +50,16 @@ type DecisionApiResponse = {
     triggeredPolicies: Array<{ code: string; message: string }>;
     riskFindings: Array<{ code: string; detail: string }>;
   };
+  auditEntry: {
+    id: string;
+    paymentQuote?: {
+      destination: string;
+      amountXLM: string;
+      asset: string;
+      memo: string;
+      network: string;
+    };
+  };
   usage: { spentXLM: number; toolCalls: number };
 };
 
@@ -89,6 +99,7 @@ export function DecisionConsole() {
   const [destination, setDestination] = useState(process.env.NEXT_PUBLIC_STELLAR_DESTINATION ?? "");
   const [executeAmount, setExecuteAmount] = useState("");
   const [decisionData, setDecisionData] = useState<DecisionApiResponse | null>(null);
+  const [authorizedAuditEntryId, setAuthorizedAuditEntryId] = useState<string | null>(null);
   const [lastTxExplorerUrl, setLastTxExplorerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -171,10 +182,48 @@ export function DecisionConsole() {
 
     try {
       const requestBody = actionOverride
-        ? { action: actionOverride, approvedByHuman }
+        ? {
+            action: actionOverride,
+            approvedByHuman,
+            ...(destinationPreview
+              ? {
+                  paymentQuoteInput: {
+                    destination: destinationPreview,
+                    memo: (actionOverride ?? activeAction)
+                      ? `fortexa:${(actionOverride ?? activeAction)!.id}`.slice(0, 28)
+                      : undefined,
+                    network: "testnet" as const,
+                  },
+                }
+              : {}),
+          }
         : generatedAction && intentMode === "ai"
-          ? { action: generatedAction, approvedByHuman }
-          : { scenarioId: selectedScenario?.id, approvedByHuman };
+          ? {
+              action: generatedAction,
+              approvedByHuman,
+              ...(destinationPreview
+                ? {
+                    paymentQuoteInput: {
+                      destination: destinationPreview,
+                      memo: `fortexa:${generatedAction.id}`.slice(0, 28),
+                      network: "testnet" as const,
+                    },
+                  }
+                : {}),
+            }
+          : {
+              scenarioId: selectedScenario?.id,
+              approvedByHuman,
+              ...(destinationPreview && activeAction
+                ? {
+                    paymentQuoteInput: {
+                      destination: destinationPreview,
+                      memo: `fortexa:${activeAction.id}`.slice(0, 28),
+                      network: "testnet" as const,
+                    },
+                  }
+                : {}),
+            };
 
       const response = await fetch("/api/decision", {
         method: "POST",
@@ -191,6 +240,7 @@ export function DecisionConsole() {
       }
 
       setDecisionData(payload);
+      setAuthorizedAuditEntryId(payload.auditEntry.id);
       setMessage("Decision recorded in audit trail.");
       pushToast("success", "Evaluation complete.");
       setStep(payload.result.decision === "REQUIRE_APPROVAL" ? 3 : payload.result.decision === "BLOCK" ? 2 : 4);
@@ -245,6 +295,10 @@ export function DecisionConsole() {
       setMessage("Provide a valid destination address.");
       return;
     }
+    if (!authorizedAuditEntryId) {
+      setMessage("Run a policy decision before building payment XDR.");
+      return;
+    }
     if (!/^G[A-Z2-7]{55}$/u.test(normalizedDestination)) {
       setMessage("Destination must be a valid Stellar public key (G...).");
       return;
@@ -278,9 +332,12 @@ export function DecisionConsole() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          auditEntryId: authorizedAuditEntryId,
           destination: normalizedDestination,
           amountXLM: amount.toFixed(7),
+          asset: "native",
           memo: `fortexa:${activeAction.id}`.slice(0, 28),
+          network: "testnet",
         }),
       });
 

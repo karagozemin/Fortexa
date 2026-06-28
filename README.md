@@ -126,13 +126,26 @@ Simulation is strictly read-only: it never saves the policy and never consumes u
 
 ### 6.2 Signed XDR Payment Path
 
-1. Evaluate action in `/console`.
-2. Build unsigned tx: `POST /api/stellar/build-payment`.
+1. Evaluate action in `/console` with a **payment quote** (`paymentQuoteInput`: destination, optional memo, network). On `APPROVE`/`WARN`, Fortexa stores an immutable `paymentQuote` on the audit entry.
+2. Build unsigned tx: `POST /api/stellar/build-payment` with `auditEntryId` plus the same destination, amount, asset, memo, and network. The server verifies every field against the authorized quote **before** constructing XDR.
 3. `Submit Signed XDR` orchestrates signing/submission path:
    - if signed input is already present → submit directly
    - if unsigned input is present → wallet signing is triggered first, then submit
 4. Submit signed tx: `POST /api/stellar/submit-signed`.
 5. Explorer URL is returned and shown as clickable link.
+
+#### Quote-to-XDR trust boundary
+
+The policy decision authorizes a fixed payment quote (destination, amount, asset, memo, network). `POST /api/stellar/build-payment` is the enforcement gate: it loads the audit entry by `auditEntryId`, confirms the decision is `APPROVE`/`WARN`, and rejects any request whose fields diverge from the stored quote.
+
+| Condition | HTTP | Response |
+|---|---|---|
+| Missing/invalid body (`auditEntryId`, schema) | `400` | `Invalid payment build request.` + zod details |
+| Unknown audit entry or non-executable decision | `403` | `No authorized payment decision found…` / `Decision 'BLOCK' does not authorize…` |
+| Tampered destination, amount, asset, or memo | `403` | `{ error, field }` naming the mismatched field |
+| Valid approved request | `200` | `{ ok: true, xdr, networkPassphrase, … }` |
+
+Client-side UI must pass the same `paymentQuoteInput` at decision time and reuse the returned `auditEntry.id` when building XDR. Mutating any authorized field after approval cannot produce a valid unsigned transaction.
 
 **Idempotent retries:** `POST /api/stellar/submit-signed` accepts an optional idempotency key, supplied either as an `Idempotency-Key` request header or an `idempotencyKey` body field (the header wins if both are present). Results are stored per authenticated user + key + signed-XDR hash. Replaying the same key with the same signed XDR returns the original result (`200`, with header `Idempotency-Replayed: true`) without resubmitting to Horizon. Reusing the same key with a different signed XDR returns `409 Conflict`. Omitting the key preserves the original submit-on-every-request behavior. Keys must be 8–255 characters.
 

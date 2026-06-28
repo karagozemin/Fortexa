@@ -21,8 +21,11 @@ describe("validation schemas", () => {
 
   it("rejects invalid destination in stellar build schema", () => {
     const parsed = stellarBuildPaymentRequestSchema.safeParse({
+      auditEntryId: "00000000-0000-4000-8000-000000000000",
       destination: "not-a-stellar-key",
       amountXLM: "10.0",
+      asset: "native",
+      network: "testnet",
     });
 
     expect(parsed.success).toBe(false);
