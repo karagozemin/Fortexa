@@ -194,6 +194,28 @@ npm run dev
 
 Open: `http://localhost:3000`
 
+### Resetting Local Demo State
+
+To clean up local developer state safely, you can use the local demo reset utility. This script is strictly for local environments and implements guardrails to prevent accidental cleanup of production/non-local databases.
+
+#### Guardrails
+- **Local Database Check**: Inspects `DATABASE_URL` and blocks execution if the hostname is not local (`localhost`, `127.0.0.1`, `::1`, or local UNIX sockets).
+- **Explicit Confirmation**: Rejects execution unless **both** the environment variable `FORTEXA_ALLOW_LOCAL_RESET=true` and CLI flag `--yes` are provided.
+
+#### Usage
+
+* **Dry-Run (Default)**: Inspect what files and databases would be cleared without modifying any data.
+  ```bash
+  npm run demo:reset
+  ```
+  *(or `npx tsx scripts/reset-local-demo-state.ts`)*
+
+* **Apply Reset**: Execute the state reset once all guardrails are met.
+  ```bash
+  FORTEXA_ALLOW_LOCAL_RESET=true npm run demo:reset -- --yes
+  ```
+  *(or `FORTEXA_ALLOW_LOCAL_RESET=true npx tsx scripts/reset-local-demo-state.ts --yes`)*
+
 ---
 
 ## 9) 🌍 Environment Variables
