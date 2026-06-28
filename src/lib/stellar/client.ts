@@ -2,17 +2,18 @@ import {
   Asset,
   Horizon,
   Memo,
-  Networks,
   Operation,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 
+import {
+  getStellarHorizonUrl,
+  getStellarNetworkPassphrase,
+} from "@/lib/stellar/network";
 import type { StellarPaymentRequest } from "@/lib/types/domain";
 
-const HORIZON_URL = process.env.STELLAR_HORIZON_URL ?? "https://horizon-testnet.stellar.org";
-
 export function getHorizonServer() {
-  return new Horizon.Server(HORIZON_URL);
+  return new Horizon.Server(getStellarHorizonUrl());
 }
 
 export async function getNativeBalance(publicKey: string) {
@@ -25,10 +26,11 @@ export async function getNativeBalance(publicKey: string) {
 export async function buildUnsignedPaymentTransaction(request: StellarPaymentRequest, sourcePublicKey: string) {
   const server = getHorizonServer();
   const sourceAccount = await server.loadAccount(sourcePublicKey);
+  const networkPassphrase = getStellarNetworkPassphrase();
 
   const transaction = new TransactionBuilder(sourceAccount, {
     fee: (await server.fetchBaseFee()).toString(),
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase,
   })
     .addOperation(
       Operation.payment({
@@ -43,13 +45,16 @@ export async function buildUnsignedPaymentTransaction(request: StellarPaymentReq
 
   return {
     xdr: transaction.toXDR(),
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase,
   };
 }
 
 export async function submitSignedTransactionXdr(signedXdr: string) {
   const server = getHorizonServer();
-  const transaction = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+  const transaction = TransactionBuilder.fromXDR(
+    signedXdr,
+    getStellarNetworkPassphrase()
+  );
   const submitted = await server.submitTransaction(transaction);
 
   return {

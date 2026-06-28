@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:production-readiness": "tsx scripts/check-production-readiness.ts",
     "demo:scenarios": "tsx scripts/demo-scenarios.ts",
     "db:migrate": "tsx scripts/run-db-migrations.ts"
   },
