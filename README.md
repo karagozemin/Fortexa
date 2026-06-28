@@ -382,3 +382,46 @@ Common Stellar Horizon failures during the signed payment flow:
 ## 19) 📄 License
 
 MIT (see `package.json`).
+---
+
+## Signed-XDR Submission Flow
+
+### Overview
+
+When a client submits a signed transaction via `POST /api/stellar/submit-signed`,
+Fortexa performs the following verification pipeline before forwarding to Horizon:
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/app/api/stellar/submit-signed/route.ts` | Route handler — orchestrates verification + submission |
+| `src/lib/stellar/verify-xdr-source.ts` | Pure verification utility — decode, wallet lookup, source match |
+| `src/lib/storage/user-wallet-store.ts` | Session → wallet mapping store |
+| `src/lib/stellar/client.ts` | Horizon submission client |
+
+### Security Notes
+
+- This is a **defense-in-depth** check only.
+- The server never signs transactions or holds private keys.
+- The verification prevents a session from submitting transactions
+  funded by a wallet they do not own.
+- Testnet only: non-Testnet XDR is rejected at the decode step.
+
+### Error Reference
+
+| Reason | HTTP | When |
+|--------|------|------|
+| `malformed_xdr` | 400 | XDR cannot be decoded or is not Testnet |
+| `missing_wallet` | 400 | No wallet mapped to the session key |
+| `source_mismatch` | 400 | XDR source ≠ session wallet |
+| _(Horizon error)_ | 400 | Valid tx rejected by Horizon — `resultCodes` included |
+| _(success)_ | 200 | Source verified, Horizon accepted |
+
+### Evidence Table (for PR submission)
+
+| Case | Expected status | Actual status |
+|------|-----------------|---------------|
+| Session wallet source | 200 or mocked Horizon result | |
+| Different source wallet | 400 `source_mismatch` | |
+| Malformed XDR | 400 `malformed_xdr` | |
+| Missing wallet mapping | 400 `missing_wallet` | |
