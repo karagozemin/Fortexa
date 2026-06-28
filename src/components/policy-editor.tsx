@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useAuthSession } from "@/lib/auth/use-auth-session";
 import type { SimulationReport, SimulationSource } from "@/lib/decision/simulate";
 import type { DecisionType, PolicyConfig } from "@/lib/types/domain";
+import { validatePolicyImport, downloadPolicyJson } from "@/lib/validation/policy-import";
 
 type PolicyResponse = {
   policy?: PolicyConfig;

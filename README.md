@@ -425,3 +425,41 @@ Fortexa performs the following verification pipeline before forwarding to Horizo
 | Different source wallet | 400 `source_mismatch` | |
 | Malformed XDR | 400 `malformed_xdr` | |
 | Missing wallet mapping | 400 `missing_wallet` | |
+
+---
+
+## Policy Import / Export
+
+Operators can export the active policy as JSON and import a new one
+through the policy editor, with validation and a diff preview before saving.
+
+### Export
+
+Click **Export JSON** in the Import / Export panel. The current policy
+downloads as `policy.json`. Available to all roles including Viewer.
+
+### Import
+
+1. Click **Import file** (or **Paste JSON**) — Viewer role cannot import.
+2. Select or paste a `.json` file.
+3. Fortexa validates the JSON against `policyConfigSchema`:
+   - Invalid JSON or schema errors are shown inline.
+   - The current policy is **never mutated** on validation failure.
+4. A human-readable diff appears showing exactly what will change.
+5. Click **Save policy** to apply. Click **Cancel** to discard.
+
+### Role matrix
+
+| Action | Admin | Operator | Viewer |
+|--------|:-----:|:--------:|:------:|
+| Export | ✅ | ✅ | ✅ |
+| Import / Save | ✅ | ✅ | ❌ |
+
+### File map
+
+| File | Role |
+|------|------|
+| `src/componentyImportExport.tsx` | Import/export UI panel |
+| `src/components/policy/PolicyDiffViewer.tsx` | Diff renderer |
+| `src/lib/validation/policy-import.ts` | `validatePolicyImport`, `downloadPolicyJson` |
+| `src/lib/policy-diff.ts` | `diffPolicies`, `hasDiff` |
