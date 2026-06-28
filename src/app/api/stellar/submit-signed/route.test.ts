@@ -146,7 +146,6 @@ describe('POST /api/stellar/submit-signed', () => {
 // ── Unit tests for verifyXdrSource ────────────────────────────────────────────
 // These test the pure function directly without HTTP.
 
-import { verifyXdrSource as realVerify } from '@/lib/stellar/verify-xdr-source';
 
 // Restore the real implementation for these tests
 vi.unmock('@/lib/stellar/verify-xdr-source');

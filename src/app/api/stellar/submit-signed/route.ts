@@ -37,15 +37,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── 2. Verify XDR source matches session wallet ──────────────────────────
-  const verification = verifyXdrSource(
-    signedXdr,
-    sessionKey,
-    getWalletForSession,  // injected — easy to mock in tests
-  );
-
-  if (!verification.ok) {
-    const statusMap: Record<typeof verification.reason, number> = {
       malformed_xdr:    400,
       wrong_network:    400,
       source_mismatch:  400,
