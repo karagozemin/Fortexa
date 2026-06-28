@@ -20,7 +20,12 @@ import { Download, Upload, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { validatePolicyImport, downloadPolicyJson, type PolicyConfig } from '@/lib/validation/policy-import';
 import { PolicyDiffViewer } from './PolicyDiffViewer';
 
-// ── Types ────────────────────────────────────────────────────────────────    (policy: PolicyConfig) => Promise<void> | void;
+// ── Types ────────────────────────────────────────────────────────────────
+
+interface Props {
+  currentPolicy: PolicyConfig;
+  role: 'viewer' | 'editor' | 'admin';
+  onImport: (policy: PolicyConfig) => Promise<void> | void;
 }
 
 type ImportPhase =
@@ -40,7 +45,16 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
 
   const canImport = role !== 'viewer';
 
-  // ── Export ─────────────────────────────────────────────────idatePolicyImport(raw);
+  // ── Export ─────────────────────────────────────────────────────────────
+
+  function handleExport() {
+    downloadPolicyJson(currentPolicy);
+  }
+
+  // ── Import ─────────────────────────────────────────────────────────────
+
+  async function processRawInput(raw: string) {
+    const result = await validatePolicyImport(raw);
     if (!result.ok) {
       setPhase({ stage: 'error', message: result.error, fieldErrors: result.fieldErrors });
       return;
@@ -99,7 +113,6 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md
                        text-xs font-medium
                        bg-gray-700 text-gray-200 hover:bg-gray-600
-           
                        transition-colors"
           >
             <Download size={14} aria-hidden="true" />
@@ -126,7 +139,7 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
               <button
                 type="button"
                 onClick={() => setPasteMode((v) => !v)}
-                clsName="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md
                            text-xs font-medium
                            bg-gray-700 text-gray-200 hover:bg-gray-600
                            focus-visible:outline focus-visible:outline-2
@@ -157,7 +170,7 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
       </div>
 
       {/* ── Paste area ── */}
-      {pasteMode && p === 'idle' && (
+      {pasteMode && phase.stage === 'idle' && (
         <div className="space-y-2">
           <textarea
             value={pasteText}
@@ -179,7 +192,7 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
                          bg-indigo-600 text-white hover:bg-indigo-500
                          disabled:opacity-40 disabled:cursor-not-allowed
                          transition-colors"
-          >
+            >
               Validate &amp; preview
             </button>
             <button
@@ -205,7 +218,7 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
                 <p className="text-red-300 text-xs font-medium">{phase.message}</p>
                 {phase.fieldErrors && (
                   <ul className="mt-1.5 space-y-0.5">
-            {Object.entries(phase.fieldErrors).map(([field, msgs]) => (
+                    {Object.entries(phase.fieldErrors).map(([field, msgs]) => (
                       <li key={field} className="text-red-400 text-xs font-mono">
                         <span className="font-semibold">{field}:</span>{' '}
                         {msgs.join(', ')}
@@ -234,7 +247,8 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
       {phase.stage === 'preview' && (
         <div className="space-y-3">
           <p className="text-xs text-gray-400">
-            Review the changes below, then save to          </p>
+            Review the changes below, then save to apply.
+          </p>
 
           <PolicyDiffViewer current={currentPolicy} incoming={phase.policy} />
 
@@ -264,7 +278,7 @@ export function PolicyImportExport({ currentPolicy, role, onImport }: Props) {
       )}
 
       {/* ── Saving ── */}
-  se.stage === 'saving' && (
+      {phase.stage === 'saving' && (
         <p className="text-xs text-gray-400 animate-pulse">Saving policy…</p>
       )}
 

@@ -29,7 +29,7 @@ export function PolicyDiffViewer({ current, incoming }: Props) {
   if (!changed) {
     return (
       <p className="text-sm text-gray-500 italic px-3 py-2">
-        No changes — imported policy is ideical to the current one.
+        No changes — imported policy is identical to the current one.
       </p>
     );
   }
@@ -127,7 +127,7 @@ export function PolicyDiffViewer({ current, incoming }: Props) {
       </div>
 
       {/* Summary */}
-      <div className="px-3 py-2 bg-gray-800 border-t bor-gray-700 flex gap-4 text-xs">
+      <div className="px-3 py-2 bg-gray-800 border-t border-gray-700 flex gap-4 text-xs">
         <span className="text-green-400">
           +{lines.filter((l) => l.kind === 'added').length} added
         </span>
