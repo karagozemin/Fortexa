@@ -16,12 +16,61 @@ function operatorCookie() {
   return `${AUTH_COOKIE_KEY}=${token}`;
 }
 
+function viewerCookie() {
+  process.env.FORTEXA_AUTH_SECRET = "integration-test-secret";
+  const token = createSessionToken({
+    email: "viewer@fortexa.local",
+    role: "viewer",
+    userId: "viewer-user-id",
+    expiresInSeconds: 120,
+  });
+
+  return `${AUTH_COOKIE_KEY}=${token}`;
+}
+
 describe("/api/policy route", () => {
   it("returns 401 when unauthenticated", async () => {
     const request = new NextRequest("http://localhost/api/policy", { method: "GET" });
     const response = await GET(request);
 
     expect(response.status).toBe(401);
+  });
+
+  it("returns 200 for viewer reading policy (read access allowed)", async () => {
+    const request = new NextRequest("http://localhost/api/policy", {
+      method: "GET",
+      headers: { cookie: viewerCookie() },
+    });
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+
+    const payload = (await response.json()) as { policy: unknown };
+    expect(payload.policy).toBeDefined();
+  });
+
+  it("returns 403 for viewer attempting policy update (operator-only)", async () => {
+    const request = new NextRequest("http://localhost/api/policy", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: viewerCookie(),
+      },
+      body: JSON.stringify({
+        allowedDomains: [],
+        blockedDomains: [],
+        allowedTools: [],
+        blockedTools: [],
+        perTxCapXLM: 100,
+        dailyCapXLM: 500,
+        maxToolCallsPerDay: 10,
+        riskThreshold: 70,
+        allowedHours: { start: 0, end: 23 },
+      }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
   });
 
   it("allows operator to update and read policy", async () => {
