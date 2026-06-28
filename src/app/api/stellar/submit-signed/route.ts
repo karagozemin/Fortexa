@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
+import { recordStellarSubmitResult } from "@/lib/observability/metrics";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { submitSignedTransactionXdr } from "@/lib/stellar/client";
 import {
@@ -170,6 +171,7 @@ export async function POST(request: NextRequest) {
 
       if (existing && existing.xdrHash === xdrHash) {
         logInfo("Signed transaction idempotent replay", { ...context, userId, idempotencyKey });
+        recordStellarSubmitResult("idempotency_replay");
         return jsonWithRequestContext(request, {
           route: "/api/stellar/submit-signed",
           startedAtMs,
@@ -181,6 +183,7 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         logWarn("Signed transaction idempotency conflict", { ...context, userId, idempotencyKey });
+        recordStellarSubmitResult("idempotency_conflict");
         return jsonWithRequestContext(request, {
           route: "/api/stellar/submit-signed",
           startedAtMs,
@@ -201,6 +204,8 @@ export async function POST(request: NextRequest) {
       txHash: submitted.hash,
       ledger: submitted.ledger,
     });
+
+    recordStellarSubmitResult("success");
 
     const responseBody = {
       ok: true,
@@ -231,6 +236,7 @@ export async function POST(request: NextRequest) {
       ...context,
       detail: formatted.message,
     });
+    recordStellarSubmitResult("horizon_failure");
     return jsonWithRequestContext(request, {
       route: "/api/stellar/submit-signed",
       startedAtMs,

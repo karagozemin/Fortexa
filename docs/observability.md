@@ -33,6 +33,8 @@ All series are labeled by `route` (Next.js route path, e.g. `/api/decision`) and
 | `fortexa_requests_total` | counter | Total API requests by route/method |
 | `fortexa_request_errors_total` | counter | Requests that returned HTTP >= 400 |
 | `fortexa_request_duration_ms_p95` | gauge | Rolling p95 latency in milliseconds (last 500 samples per bucket) |
+| `fortexa_decision_outcomes_total` | counter | Decision evaluations labelled by `outcome` (APPROVE \| WARN \| REQUIRE_APPROVAL \| BLOCK) |
+| `fortexa_stellar_submit_results_total` | counter | Stellar submission attempts labelled by `result` (success \| horizon_failure \| validation_failure \| idempotency_replay \| idempotency_conflict) |
 
 Sample output:
 
@@ -134,6 +136,34 @@ max by (route) (fortexa_request_duration_ms_p95)
 
 ```promql
 topk(5, sum by (route) (increase(fortexa_requests_total[1h])))
+```
+
+### Decision outcome breakdown (rate over 5 minutes)
+
+```promql
+sum by (outcome) (rate(fortexa_decision_outcomes_total[5m]))
+```
+
+### Fraction of decisions that resulted in BLOCK
+
+```promql
+rate(fortexa_decision_outcomes_total{outcome="BLOCK"}[5m])
+  /
+sum(rate(fortexa_decision_outcomes_total[5m]))
+```
+
+### Stellar submission success rate (5-minute window)
+
+```promql
+rate(fortexa_stellar_submit_results_total{result="success"}[5m])
+  /
+sum(rate(fortexa_stellar_submit_results_total[5m]))
+```
+
+### Stellar submission results breakdown
+
+```promql
+sum by (result) (rate(fortexa_stellar_submit_results_total[5m]))
 ```
 
 ### Example alert — sustained elevated error rate
