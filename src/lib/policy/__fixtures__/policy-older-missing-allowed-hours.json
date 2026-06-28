@@ -1,0 +1,21 @@
+{
+  "allowedDomains": [
+    "api.safe-research.ai",
+    "tools.verified-data.dev"
+  ],
+  "blockedDomains": [
+    "wallet-drainer.evil",
+    "prompt-pwn.io"
+  ],
+  "allowedTools": [
+    "research-pro",
+    "market-feed"
+  ],
+  "blockedTools": [
+    "shadow-shell"
+  ],
+  "perTxCapXLM": 90,
+  "dailyCapXLM": 240,
+  "maxToolCallsPerDay": 6,
+  "riskThreshold": 65
+}
