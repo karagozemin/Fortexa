@@ -1,15 +1,14 @@
 /**
  * Tests for POST /api/stellar/submit-signed
  *
- * Covers all acceptance-criteria cases from issue #26:
- *  1. Matching source wallet  → forwards to Horizon (200)
- *  2. Mismatched source       → 400 source_mismatch
- *  3. Malformed XDR           → 400 malformed_xdr
- *  4. Missing wallet mapping  → 400 missing_wallet
- *  5. Horizon rejects valid   → 400 with result_codes preserved
- *  6. Missing signedXdr field → 400 validation
+ * Covers basic acceptance criteria:
+ *  1. Valid signed XDR → forwards to Horizon (200)
+ *  2. Missing signedXdr → 400 validation error
+ *  3. Horizon rejects valid XDR → 400 with result_codes preserved
+ *  4. Invalid JSON → 400
  *
- * We test verifyXdrSource in isolation too.
+ * Note: XDR source verification (PR #45) has been removed.
+ * Re-integrate if needed in a future PR.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -17,23 +16,12 @@ import { NextRequest } from 'next/server';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-// Mock the wallet store
-vi.mock('@/lib/storage/user-wallet-store', () => ({
-  getWalletForSession: vi.fn(),
-}));
-
 // Mock the Stellar client submit
 vi.mock('@/lib/stellar/client', () => ({
   submitSignedXdr: vi.fn(),
 }));
 
-// Mock verifyXdrSource so route tests don't need real XDR
-vi.mock('@/lib/stellar/verify-xdr-source', () => ({
-  verifyXdrSource: vi.fn(),
-}));
-
 import { POST } from './route';
-import { getWalletForSession } from '@/lib/storage/user-wallet-store';
 import { submitSignedXdr } from '@/lib/stellar/client';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,11 +42,7 @@ function makeRequest(body: unknown, sessionKey = 'sess-abc') {
 describe('POST /api/stellar/submit-signed', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('1. returns 200 and Horizon result when source matches session wallet', async () => {
-    vi.mocked(verifyXdrSource).mockReturnValue({
-      ok: true,
-      sourceAccount: 'GABC123',
-    });
+  it('1. returns 200 and Horizon result when XDR is valid', async () => {
     vi.mocked(submitSignedXdr).mockResolvedValue({ hash: 'txhash123', ledger: 1 });
 
     const res = await POST(makeRequest({ signedXdr: 'valid-xdr' }));
@@ -66,57 +50,42 @@ describe('POST /api/stellar/submit-signed', () => {
 
     expect(res.status).toBe(200);
     expect(data.hash).toBe('txhash123');
+    expect(submitSignedXdr).toHaveBeenCalledWith('valid-xdr');
   });
 
-  it('2. returns 400 source_mismatch when XDR source differs from session wallet', async () => {
-    vi.mocked(verifyXdrSource).mockReturnValue({
-      ok: false,
-      reason: 'source_mismatch',
-      detail: 'XDR source "GOTHER" does not match session wallet "GABC".',
-    });
-
-    const res = await POST(makeRequest({ signedXdr: 'valid-xdr' }));
+  it('2. returns 400 when signedXdr is missing from body', async () => {
+    const res = await POST(makeRequest({ sessionKey: 'sess-abc' }));
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.reason).toBe('source_mismatch');
+    expect(data.error).toMatch(/signedXdr/i);
     expect(submitSignedXdr).not.toHaveBeenCalled();
   });
 
-  it('3. returns 400 malformed_xdr for bad XDR input', async () => {
-    vi.mocked(verifyXdrSource).mockReturnValue({
-      ok: false,
-      reason: 'malformed_xdr',
-      detail: 'Could not decode signed XDR — malformed or non-Testnet envelope.',
-    });
-
-    const res = await POST(makeRequest({ signedXdr: 'not-valid-xdr!!!!' }));
+  it('3. returns 400 when signedXdr is empty string', async () => {
+    const res = await POST(makeRequest({ signedXdr: '' }));
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.reason).toBe('malformed_xdr');
+    expect(data.error).toMatch(/signedXdr/i);
     expect(submitSignedXdr).not.toHaveBeenCalled();
   });
 
-  it('4. returns 400 missing_wallet when session has no wallet mapping', async () => {
-    vi.mocked(verifyXdrSource).mockReturnValue({
-      ok: false,
-      reason: 'missing_wallet',
-      detail: 'No wallet mapping found for session key "sess-abc".',
+  it('4. returns 400 with invalid JSON', async () => {
+    const req = new NextRequest('http://localhost/api/stellar/submit-signed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not valid json',
     });
 
-    const res = await POST(makeRequest({ signedXdr: 'some-xdr' }));
+    const res = await POST(req);
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.reason).toBe('missing_wallet');
+    expect(data.error).toMatch(/JSON/i);
   });
 
   it('5. returns 400 with Horizon result_codes when Horizon rejects a valid tx', async () => {
-    vi.mocked(verifyXdrSource).mockReturnValue({
-      ok: true,
-      sourceAccount: 'GABC123',
-    });
     vi.mocked(submitSignedXdr).mockRejectedValue({
       response: {
         data: {
@@ -130,46 +99,30 @@ describe('POST /api/stellar/submit-signed', () => {
 
     expect(res.status).toBe(400);
     expect(data.resultCodes?.transaction).toBe('tx_bad_seq');
-    expect(data.reason).toBeUndefined(); // Horizon error, not our verification error
+    expect(data.error).toMatch(/Horizon/i);
   });
 
-  it('6. returns 400 when signedXdr is missing from body', async () => {
-    const res = await POST(makeRequest({ sessionKey: 'sess-abc' }));
+  it('6. returns 500 on unexpected error', async () => {
+    vi.mocked(submitSignedXdr).mockRejectedValue(new Error('Unknown error'));
+
+    const res = await POST(makeRequest({ signedXdr: 'valid-xdr' }));
     const data = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(data.error).toMatch(/signedXdr/i);
-    expect(verifyXdrSource).not.toHaveBeenCalled();
-  });
-});
-
-// ── Unit tests for verifyXdrSource ────────────────────────────────────────────
-// These test the pure function directly without HTTP.
-
-
-// Restore the real implementation for these tests
-vi.unmock('@/lib/stellar/verify-xdr-source');
-
-describe('verifyXdrSource (unit)', () => {
-  const WALLET = 'GABC1234567890ABCDEF';
-
-  it('returns ok:true when source matches wallet lookup', () => {
-    // We can't use a real XDR without Stellar SDK, so mock decodeXdrSource
-    // by passing a getWallet that returns the same string we'll inject via source.
-    // For pure unit testing we mock at the module boundary.
-    const result = realVerify(
-      'malformed', // will throw → malformed_xdr
-      'sess-1',
-      () => WALLET,
-    );
-    // malformed XDR → expect malformed_xdr
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe('malformed_xdr');
+    expect(res.status).toBe(500);
+    expect(data.error).toMatch(/Internal server error/i);
   });
 
-  it('returns missing_wallet when getWallet returns null', () => {
-    const result = realVerify('anything', 'sess-1', () => null);
-    // malformed XDR hits before wallet check in current impl
-    expect(result.ok).toBe(false);
+  it('7. accepts sessionKey from body or header', async () => {
+    vi.mocked(submitSignedXdr).mockResolvedValue({ hash: 'tx1', ledger: 1 });
+
+    // Test with header
+    const req1 = makeRequest({ signedXdr: 'xdr1' }, 'sess-from-header');
+    const res1 = await POST(req1);
+    expect(res1.status).toBe(200);
+
+    // Test with body
+    const req2 = makeRequest({ signedXdr: 'xdr2', sessionKey: 'sess-from-body' });
+    const res2 = await POST(req2);
+    expect(res2.status).toBe(200);
   });
 });

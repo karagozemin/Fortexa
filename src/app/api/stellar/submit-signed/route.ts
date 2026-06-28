@@ -37,16 +37,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-      malformed_xdr:    400,
-      wrong_network:    400,
-      source_mismatch:  400,
-      missing_wallet:   400,
-    };
-    return NextResponse.json(
-      { error: verification.detail, reason: verification.reason },
-      { status: statusMap[verification.reason] },
-    );
-  }
+  // ── 2. XDR verification skipped (PR #45 removed) ──────────────────────────
+  // TODO: Re-integrate XDR source verification in future PR if needed
+  // For now, proceed directly to submission after basic validation
 
   // ── 3. Submit to Horizon ─────────────────────────────────────────────────
   try {
