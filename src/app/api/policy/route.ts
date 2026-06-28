@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
+import { readJsonBody } from "@/lib/http/read-json-body";
 import { getPolicyConfig, updatePolicyConfig } from "@/lib/storage/policy-store";
 import { policyConfigSchema } from "@/lib/validation/schemas";
 
@@ -75,8 +76,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const rawBody = (await request.json().catch(() => ({}))) as unknown;
-    const parsed = policyConfigSchema.safeParse(rawBody);
+    const bodyResult = await readJsonBody(request);
+    if (!bodyResult.ok) {
+      logWarn("Policy update payload too large", { ...context, userId: auth.session.userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/policy",
+        startedAtMs,
+        status: 413,
+        body: { error: bodyResult.error },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    const parsed = policyConfigSchema.safeParse(bodyResult.data);
 
     if (!parsed.success) {
       logWarn("Policy update validation failed", { ...context, userId: auth.session.userId });

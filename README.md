@@ -219,6 +219,7 @@ FORTEXA_OPERATOR_WALLETS=
 FORTEXA_VIEWER_WALLETS=
 FORTEXA_AUTH_MAX_ATTEMPTS=5
 FORTEXA_AUTH_LOCK_MINUTES=10
+FORTEXA_JSON_BODY_MAX_BYTES=65536
 
 NEXT_PUBLIC_STELLAR_DESTINATION=
 
@@ -246,6 +247,8 @@ npm run db:migrate
 ---
 
 ## 11) 🔌 API Surface (Reference)
+
+JSON `POST` routes that accept request bodies enforce a shared size limit before parsing (default **64 KiB**, override with `FORTEXA_JSON_BODY_MAX_BYTES`). Oversized payloads receive HTTP **413** with a clear error message; malformed but small JSON still returns the route's normal validation error.
 
 ### Auth
 - `POST /api/auth/challenge`

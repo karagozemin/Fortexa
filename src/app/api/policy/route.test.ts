@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 
 import { AUTH_COOKIE_KEY, createSessionToken } from "@/lib/auth/session";
+import { DEFAULT_JSON_BODY_MAX_BYTES } from "@/lib/http/read-json-body";
 import { GET, POST } from "@/app/api/policy/route";
 
 function operatorCookie() {
@@ -63,5 +64,42 @@ describe("/api/policy route", () => {
 
     expect(payload.policy.perTxCapXLM).toBe(150);
     expect(payload.policy.riskThreshold).toBe(80);
+  });
+
+  it("returns 413 for oversized JSON payloads before validation", async () => {
+    const cookie = operatorCookie();
+    const padding = "x".repeat(DEFAULT_JSON_BODY_MAX_BYTES);
+    const updateRequest = new NextRequest("http://localhost/api/policy", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: `{"allowedDomains":["${padding}"]}`,
+    });
+
+    const response = await POST(updateRequest);
+    expect(response.status).toBe(413);
+
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toContain("byte limit");
+  });
+
+  it("returns validation error for malformed small JSON", async () => {
+    const cookie = operatorCookie();
+    const updateRequest = new NextRequest("http://localhost/api/policy", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: "{not-json",
+    });
+
+    const response = await POST(updateRequest);
+    expect(response.status).toBe(400);
+
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toBe("Invalid policy payload.");
   });
 });

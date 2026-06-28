@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { readJsonBody } from "@/lib/http/read-json-body";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
@@ -129,8 +130,19 @@ export async function POST(request: NextRequest) {
 
     const userId = auth.session.userId;
 
-    const rawPayload = (await request.json().catch(() => ({}))) as unknown;
-    const parsedPayload = stellarSubmitSignedRequestSchema.safeParse(rawPayload);
+    const bodyResult = await readJsonBody(request);
+    if (!bodyResult.ok) {
+      logWarn("Submit signed payload too large", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 413,
+        body: { error: bodyResult.error },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    const parsedPayload = stellarSubmitSignedRequestSchema.safeParse(bodyResult.data);
 
     if (!parsedPayload.success) {
       logWarn("Submit signed validation failed", { ...context, userId });
