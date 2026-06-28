@@ -120,3 +120,21 @@ export async function simulatePolicyChange(params: {
     },
   };
 }
+
+/**
+ * Compare the active policy against a historical version to preview rollback impact.
+ * Pure read-only: reuses the simulation engine with the rollback target as "proposed".
+ */
+export async function simulatePolicyRollback(params: {
+  currentPolicy: PolicyConfig;
+  rollbackPolicy: PolicyConfig;
+  cases: SimulationInputCase[];
+  usage: DailyUsage;
+}): Promise<SimulationReport> {
+  return simulatePolicyChange({
+    currentPolicy: params.currentPolicy,
+    proposedPolicy: params.rollbackPolicy,
+    cases: params.cases,
+    usage: params.usage,
+  });
+}

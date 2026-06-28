@@ -93,6 +93,12 @@ export const policyRollbackSchema = z.object({
   targetVersion: z.number().int().positive(),
 });
 
+export const policyRollbackPreviewSchema = z.object({
+  targetVersion: z.number().int().positive(),
+  includeAudit: z.boolean().optional(),
+  auditSampleSize: z.number().int().min(1).max(10).optional(),
+});
+
 export const policySimulateRequestSchema = z.object({
   policy: policyConfigSchema,
   includeAudit: z.boolean().optional(),

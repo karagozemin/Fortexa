@@ -260,6 +260,7 @@ npm run db:migrate
 - `POST /api/policy/simulate` (`operator`) — read-only pre-save simulation
 - `GET /api/policy/history` (`operator`)
 - `POST /api/policy/rollback` (`operator`)
+- `POST /api/policy/rollback/preview` (`operator`) — read-only rollback impact preview
 
 ### Decision / Planning
 - `POST /api/decision` (`operator`)
