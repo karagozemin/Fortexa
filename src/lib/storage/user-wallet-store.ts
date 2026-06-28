@@ -10,6 +10,7 @@ export type UserWallet = {
   provider?: string;
   createdAt: string;
   updatedAt: string;
+  expiresAt?: string;
 };
 
 type WalletStoreFile = {
@@ -86,7 +87,7 @@ async function writeStore(store: WalletStoreFile) {
   await fs.writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
 }
 
-export async function getUserWallet(userId: string) {
+export async function getUserWallet(userId: string): Promise<UserWallet | { expired: true } | null> {
   const db = await runWithDatabase("getUserWallet", async (pool) => {
     const result = await pool.query<{
       user_id: string;
@@ -95,9 +96,10 @@ export async function getUserWallet(userId: string) {
       provider: string | null;
       created_at: string;
       updated_at: string;
+      expires_at: string | null;
     }>(
       `
-        SELECT user_id, public_key, source, provider, created_at, updated_at
+        SELECT user_id, public_key, source, provider, created_at, updated_at, expires_at
         FROM fortexa_wallets
         WHERE user_id = $1
       `,
@@ -109,6 +111,10 @@ export async function getUserWallet(userId: string) {
       return null;
     }
 
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
+      return { expired: true };
+    }
+
     return {
       userId: row.user_id,
       publicKey: row.public_key,
@@ -116,6 +122,7 @@ export async function getUserWallet(userId: string) {
       provider: row.provider ?? undefined,
       createdAt: new Date(row.created_at).toISOString(),
       updatedAt: new Date(row.updated_at).toISOString(),
+      expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : undefined,
     };
   });
 
@@ -128,7 +135,13 @@ export async function getUserWallet(userId: string) {
   if (!wallet || typeof wallet !== "object" || !("source" in wallet) || !("publicKey" in wallet)) {
     return null;
   }
-  return wallet as UserWallet;
+  
+  const userWallet = wallet as UserWallet;
+  if (userWallet.expiresAt && new Date(userWallet.expiresAt).getTime() < Date.now()) {
+    return { expired: true };
+  }
+  
+  return userWallet;
 }
 
 export async function upsertUserWallet(
@@ -137,6 +150,7 @@ export async function upsertUserWallet(
     publicKey: string;
     source: "external";
     provider?: string;
+    expiresAt?: string;
   }
 ) {
   const db = await runWithDatabase("upsertUserWallet", async (pool) => {
@@ -153,19 +167,23 @@ export async function upsertUserWallet(
     const createdAt = existing.rows[0]?.created_at
       ? new Date(existing.rows[0].created_at).toISOString()
       : nowIso;
+      
+    // Default expiration to 24 hours from now if not provided
+    const expiresAt = payload.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     await pool.query(
       `
-        INSERT INTO fortexa_wallets (user_id, public_key, source, provider, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz)
+        INSERT INTO fortexa_wallets (user_id, public_key, source, provider, created_at, updated_at, expires_at)
+        VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7::timestamptz)
         ON CONFLICT (user_id)
         DO UPDATE SET
           public_key = EXCLUDED.public_key,
           source = EXCLUDED.source,
           provider = EXCLUDED.provider,
-          updated_at = EXCLUDED.updated_at
+          updated_at = EXCLUDED.updated_at,
+          expires_at = EXCLUDED.expires_at
       `,
-      [userId, payload.publicKey, payload.source, payload.provider ?? null, createdAt, nowIso]
+      [userId, payload.publicKey, payload.source, payload.provider ?? null, createdAt, nowIso, expiresAt]
     );
 
     return {
@@ -175,6 +193,7 @@ export async function upsertUserWallet(
       provider: payload.provider,
       createdAt,
       updatedAt: nowIso,
+      expiresAt,
     };
   });
 
@@ -185,17 +204,43 @@ export async function upsertUserWallet(
   const store = await readStore();
   const now = new Date().toISOString();
   const existing = await getUserWallet(userId);
+  const createdAt = (existing && !("expired" in existing)) ? existing.createdAt : now;
+  const expiresAt = payload.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   const next: UserWallet = {
     userId,
     publicKey: payload.publicKey,
     source: payload.source,
     provider: payload.provider,
-    createdAt: existing?.createdAt ?? now,
+    createdAt: createdAt,
     updatedAt: now,
+    expiresAt,
   };
 
   store.wallets[userId] = next;
   await writeStore(store);
   return next;
+}
+
+export async function revokeUserWallet(userId: string): Promise<void> {
+  const db = await runWithDatabase("revokeUserWallet", async (pool) => {
+    await pool.query(
+      `
+        DELETE FROM fortexa_wallets
+        WHERE user_id = $1
+      `,
+      [userId]
+    );
+    return true;
+  });
+
+  if (db.available) {
+    return;
+  }
+
+  const store = await readStore();
+  if (store.wallets[userId]) {
+    delete store.wallets[userId];
+    await writeStore(store);
+  }
 }

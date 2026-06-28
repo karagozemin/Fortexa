@@ -42,6 +42,16 @@ export async function POST(request: NextRequest) {
       return auth.response;
     }
 
+    const userId = auth.session.userId;
+    const assignedWallet = await getUserWallet(userId);
+
+    if (assignedWallet && "expired" in assignedWallet) {
+      return NextResponse.json(
+        { error: "Session wallet mapping has expired." },
+        { status: 401, headers: rateLimitHeaders(rate) }
+      );
+    }
+
     const sessionWallet = getWalletFromSession(auth.session);
     if (!sessionWallet) {
       return NextResponse.json(
@@ -50,7 +60,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = auth.session.userId;
 
     await upsertUserWallet(userId, {
       publicKey: sessionWallet,

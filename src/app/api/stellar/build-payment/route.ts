@@ -30,6 +30,13 @@ export async function POST(request: NextRequest) {
     const userId = auth.session.userId;
     const assignedWallet = await getUserWallet(userId);
 
+    if (assignedWallet && "expired" in assignedWallet) {
+      return NextResponse.json(
+        { error: "Session wallet mapping has expired." },
+        { status: 401, headers: rateLimitHeaders(rate) }
+      );
+    }
+
     const rawPayload = (await request.json().catch(() => ({}))) as unknown;
     const parsedPayload = stellarBuildPaymentRequestSchema.safeParse(rawPayload);
 

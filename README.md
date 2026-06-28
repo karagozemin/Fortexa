@@ -97,6 +97,8 @@ Fortexa currently does **not perform server-side signing or private-key custody*
 
 - Session is wallet-bound at login.
 - Execution source wallet is derived from session identity.
+- Session wallet mappings expire automatically after 24 hours. Expired sessions will receive a `401 Unauthorized` response on protected endpoints.
+- Operators can forcefully revoke a compromised or stale session mapping via `DELETE /api/auth/wallet/revoke`. This deterministically removes the mapping from storage, requiring the user to reconnect their wallet.
 - Manual arbitrary wallet assignment in UI is removed.
 - `/api/stellar/balance` auto-syncs missing wallet mapping from session when possible.
 
@@ -240,6 +242,7 @@ npm run db:migrate
 - `POST /api/auth/logout`
 - `GET /api/auth/session`
 - `POST /api/auth/refresh`
+- `DELETE /api/auth/wallet/revoke` (`operator`) — revokes session wallet mapping
 
 ### Policy
 - `GET /api/policy`
