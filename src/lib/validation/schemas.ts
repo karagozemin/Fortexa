@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-const actionKindSchema = z.enum(["api_payment", "tool_access", "transfer", "endpoint_call"]);
+const actionKindSchema = z.enum([
+  "api_payment",
+  "tool_access",
+  "transfer",
+  "endpoint_call",
+]);
 
 const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
@@ -16,11 +21,24 @@ export const agentActionSchema = z.object({
   metadata: z.record(z.string(), metadataValueSchema).optional(),
 });
 
+const stellarPublicKeySchema = z
+  .string()
+  .startsWith("G", { message: "Destination must be a Stellar public key." })
+  .min(56)
+  .max(56);
+
+const paymentQuoteInputSchema = z.object({
+  destination: stellarPublicKeySchema,
+  memo: z.string().max(28).optional(),
+  network: z.enum(["testnet"]).default("testnet"),
+});
+
 export const decisionRequestSchema = z
   .object({
     scenarioId: z.string().min(1).max(120).optional(),
     action: agentActionSchema.optional(),
     approvedByHuman: z.boolean().optional(),
+    paymentQuoteInput: paymentQuoteInputSchema.optional(),
   })
   .refine((data) => Boolean(data.scenarioId || data.action), {
     message: "Either scenarioId or action is required.",
@@ -32,11 +50,17 @@ export const stellarSetupRequestSchema = z.object({
 });
 
 export const stellarBuildPaymentRequestSchema = z.object({
-  destination: z.string().startsWith("G", { message: "Destination must be a Stellar public key." }).min(56).max(56),
+  auditEntryId: z.string().uuid(),
+  destination: stellarPublicKeySchema,
   amountXLM: z
     .string()
-    .regex(/^\d+(\.\d{1,7})?$/, "amountXLM must be a positive decimal string with up to 7 decimals"),
+    .regex(
+      /^\d+(\.\d{1,7})?$/,
+      "amountXLM must be a positive decimal string with up to 7 decimals",
+    ),
+  asset: z.enum(["native"]).default("native"),
   memo: z.string().max(28).optional(),
+  network: z.enum(["testnet"]).default("testnet"),
 });
 
 export const stellarSubmitSignedRequestSchema = z.object({
