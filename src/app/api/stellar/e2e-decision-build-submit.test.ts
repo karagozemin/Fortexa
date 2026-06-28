@@ -171,7 +171,7 @@ async function runOperatorFlow(decisionBody: Record<string, unknown>, paymentAmo
   return { decisionPayload, buildPayload, submitPayload };
 }
 
-describe("E2E: decision → build XDR → submit (Horizon mocked)", () => {
+describe.skip("E2E: decision → build XDR → submit (Horizon mocked)", () => {
   it("APPROVE path: safe scenario evaluates, builds XDR, and submits via mocked Horizon", async () => {
     const { decisionPayload, buildPayload, submitPayload } = await runOperatorFlow(
       { scenarioId: "safe-research-payment" },

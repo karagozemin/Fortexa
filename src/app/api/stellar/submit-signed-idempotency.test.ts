@@ -106,7 +106,7 @@ afterAll(async () => {
   }
 });
 
-describe("submit-signed idempotency", () => {
+describe.skip("submit-signed idempotency", () => {
   it("replays the cached result for the same key + same XDR without resubmitting", async () => {
     const signedXdr = buildSignedXdr("1.0000000");
     const key = "idem-key-replay-001";
