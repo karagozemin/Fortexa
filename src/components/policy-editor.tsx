@@ -17,6 +17,21 @@ type PolicyResponse = {
   error?: string;
 };
 
+type PolicyConflictResponse = {
+  error?: string;
+  code?: string;
+  expectedVersion?: number;
+  currentVersion?: number;
+  currentUpdatedAt?: string | null;
+};
+
+type PolicyConflictState = {
+  expectedVersion: number;
+  currentVersion: number;
+  currentUpdatedAt: string | null;
+  message: string;
+};
+
 type PolicyHistoryEntry = {
   version: number;
   updatedAt: string;
@@ -64,6 +79,7 @@ export function PolicyEditor() {
   const [simulating, setSimulating] = useState(false);
   const [simulation, setSimulation] = useState<SimulationReport | null>(null);
   const [simStatus, setSimStatus] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<PolicyConflictState | null>(null);
 
   const writeDisabled = loading || sessionLoading || !isOperator;
 
@@ -96,9 +112,52 @@ export function PolicyEditor() {
       setBlockedTools(listToText(payload.policy.blockedTools));
       setUpdatedAt(payload.updatedAt ?? null);
       setVersion(payload.version ?? null);
+      setConflict(null);
       setStatus("Policy loaded.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unexpected policy load error.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * Pull the latest server version and replace the editor draft with it.
+   * Used to recover from a 409 Conflict: the operator's local edits are
+   * intentionally discarded so they can re-enter them against the new base.
+   * Asks for an explicit confirmation so a misclick can't wipe out work.
+   */
+  async function discardLocalChangesAndReload() {
+    if (typeof window !== "undefined" && typeof window.confirm === "function") {
+      const acknowledged = window.confirm(
+        "Discard your unsaved policy edits and reload the current server version?",
+      );
+      if (!acknowledged) {
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/policy", { cache: "no-store" });
+      const payload = (await response.json()) as PolicyResponse;
+
+      if (!response.ok || payload.error || !payload.policy) {
+        setStatus(payload.error ?? "Reload failed — please try again.");
+        return;
+      }
+
+      setPolicy(payload.policy);
+      setAllowedDomains(listToText(payload.policy.allowedDomains));
+      setBlockedDomains(listToText(payload.policy.blockedDomains));
+      setAllowedTools(listToText(payload.policy.allowedTools));
+      setBlockedTools(listToText(payload.policy.blockedTools));
+      setUpdatedAt(payload.updatedAt ?? null);
+      setVersion(payload.version ?? null);
+      setConflict(null);
+      setStatus("Reloaded latest policy from server. Local edits discarded — please re-enter your changes.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unexpected reload error.");
     } finally {
       setLoading(false);
     }
@@ -116,14 +175,44 @@ export function PolicyEditor() {
     }
 
     setLoading(true);
+    setConflict(null);
     try {
       const nextPolicy = buildDraftPolicy(policy);
+      // Send the version we loaded against so the server can detect another
+      // operator's concurrent save. Missing it keeps the legacy behavior.
+      const body = JSON.stringify({
+        ...nextPolicy,
+        ...(version !== null ? { expectedVersion: version } : {}),
+      });
 
       const response = await fetch("/api/policy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextPolicy),
+        body,
       });
+
+      if (response.status === 409) {
+        const conflictBody = (await response.json().catch(() => ({}))) as PolicyConflictResponse;
+        const expectedVersion =
+          conflictBody.expectedVersion ?? version ?? -1;
+        const currentVersion = conflictBody.currentVersion ?? -1;
+        setConflict({
+          expectedVersion,
+          currentVersion,
+          currentUpdatedAt: conflictBody.currentUpdatedAt ?? null,
+          message:
+            conflictBody.error ??
+            "Policy was changed by another operator. Please reload and retry.",
+        });
+        setStatus(
+          `Conflict: server is at v${conflictBody.currentVersion ?? "?"}, your edit was based on v${
+            conflictBody.expectedVersion ?? version ?? "?"
+          }.`,
+        );
+        // Refresh history view in case the other operator's save landed.
+        void loadHistory();
+        return;
+      }
 
       const payload = (await response.json()) as PolicyResponse;
 
@@ -482,6 +571,42 @@ export function PolicyEditor() {
         <Button variant="outline" onClick={loadPolicy} disabled={loading}>Reload</Button>
         <Button variant="outline" onClick={loadHistory} disabled={loading}>Reload History</Button>
       </div>
+
+      {conflict ? (
+        <Alert className="border-red-500/40 bg-red-500/10">
+          <AlertTitle>Save conflict — another operator edited this policy</AlertTitle>
+          <AlertDescription>
+            <p>{conflict.message}</p>
+            <p className="mt-1 text-sm">
+              Your save was based on{" "}
+              <span className="font-semibold">v{conflict.expectedVersion}</span>; the server is now at{" "}
+              <span className="font-semibold">v{conflict.currentVersion}</span>
+              {conflict.currentUpdatedAt
+                ? ` (updated ${conflict.currentUpdatedAt})`
+                : ""}
+              . Your changes were not discarded automatically.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={discardLocalChangesAndReload}
+                disabled={loading}
+              >
+                Reload latest &amp; discard my changes
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConflict(null)}
+                disabled={loading}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <Alert className="border-[hsl(var(--accent)/0.2)] bg-[hsl(var(--accent)/0.05)]">
         <AlertTitle>Policy status</AlertTitle>
