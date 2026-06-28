@@ -11,6 +11,7 @@ import {
   putIdempotencyRecord,
 } from "@/lib/storage/submit-idempotency-store";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
+import { normalizeHorizonError, HorizonErrorCategory } from "@/lib/utils/horizonErrors";
 
 type HorizonErrorContext = {
   explanation: string;
@@ -225,11 +226,14 @@ export async function POST(request: NextRequest) {
         ? { ...rateLimitHeaders(rate), "Idempotency-Replayed": "false" }
         : rateLimitHeaders(rate),
     });
-  } catch (error) {
+
+} catch (error) {
     const formatted = formatSubmitError(error);
+    const category = normalizeHorizonError(formatted.txCode);
     logError("Submit signed internal error", {
       ...context,
       detail: formatted.message,
+      horizonCategory: category,
     });
     return jsonWithRequestContext(request, {
       route: "/api/stellar/submit-signed",
@@ -237,10 +241,12 @@ export async function POST(request: NextRequest) {
       status: 500,
       body: {
         error: formatted.message,
+        category,
         resultCode: formatted.txCode,
         operationCodes: formatted.opCodes,
         explanation: formatted.explanation,
         nextStep: formatted.nextStep,
+        rawError: formatted,
       },
       headers: rateLimitHeaders(rate),
     });
