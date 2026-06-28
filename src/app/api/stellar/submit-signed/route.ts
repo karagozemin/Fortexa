@@ -8,6 +8,7 @@ import { submitSignedTransactionXdr } from "@/lib/stellar/client";
 import {
   getIdempotencyRecord,
   hashSignedXdr,
+  maybeRunCleanup,
   putIdempotencyRecord,
 } from "@/lib/storage/submit-idempotency-store";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
@@ -118,6 +119,8 @@ export async function POST(request: NextRequest) {
       headers: rateLimitHeaders(rate),
     });
   }
+
+  maybeRunCleanup();
 
   try {
     const auth = requireAuth(request, { allowedRoles: ["operator"] });
