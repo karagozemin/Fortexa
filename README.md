@@ -226,6 +226,8 @@ Reference (`.env.example`):
 
 ```bash
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+# Optional; defaults to testnet passphrase. Must agree with STELLAR_HORIZON_URL.
+STELLAR_NETWORK_PASSPHRASE=
 
 DATABASE_URL=
 DATABASE_SSL=false
