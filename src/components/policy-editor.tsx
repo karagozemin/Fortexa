@@ -398,7 +398,8 @@ export function PolicyEditor() {
                     variant={isA ? "default" : "outline"}
                     size="sm"
                     onClick={() => setDiffA(isA ? null : entry.version)}
-                    title="Select as version A for diff"
+                    aria-label={isA ? `Deselect version ${entry.version} as diff baseline (A)` : `Select version ${entry.version} as diff baseline (A)`}
+                    aria-pressed={isA}
                   >
                     A
                   </Button>
@@ -406,7 +407,8 @@ export function PolicyEditor() {
                     variant={isB ? "default" : "outline"}
                     size="sm"
                     onClick={() => setDiffB(isB ? null : entry.version)}
-                    title="Select as version B for diff"
+                    aria-label={isB ? `Deselect version ${entry.version} as diff comparison (B)` : `Select version ${entry.version} as diff comparison (B)`}
+                    aria-pressed={isB}
                   >
                     B
                   </Button>
