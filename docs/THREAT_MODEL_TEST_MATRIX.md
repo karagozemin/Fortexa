@@ -31,11 +31,34 @@ Maps concrete abuse cases against test coverage. Gaps are surfaced as follow-up 
 
 ---
 
+## Wallet-Auth Challenge Signing — Evidence Fixtures
+
+Added by issue #104. These rows document the deterministic evidence cases in
+`src/lib/auth/wallet-auth-fixtures.test.ts`. Signatures use the Stellar Ed25519 /
+SEP-53 scheme (`@stellar/stellar-sdk` `Keypair`); both keypairs are hardcoded
+constants so any reviewer can reproduce the results.
+
+**How signatures are made deterministic:** `Keypair.fromSecret(AUTHORIZED_SECRET).sign(hashSep53Message(challenge.message))` — same seed, same message → same 64-byte Ed25519 signature every run. The second keypair (`MISMATCHED_SECRET`) is also a fixed constant; its public key is derived at module load time via `Keypair.fromSecret(MISMATCHED_SECRET).publicKey()`.
+
+| # | Evidence Case | What Is Asserted | Control Exercised | Expected Outcome | Test |
+|---|--------------|-----------------|-------------------|-----------------|------|
+| 11 | **Valid challenge / signature pair** | A fresh challenge signed by the authorized keypair is accepted | `verifyWalletChallenge` → `{ ok: true }` | ✅ Accepted; returned `challenge.publicKey` matches submitted key | `src/lib/auth/wallet-auth-fixtures.test.ts:35` |
+| 12 | **Expired challenge** | A correctly-signed challenge submitted after its TTL is explicitly rejected | Expiry check at `wallet-challenge.ts:155` | ✅ Rejected with `code: "expired"` | `src/lib/auth/wallet-auth-fixtures.test.ts:54` |
+| 13 | **Replayed challenge** | Resubmitting the identical `challengeId` after it was consumed is explicitly rejected | `consumed` flag set before signature check (`wallet-challenge.ts:165`) | ✅ Rejected with `code: "replayed"` on second attempt | `src/lib/auth/wallet-auth-fixtures.test.ts:73` |
+| 14 | **Mismatched public key** | A well-formed 64-byte Ed25519 signature from a different keypair does not pass verification | `verifyWalletSignature` Ed25519 check (`wallet-challenge.ts:164`) | ✅ Rejected with `code: "invalid_signature"` | `src/lib/auth/wallet-auth-fixtures.test.ts:92` |
+| 15 | **Unauthorized wallet role** | A wallet absent from all role env vars resolves to `null` (→ HTTP 401 at login) | `resolveRoleByWallet` with non-empty env lists (`wallet-role.ts:44`) | ✅ `resolveRoleByWallet` returns `null` | `src/lib/auth/wallet-auth-fixtures.test.ts:111` |
+
+> No production auth source files were modified to produce these fixtures.
+> All five cases call the same `verifyWalletChallenge` / `resolveRoleByWallet`
+> functions used by the live login route.
+
+---
+
 ## Summary
 
 | Status | Count |
 |--------|-------|
-| ✅ Covered | 5 |
+| ✅ Covered | 10 |
 | 🟡 Partial | 3 |
 | ❌ Uncovered | 2 |
 
