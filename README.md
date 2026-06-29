@@ -176,6 +176,24 @@ Verification helper: `verifyHashChain(entries)` in `src/lib/audit/hash-chain.ts`
 
 Entries written before this feature was introduced carry no hash fields and are treated as **legacy** entries; they do not break verification of newer hashed entries.
 
+#### CLI verifier
+
+An exported JSON audit file can be verified outside the running application:
+
+```bash
+npm run verify:audit -- path/to/export.json
+```
+
+The script reads the JSON export, extracts the entries (handles `scope=mine` and `scope=all` formats), and runs the same `verifyHashChain` logic that the library uses. Exit code:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | All entries verified successfully |
+| `1` | Chain integrity check failed (see stdout for details) |
+| `2` | Usage error or file not readable |
+
+Usage: `tsx scripts/verify-audit-export.ts <file>`
+
 ---
 
 ## 8) 🛠️ Local Setup

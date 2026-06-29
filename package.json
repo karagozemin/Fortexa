@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "demo:scenarios": "tsx scripts/demo-scenarios.ts",
-    "db:migrate": "tsx scripts/run-db-migrations.ts"
+    "db:migrate": "tsx scripts/run-db-migrations.ts",
+    "verify:audit": "tsx scripts/verify-audit-export.ts"
   },
   "keywords": [
     "web3",
