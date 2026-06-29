@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { normalizeHorizonError, HorizonErrorCategory } from '@/lib/utils/horizonErrors';
 
 describe('normalizeHorizonError', () => {
