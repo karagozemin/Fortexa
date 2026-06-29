@@ -237,10 +237,26 @@ npm run dev
 npm run build
 npm run start
 npm run lint
-npm run test
+npm test
 npm run test:watch
 npm run demo:scenarios
 npm run db:migrate
+```
+
+### Running the policy pack regression suite
+
+The investor-facing scenario pack lives in `src/lib/scenarios/seed.ts` and its regression suite in `src/lib/scenarios/scenario-pack.test.ts`.
+
+Run the full scenario pack:
+
+```bash
+npm test -- src/lib/scenarios/scenario-pack.test.ts
+```
+
+Run the standalone demo runner (prints expected vs actual for every seeded scenario):
+
+```bash
+npm run demo:scenarios
 ```
 
 ---
