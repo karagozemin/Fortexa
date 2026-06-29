@@ -127,7 +127,14 @@ beforeEach(async () => {
 
 async function runOperatorFlow(decisionBody: Record<string, unknown>, paymentAmount: string) {
   const decisionRes = await decisionPost(
-    jsonRequest("http://localhost/api/decision", decisionBody)
+    jsonRequest("http://localhost/api/decision", {
+      ...decisionBody,
+      paymentQuoteInput: {
+        destination: destinationKeypair.publicKey(),
+        memo: "e2e-test",
+        network: "testnet",
+      },
+    })
   );
   expect(decisionRes.status).toBe(200);
 
@@ -139,9 +146,12 @@ async function runOperatorFlow(decisionBody: Record<string, unknown>, paymentAmo
 
   const buildRes = await buildPaymentPost(
     jsonRequest("http://localhost/api/stellar/build-payment", {
+      auditEntryId: decisionPayload.auditEntry.id,
       destination: destinationKeypair.publicKey(),
       amountXLM: paymentAmount,
+      asset: "native",
       memo: "e2e-test",
+      network: "testnet",
     })
   );
   expect(buildRes.status).toBe(200);

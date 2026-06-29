@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { NextRequest } from "next/server";
 
-import { formatSubmitError } from "./route";
+import { AUTH_COOKIE_KEY, createSessionToken } from "@/lib/auth/session";
+import { formatSubmitError, POST } from "./route";
 
 function mockHorizonError(txCode: string, opCodes?: string[]) {
   const error = new Error("Request failed with status code 400") as Error & {
@@ -66,5 +68,48 @@ describe("formatSubmitError - Horizon error catalog", () => {
     expect(formatted.opCodes).toEqual(["op_unknown"]);
     expect(formatted.explanation).toBeUndefined();
     expect(formatted.nextStep).toBeUndefined();
+  });
+});
+
+function setupSecret() {
+  process.env.FORTEXA_AUTH_SECRET = "integration-test-secret";
+}
+
+function viewerCookie() {
+  setupSecret();
+  const token = createSessionToken({
+    email: "viewer@fortexa.local",
+    role: "viewer",
+    userId: "submit-viewer-id",
+    expiresInSeconds: 120,
+  });
+
+  return `${AUTH_COOKIE_KEY}=${token}`;
+}
+
+describe("POST /api/stellar/submit-signed authorization", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const request = new NextRequest("http://localhost/api/stellar/submit-signed", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ signedXdr: "AAAA" }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 403 for viewer role (operator-only route)", async () => {
+    const request = new NextRequest("http://localhost/api/stellar/submit-signed", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: viewerCookie(),
+      },
+      body: JSON.stringify({ signedXdr: "AAAA" }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
   });
 });

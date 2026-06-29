@@ -2,17 +2,16 @@ import {
   Asset,
   Horizon,
   Memo,
-  Networks,
   Operation,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 
 import type { StellarPaymentRequest } from "@/lib/types/domain";
-
-const HORIZON_URL = process.env.STELLAR_HORIZON_URL ?? "https://horizon-testnet.stellar.org";
+import { assertStellarNetworkConfig, getStellarHorizonUrl } from "@/lib/stellar/network-config";
 
 export function getHorizonServer() {
-  return new Horizon.Server(HORIZON_URL);
+  const { horizonUrl } = assertStellarNetworkConfig();
+  return new Horizon.Server(horizonUrl);
 }
 
 export async function getNativeBalance(publicKey: string) {
@@ -23,12 +22,13 @@ export async function getNativeBalance(publicKey: string) {
 }
 
 export async function buildUnsignedPaymentTransaction(request: StellarPaymentRequest, sourcePublicKey: string) {
+  const { networkPassphrase } = assertStellarNetworkConfig();
   const server = getHorizonServer();
   const sourceAccount = await server.loadAccount(sourcePublicKey);
 
   const transaction = new TransactionBuilder(sourceAccount, {
     fee: (await server.fetchBaseFee()).toString(),
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase,
   })
     .addOperation(
       Operation.payment({
@@ -43,13 +43,14 @@ export async function buildUnsignedPaymentTransaction(request: StellarPaymentReq
 
   return {
     xdr: transaction.toXDR(),
-    networkPassphrase: Networks.TESTNET,
+    networkPassphrase,
   };
 }
 
 export async function submitSignedTransactionXdr(signedXdr: string) {
+  const { networkPassphrase } = assertStellarNetworkConfig();
   const server = getHorizonServer();
-  const transaction = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+  const transaction = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
   const submitted = await server.submitTransaction(transaction);
 
   return {
@@ -59,3 +60,5 @@ export async function submitSignedTransactionXdr(signedXdr: string) {
     resultXdr: submitted.result_xdr,
   };
 }
+
+export { getStellarHorizonUrl };

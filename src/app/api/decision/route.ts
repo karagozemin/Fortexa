@@ -4,12 +4,23 @@ import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { evaluateDecision } from "@/lib/decision/engine";
 import { jsonWithRequestContext } from "@/lib/observability/http";
-import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
+import {
+  getRequestLogContext,
+  logError,
+  logInfo,
+  logWarn,
+} from "@/lib/observability/logger";
+import { recordDecisionOutcome } from "@/lib/observability/metrics";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
-import { appendAuditEntry, consumeUsage, getDailyUsage } from "@/lib/storage/audit-store";
+import {
+  appendAuditEntry,
+  consumeUsage,
+  getDailyUsage,
+} from "@/lib/storage/audit-store";
 import { getPolicyConfig } from "@/lib/storage/policy-store";
-import type { AgentAction } from "@/lib/types/domain";
+import { buildPaymentQuoteFromDecision } from "@/lib/stellar/verify-payment-quote";
+import type { AuditEntry } from "@/lib/types/domain";
 import { decisionRequestSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: NextRequest) {
@@ -60,14 +71,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = parsedBody.data as {
-      scenarioId?: string;
-      action?: AgentAction;
-      approvedByHuman?: boolean;
-    };
+    const body = parsedBody.data;
 
     const scenarioAction = body.scenarioId
-      ? demoScenarios.find((scenario) => scenario.id === body.scenarioId)?.action
+      ? demoScenarios.find((scenario) => scenario.id === body.scenarioId)
+          ?.action
       : undefined;
 
     const action = body.action ?? scenarioAction;
@@ -92,21 +100,39 @@ export async function POST(request: NextRequest) {
 
     if (decision.decision === "REQUIRE_APPROVAL" && body.approvedByHuman) {
       finalDecision = "APPROVE";
-      explanation = "Manual operator approval granted. Action moved from REQUIRE_APPROVAL to APPROVE.";
+      explanation =
+        "Manual operator approval granted. Action moved from REQUIRE_APPROVAL to APPROVE.";
     }
 
     if (finalDecision === "APPROVE" || finalDecision === "WARN") {
       await consumeUsage(userId, action.amountXLM);
     }
 
-    const auditEntry = {
+    const auditEntry: AuditEntry = {
       id: randomUUID(),
       timestamp: new Date().toISOString(),
       action,
       decision: finalDecision,
       explanation,
-      triggeredPolicies: decision.triggeredPolicies.map((policy) => `${policy.code}: ${policy.message}`),
-      riskFindings: decision.riskFindings.map((finding) => `${finding.code}: ${finding.detail}`),
+      triggeredPolicies: decision.triggeredPolicies.map(
+        (policy) => `${policy.code}: ${policy.message}`,
+      ),
+      riskFindings: decision.riskFindings.map(
+        (finding) => `${finding.code}: ${finding.detail}`,
+      ),
+      ...(finalDecision === "APPROVE" || finalDecision === "WARN"
+        ? body.paymentQuoteInput
+          ? {
+              paymentQuote: buildPaymentQuoteFromDecision({
+                destination: body.paymentQuoteInput.destination,
+                amountXLM: action.amountXLM,
+                memo: body.paymentQuoteInput.memo,
+                actionId: action.id,
+                network: body.paymentQuoteInput.network,
+              }),
+            }
+          : {}
+        : {}),
     };
 
     await appendAuditEntry(userId, auditEntry);
@@ -119,6 +145,8 @@ export async function POST(request: NextRequest) {
       decision: finalDecision,
       riskScore: decision.riskScore,
     });
+
+    recordDecisionOutcome(finalDecision);
 
     return jsonWithRequestContext(request, {
       route: "/api/decision",
@@ -145,7 +173,12 @@ export async function POST(request: NextRequest) {
       route: "/api/decision",
       startedAtMs,
       status: 500,
-      body: { error: error instanceof Error ? error.message : "Unexpected decision failure." },
+      body: {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unexpected decision failure.",
+      },
       headers: rateLimitHeaders(rate),
     });
   }

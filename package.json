@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "demo:scenarios": "tsx scripts/demo-scenarios.ts",
-    "db:migrate": "tsx scripts/run-db-migrations.ts"
+    "db:migrate": "tsx scripts/run-db-migrations.ts",
+    "demo:reset": "tsx scripts/reset-local-demo-state.ts"
   },
   "keywords": [
     "web3",
@@ -52,6 +53,6 @@
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.3"
+    "vitest": "^4.1.9"
   }
 }

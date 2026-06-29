@@ -18,7 +18,12 @@ export type AuditFilter = {
   actionId?: string;
 };
 
-const VALID_DECISIONS: DecisionType[] = ["APPROVE", "WARN", "REQUIRE_APPROVAL", "BLOCK"];
+const VALID_DECISIONS: DecisionType[] = [
+  "APPROVE",
+  "WARN",
+  "REQUIRE_APPROVAL",
+  "BLOCK",
+];
 const VALID_DECISION_SET = new Set<string>(VALID_DECISIONS);
 
 export function validateAuditFilter(filter: AuditFilter): string | null {
@@ -28,13 +33,19 @@ export function validateAuditFilter(filter: AuditFilter): string | null {
   if (filter.to !== undefined && isNaN(Date.parse(filter.to))) {
     return "Invalid 'to' date. Use ISO 8601 format (e.g. 2025-01-01T00:00:00Z).";
   }
-  if (filter.decision !== undefined && !VALID_DECISION_SET.has(filter.decision)) {
+  if (
+    filter.decision !== undefined &&
+    !VALID_DECISION_SET.has(filter.decision)
+  ) {
     return `Invalid decision '${filter.decision}'. Must be one of: ${VALID_DECISIONS.join(", ")}.`;
   }
   return null;
 }
 
-function applyFilter(entries: AuditEntry[], filter?: AuditFilter): AuditEntry[] {
+function applyFilter(
+  entries: AuditEntry[],
+  filter?: AuditFilter,
+): AuditEntry[] {
   if (!filter) return entries;
 
   const { from, to, decision, domain, actionId } = filter;
@@ -43,8 +54,16 @@ function applyFilter(entries: AuditEntry[], filter?: AuditFilter): AuditEntry[] 
     if (from !== undefined && entry.timestamp < from) return false;
     if (to !== undefined && entry.timestamp > to) return false;
     if (decision !== undefined && entry.decision !== decision) return false;
-    if (domain !== undefined && !entry.action.domain.toLowerCase().includes(domain.toLowerCase())) return false;
-    if (actionId !== undefined && !entry.action.id.toLowerCase().includes(actionId.toLowerCase())) return false;
+    if (
+      domain !== undefined &&
+      !entry.action.domain.toLowerCase().includes(domain.toLowerCase())
+    )
+      return false;
+    if (
+      actionId !== undefined &&
+      !entry.action.id.toLowerCase().includes(actionId.toLowerCase())
+    )
+      return false;
     return true;
   });
 }
@@ -80,6 +99,11 @@ async function writeStore(store: AuditStoreFile) {
   await fs.writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
 }
 
+export async function getAuditEntryById(userId: string, entryId: string) {
+  const entries = await listAuditEntries(userId);
+  return entries.find((entry) => entry.id === entryId);
+}
+
 export async function listAuditEntries(userId: string, filter?: AuditFilter) {
   const db = await runWithDatabase("listAuditEntries", async (pool) => {
     const result = await pool.query<{ payload: AuditEntry }>(
@@ -89,10 +113,13 @@ export async function listAuditEntries(userId: string, filter?: AuditFilter) {
         WHERE user_id = $1
         ORDER BY timestamp DESC
       `,
-      [userId]
+      [userId],
     );
 
-    return applyFilter(result.rows.map((row) => row.payload), filter);
+    return applyFilter(
+      result.rows.map((row) => row.payload),
+      filter,
+    );
   });
 
   if (db.available) {
@@ -103,33 +130,36 @@ export async function listAuditEntries(userId: string, filter?: AuditFilter) {
   const entries = store.auditByUser[userId] ?? [];
   return applyFilter(
     [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)),
-    filter
+    filter,
   );
 }
 
 export async function listAllAuditEntriesByUser(filter?: AuditFilter) {
-  const db = await runWithDatabase("listAllAuditEntriesByUser", async (pool) => {
-    const result = await pool.query<{ user_id: string; payload: AuditEntry }>(
-      `
+  const db = await runWithDatabase(
+    "listAllAuditEntriesByUser",
+    async (pool) => {
+      const result = await pool.query<{ user_id: string; payload: AuditEntry }>(
+        `
         SELECT user_id, payload
         FROM fortexa_audit_entries
         ORDER BY timestamp DESC
-      `
-    );
+      `,
+      );
 
-    const grouped: Record<string, AuditEntry[]> = {};
+      const grouped: Record<string, AuditEntry[]> = {};
 
-    for (const row of result.rows) {
-      grouped[row.user_id] ??= [];
-      grouped[row.user_id].push(row.payload);
-    }
+      for (const row of result.rows) {
+        grouped[row.user_id] ??= [];
+        grouped[row.user_id].push(row.payload);
+      }
 
-    for (const userId of Object.keys(grouped)) {
-      grouped[userId] = applyFilter(grouped[userId], filter);
-    }
+      for (const userId of Object.keys(grouped)) {
+        grouped[userId] = applyFilter(grouped[userId], filter);
+      }
 
-    return grouped;
-  });
+      return grouped;
+    },
+  );
 
   if (db.available) {
     return db.value;
@@ -141,7 +171,7 @@ export async function listAllAuditEntriesByUser(filter?: AuditFilter) {
   for (const [userId, entries] of Object.entries(store.auditByUser)) {
     const filtered = applyFilter(
       [...entries].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)),
-      filter
+      filter,
     );
     if (filtered.length > 0) {
       result[userId] = filtered;
@@ -162,7 +192,7 @@ export async function appendAuditEntry(userId: string, entry: AuditEntry) {
         ORDER BY timestamp DESC
         LIMIT 1
       `,
-      [userId]
+      [userId],
     );
 
     const previousHash = prevResult.rows[0]?.entry_hash ?? GENESIS_HASH;
@@ -174,7 +204,13 @@ export async function appendAuditEntry(userId: string, entry: AuditEntry) {
         INSERT INTO fortexa_audit_entries (id, user_id, timestamp, payload, entry_hash)
         VALUES ($1, $2, $3::timestamptz, $4::jsonb, $5)
       `,
-      [enriched.id, userId, enriched.timestamp, JSON.stringify(enriched), enriched.entryHash]
+      [
+        enriched.id,
+        userId,
+        enriched.timestamp,
+        JSON.stringify(enriched),
+        enriched.entryHash,
+      ],
     );
   });
 
@@ -184,7 +220,9 @@ export async function appendAuditEntry(userId: string, entry: AuditEntry) {
 
   const store = await readStore();
   const existing = store.auditByUser[userId] ?? [];
-  const sorted = [...existing].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+  const sorted = [...existing].sort((a, b) =>
+    a.timestamp < b.timestamp ? -1 : 1,
+  );
   const lastHashed = [...sorted].reverse().find((e) => e.entryHash);
   const previousHash = lastHashed?.entryHash ?? GENESIS_HASH;
   const entryHash = computeEntryHash({ ...entry, previousHash });
@@ -207,7 +245,7 @@ export async function getDailyUsage(userId: string) {
         FROM fortexa_usage
         WHERE user_id = $1
       `,
-      [userId]
+      [userId],
     );
 
     const row = result.rows[0];
@@ -249,7 +287,7 @@ export async function consumeUsage(userId: string, amountXLM: number) {
         FROM fortexa_usage
         WHERE user_id = $1
       `,
-      [userId]
+      [userId],
     );
 
     const spentXLM = (current.rows[0]?.spent_xlm ?? 0) + amountXLM;
@@ -266,7 +304,7 @@ export async function consumeUsage(userId: string, amountXLM: number) {
           tool_calls = EXCLUDED.tool_calls,
           last_updated = EXCLUDED.last_updated
       `,
-      [userId, spentXLM, toolCalls, updatedAt]
+      [userId, spentXLM, toolCalls, updatedAt],
     );
   });
 
@@ -275,11 +313,10 @@ export async function consumeUsage(userId: string, amountXLM: number) {
   }
 
   const store = await readStore();
-  const current =
-    store.usageByUser[userId] ?? {
-      ...baselineUsage,
-      lastUpdated: new Date().toISOString(),
-    };
+  const current = store.usageByUser[userId] ?? {
+    ...baselineUsage,
+    lastUpdated: new Date().toISOString(),
+  };
 
   store.usageByUser[userId] = {
     spentXLM: current.spentXLM + amountXLM,
@@ -292,7 +329,9 @@ export async function consumeUsage(userId: string, amountXLM: number) {
 
 export async function resetAuditState(userId: string) {
   const db = await runWithDatabase("resetAuditState", async (pool) => {
-    await pool.query("DELETE FROM fortexa_audit_entries WHERE user_id = $1", [userId]);
+    await pool.query("DELETE FROM fortexa_audit_entries WHERE user_id = $1", [
+      userId,
+    ]);
     await pool.query(
       `
         INSERT INTO fortexa_usage (user_id, spent_xlm, tool_calls, last_updated)
@@ -303,7 +342,7 @@ export async function resetAuditState(userId: string) {
           tool_calls = EXCLUDED.tool_calls,
           last_updated = EXCLUDED.last_updated
       `,
-      [userId, new Date().toISOString()]
+      [userId, new Date().toISOString()],
     );
   });
 
