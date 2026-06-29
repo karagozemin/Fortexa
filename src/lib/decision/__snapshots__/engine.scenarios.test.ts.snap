@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Fortexa decision engine - snapshot > APPROVE - safe research payment (deterministic) 1`] = `"Fortexa approved this action. Policy checks and risk analysis are within trusted operating bounds."`;
+
+exports[`Fortexa decision engine - snapshot > BLOCK - malicious endpoint (blocked domain) 1`] = `"Fortexa blocked this action because policy and security controls indicate a materially unsafe payment/tool operation."`;
+
+exports[`Fortexa decision engine - snapshot > REQUIRE_APPROVAL - over-budget transfer 1`] = `"Fortexa flagged this as high impact. Manual approval is required before economic execution."`;
+
+exports[`Fortexa decision engine - snapshot > WARN - typosquat domain risk 1`] = `"Fortexa allows this action with caution. Risk signals were detected and logged for operator review."`;

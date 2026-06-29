@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { listAllAuditEntriesByUser, listAuditEntries, validateAuditFilter } from "@/lib/storage/audit-store";
+import { sanitizeCsvCell } from "@/utils/csv.utils";
 import type { AuditFilter } from "@/lib/storage/audit-store";
 
 function toCsv(rows: Array<Record<string, string | number | boolean | null>>) {
@@ -16,7 +17,7 @@ function toCsv(rows: Array<Record<string, string | number | boolean | null>>) {
   const lines = [headers.join(",")];
 
   for (const row of rows) {
-    const line = headers.map((header) => escape(String(row[header] ?? ""))).join(",");
+    const line = headers.map((header) => escape(sanitizeCsvCell(row[header] ?? ""))).join(",");
     lines.push(line);
   }
 

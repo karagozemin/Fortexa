@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { generateAgentActionWithGroq } from "@/lib/ai/groq";
+import { PlanError, PLAN_ERROR_MESSAGES } from "@/lib/ai/plan-errors";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { logError, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { agentPlanRequestSchema } from "@/lib/validation/schemas";
 
@@ -52,8 +54,29 @@ export async function POST(request: NextRequest) {
       { headers: rateLimitHeaders(rate) }
     );
   } catch (error) {
+    if (error instanceof PlanError) {
+      logWarn("Agent plan generation failed", {
+        code: error.code,
+        detail: error.message,
+        route: "/api/agent/plan",
+      });
+
+      return NextResponse.json(
+        {
+          error: PLAN_ERROR_MESSAGES[error.code],
+          code: error.code,
+        },
+        { status: 422, headers: rateLimitHeaders(rate) }
+      );
+    }
+
+    logError("Unexpected error in agent plan route", {
+      detail: error instanceof Error ? error.message : "unknown",
+      route: "/api/agent/plan",
+    });
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate agent plan." },
+      { error: "Failed to generate agent plan." },
       { status: 500, headers: rateLimitHeaders(rate) }
     );
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { readJsonBody } from "@/lib/http/read-json-body";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { buildUnsignedPaymentTransaction } from "@/lib/stellar/client";
 import { verifyPaymentAgainstQuote } from "@/lib/stellar/verify-payment-quote";
@@ -32,9 +33,15 @@ export async function POST(request: NextRequest) {
     const userId = auth.session.userId;
     const assignedWallet = await getUserWallet(userId);
 
-    const rawPayload = (await request.json().catch(() => ({}))) as unknown;
-    const parsedPayload =
-      stellarBuildPaymentRequestSchema.safeParse(rawPayload);
+    const bodyResult = await readJsonBody(request);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.error },
+        { status: 413, headers: rateLimitHeaders(rate) },
+      );
+    }
+
+    const parsedPayload = stellarBuildPaymentRequestSchema.safeParse(bodyResult.data);
 
     if (!parsedPayload.success) {
       return NextResponse.json(

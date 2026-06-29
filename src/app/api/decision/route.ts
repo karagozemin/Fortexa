@@ -10,6 +10,7 @@ import {
   logInfo,
   logWarn,
 } from "@/lib/observability/logger";
+import { recordDecisionOutcome } from "@/lib/observability/metrics";
 import { demoScenarios } from "@/lib/scenarios/seed";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import {
@@ -144,6 +145,8 @@ export async function POST(request: NextRequest) {
       decision: finalDecision,
       riskScore: decision.riskScore,
     });
+
+    recordDecisionOutcome(finalDecision);
 
     return jsonWithRequestContext(request, {
       route: "/api/decision",
