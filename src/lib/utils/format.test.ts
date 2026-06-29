@@ -11,7 +11,7 @@ describe("truncateMiddle", () => {
   });
 
   it("truncates when longer than threshold", () => {
-    expect(truncateMiddle("GABCDEF1234567890", 6, 6)).toBe("GABCDE...4567890");
+    expect(truncateMiddle("GABCDEF1234567890", 6, 6)).toBe("GABCDE...567890");
   });
 
   it("preserves prefix and suffix for a normal stellar key", () => {
@@ -27,6 +27,6 @@ describe("truncateMiddle", () => {
   });
 
   it("uses custom left and right values", () => {
-    expect(truncateMiddle("ABCDEFGHIJKLMNOP", 4, 4)).toBe("ABCD...LMNOP");
+    expect(truncateMiddle("ABCDEFGHIJKLMNOP", 4, 4)).toBe("ABCD...MNOP");
   });
 });
