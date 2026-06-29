@@ -11,6 +11,8 @@ It sits between agent intent and economic execution, applies governance/risk che
 
 This document reflects the **current implementation** in this repository.
 
+> **Are you an SCF Reviewer or Investor?** Please see our [Reviewer Evidence Matrix](docs/REVIEWER_EVIDENCE_MATRIX.md) for a fast 15-minute checklist mapping all security and payment claims directly to the codebase.
+
 ---
 
 ## 1) ⚠️ Why This Matters
