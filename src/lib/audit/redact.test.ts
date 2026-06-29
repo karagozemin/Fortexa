@@ -78,4 +78,3 @@ describe("audit export redaction", () => {
     expect(out.weird.authorization).toEqual({ $redacted: "token" });
   });
 });
-
