@@ -4,7 +4,7 @@ export function normalizeDomain(input: string | undefined | null): string | null
   }
 
   let domain = input.trim();
-  
+
   if (!domain) {
     return null;
   }
