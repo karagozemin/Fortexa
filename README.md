@@ -395,3 +395,12 @@ Common Stellar Horizon failures during the signed payment flow:
 ## 19) 📄 License
 
 MIT (see `package.json`).
+
+## 🔒 Session Cookie Security Specifications
+
+Fortexa uses the `fortexa_session` cookie for user authentication state management. To maintain strict transport security across runtime environments, the system evaluates the application environment context to mutate cookie traits automatically:
+
+* **HttpOnly:** Permanently enabled (`true`) across all targets to neutralize Cross-Site Scripting (XSS) payload reads.
+* **SameSite:** Configured to `Lax` to balance seamless client redirection flows with robust protection against Cross-Site Request Forgery (CSRF).
+* **Secure Flag:** * **Development (`NODE_ENV=development`):** Evaluates to `false` to enable debugging without requiring local reverse-proxy SSL setups.
+  * **Production (`NODE_ENV=production`):** Evaluates strictly to `true`. Cookies are omitted by browsers if requests are made over an unencrypted connection (`http://`). Ensure your deployment pipeline has valid TLS acceleration termination layers active.
