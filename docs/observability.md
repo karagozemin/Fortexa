@@ -229,6 +229,27 @@ For operators who don't want to wire up Prometheus, the `/ops` page renders the 
 
 ---
 
+## Reporting API Failures
+
+Every API response includes an `x-request-id` header whose value is a UUID v4. The same identifier appears in structured logs as the `requestId` field.
+
+When reporting a failure, include the `x-request-id` value so operators can correlate the issue with server-side logs. A complete report should contain:
+
+- **`x-request-id`** — the UUID from the response header or `requestId` from the log line
+- **Route and method** — e.g. `POST /api/decision`
+- **HTTP status code** — e.g. `500`, `403`
+- **Timestamp** — the `ts` field from the log line, or the wall-clock time of the failure
+
+Example log line:
+
+```json
+{"ts":"2026-06-29T12:34:56.789Z","level":"error","message":"Horizon submission failed","requestId":"a1b2c3d4-...","route":"/api/stellar/submit-signed","method":"POST","statusCode":502}
+```
+
+If an upstream proxy or load balancer already set an `x-request-id` header on the incoming request, that value is forwarded in both the response and the logs. Otherwise the server generates one automatically.
+
+---
+
 ## Audit Export Verifier
 
 Fortexa stores a tamper-evident hash chain in every audit entry (`entryHash` / `previousHash`).
