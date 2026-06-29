@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 
 import { AUTH_COOKIE_KEY, createSessionToken } from "@/lib/auth/session";
+import { DEFAULT_JSON_BODY_MAX_BYTES } from "@/lib/http/read-json-body";
 import { GET, POST } from "@/app/api/policy/route";
 
 function operatorCookie() {
@@ -16,12 +17,61 @@ function operatorCookie() {
   return `${AUTH_COOKIE_KEY}=${token}`;
 }
 
+function viewerCookie() {
+  process.env.FORTEXA_AUTH_SECRET = "integration-test-secret";
+  const token = createSessionToken({
+    email: "viewer@fortexa.local",
+    role: "viewer",
+    userId: "viewer-user-id",
+    expiresInSeconds: 120,
+  });
+
+  return `${AUTH_COOKIE_KEY}=${token}`;
+}
+
 describe("/api/policy route", () => {
   it("returns 401 when unauthenticated", async () => {
     const request = new NextRequest("http://localhost/api/policy", { method: "GET" });
     const response = await GET(request);
 
     expect(response.status).toBe(401);
+  });
+
+  it("returns 200 for viewer reading policy (read access allowed)", async () => {
+    const request = new NextRequest("http://localhost/api/policy", {
+      method: "GET",
+      headers: { cookie: viewerCookie() },
+    });
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+
+    const payload = (await response.json()) as { policy: unknown };
+    expect(payload.policy).toBeDefined();
+  });
+
+  it("returns 403 for viewer attempting policy update (operator-only)", async () => {
+    const request = new NextRequest("http://localhost/api/policy", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: viewerCookie(),
+      },
+      body: JSON.stringify({
+        allowedDomains: [],
+        blockedDomains: [],
+        allowedTools: [],
+        blockedTools: [],
+        perTxCapXLM: 100,
+        dailyCapXLM: 500,
+        maxToolCallsPerDay: 10,
+        riskThreshold: 70,
+        allowedHours: { start: 0, end: 23 },
+      }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
   });
 
   it("allows operator to update and read policy", async () => {
@@ -63,5 +113,42 @@ describe("/api/policy route", () => {
 
     expect(payload.policy.perTxCapXLM).toBe(150);
     expect(payload.policy.riskThreshold).toBe(80);
+  });
+
+  it("returns 413 for oversized JSON payloads before validation", async () => {
+    const cookie = operatorCookie();
+    const padding = "x".repeat(DEFAULT_JSON_BODY_MAX_BYTES);
+    const updateRequest = new NextRequest("http://localhost/api/policy", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: `{"allowedDomains":["${padding}"]}`,
+    });
+
+    const response = await POST(updateRequest);
+    expect(response.status).toBe(413);
+
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toContain("byte limit");
+  });
+
+  it("returns validation error for malformed small JSON", async () => {
+    const cookie = operatorCookie();
+    const updateRequest = new NextRequest("http://localhost/api/policy", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: "{not-json",
+    });
+
+    const response = await POST(updateRequest);
+    expect(response.status).toBe(400);
+
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toBe("Invalid policy payload.");
   });
 });
