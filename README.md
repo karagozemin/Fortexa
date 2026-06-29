@@ -374,6 +374,31 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
+## 17) 🛡️ Decision Explanation Snapshot Tests
+
+Reviewer-facing explanation text is guarded by snapshot tests to ensure transparency and prevent accidental explanation drift across changes.
+
+**How to update snapshots:**
+```bash
+npm run test -- src/lib/decision/engine.scenarios.test.ts --updateSnapshot
+```
+
+**Files:**
+- `src/lib/decision/engine.scenarios.test.ts` - Snapshot tests for decision explanations
+- `src/lib/decision/engine.test.ts` - Updated summary file referencing the snapshots
+
+**Covered decision types:**
+- **APPROVE** - Safe research payment (human-readable approval message)
+- **BLOCK** - Malicious endpoint blocked by domain policy
+- **WARN** - Typosquat domain risk detected (caution warning)
+- **REQUIRE_APPROVAL** - Over-budget transfer requiring manual approval
+
+These snapshots make policy decision transparency reproducible for reviewers and protect against accidental explanation drift.
+
+---
+
+---
+
 ## 17) ❓ Troubleshooting Payment Failures
 
 Common Stellar Horizon failures during the signed payment flow:
