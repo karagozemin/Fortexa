@@ -362,7 +362,27 @@ Optional overrides:
 
 ---
 
-## 16) 🧪 Known Limitations (Current)
+## 16) 🛡️ Security Headers
+
+Fortexa applies baseline security headers to every response (pages and API routes) via `src/middleware.ts`.
+
+| Header | Value | Rationale |
+|---|---|---|
+| `X-Content-Type-Options` | `nosniff` | Prevents MIME-type sniffing — browsers trust the declared `Content-Type` without guessing. |
+| `X-Frame-Options` | `DENY` | Blocks the app from being embedded in `<frame>`, `<iframe>`, or `<object>` — prevents clickjacking. |
+| `Content-Security-Policy` | `default-src 'self'`; + per-resource directives | Restricts resource loading to the origin. Inlines styles are allowed (required by `next/font` and Tailwind). In **development** `script-src` also allows `'unsafe-inline'` and `'unsafe-eval'` for Next.js hot-reload; in **production** only `'self'` scripts are permitted. `frame-ancestors 'none'` and `form-action 'self'` provide additional clickjacking and form-redirect protection. `base-uri 'self'` prevents injected `<base>` tag attacks. |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Disables unused browser capabilities to reduce the attack surface. |
+
+### Development vs. Production
+
+- In `NODE_ENV=development` the CSP `script-src` includes `'unsafe-inline'` and `'unsafe-eval'` because the Next.js dev server injects inline scripts for hot-module reload. The production build strips these, relying on Next.js's hashed/external script strategy.
+- All other directives are identical across environments.
+
+These headers are applied by Next.js Middleware (`src/middleware.ts`), which runs on every request matching `/((?!_next/static|_next/image|favicon.ico|icon.jpg).*)`. The helper function `buildSecurityHeaders()` in `src/lib/security/headers.ts` constructs the header map and is unit-tested independently.
+
+---
+
+## 17) 🧪 Known Limitations (Current)
 
 1. Shared security state supports Redis distributed locking, but defaults to file-based for local development.
 2. Risk scoring remains heuristic-heavy (no external threat-intel integration).
@@ -374,7 +394,7 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
-## 17) ❓ Troubleshooting Payment Failures
+## 18) ❓ Troubleshooting Payment Failures
 
 Common Stellar Horizon failures during the signed payment flow:
 
@@ -385,13 +405,13 @@ Common Stellar Horizon failures during the signed payment flow:
 
 ---
 
-## 18) 🛣️ Practical Next Steps
+## 19) 🛣️ Practical Next Steps
 
 - Add stronger risk intelligence + anomaly detection.
 - Expand end-to-end payment verification and automated lifecycle tests.
 
 ---
 
-## 19) 📄 License
+## 20) 📄 License
 
 MIT (see `package.json`).
