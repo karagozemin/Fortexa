@@ -262,6 +262,35 @@ To clean up local developer state safely, you can use the local demo reset utili
 
 ## 9) 🌍 Environment Variables
 
+Fortexa reads its runtime configuration from environment variables. Use the table below as a quick reference when setting up locally; the code block after it is the actual `.env.example` you copy into `.env.local`.
+
+| Variable | Purpose | Required? | Safe local default |
+| --- | --- | --- | --- |
+| `FORTEXA_AUTH_SECRET` | HMAC key used to sign the `fortexa_session` cookie and verify wallet-login challenges. Without it, login cannot succeed. | **Required** | _none — generate your own, e.g._ `openssl rand -hex 32` |
+| `STELLAR_HORIZON_URL` | Stellar Horizon endpoint used for balance, fee, and submit calls. | Optional | `https://horizon-testnet.stellar.org` |
+| `STELLAR_NETWORK_PASSPHRASE` | Network passphrase Horizon URLs resolve against (must agree with `STELLAR_HORIZON_URL`). | Optional | _unset — falls back to `Networks.TESTNET` from `@stellar/stellar-sdk`_ |
+| `DATABASE_URL` | Postgres connection string for the DB-backed stores (audit, policy, wallets, idempotency). | Optional | _unset — falls back to the file store at `FORTEXA_STORE_DIR`_ |
+| `DATABASE_SSL` | Enables TLS when connecting to Postgres. | Optional | `false` |
+| `FORTEXA_STORE_DIR` | Directory used by the file-store fallback for all persistence. | Optional | `./.fortexa` locally · `/tmp/fortexa` on Vercel |
+| `FORTEXA_SHARED_STATE_PATH` | File path for shared lockout/rate-limit state (must be writable on multi-instance deployments). | Optional | `FORTEXA_STORE_DIR/shared-security-state.json` locally · `/tmp/fortexa/...` on Vercel |
+| `REDIS_URL` | Redis URL for distributed lockout/rate-limit across instances. | Optional | _unset — file-based state is used_ |
+| `GROQ_API_KEY` | API key for Groq (used by `POST /api/agent/plan`). | Optional¹ | _unset — every flow except agent plan works without it_ |
+| `GROQ_MODEL` | Groq model identifier used by agent plan. | Optional | `llama-3.3-70b-versatile` |
+| `FORTEXA_OPERATOR_WALLETS` | Comma-separated public keys (`G…`) granted the `operator` role. | Optional | _unset — when both allowlists are empty, every authenticated wallet is treated as `operator` (recommended only for local/dev)_ |
+| `FORTEXA_VIEWER_WALLETS` | Comma-separated public keys (`G…`) granted the `viewer` role. | Optional | _unset (no viewer)_ |
+| `FORTEXA_AUTH_CHALLENGE_TTL_SECONDS` | Lifetime of wallet-login challenges. | Optional | `300` |
+| `FORTEXA_AUTH_MAX_ATTEMPTS` | Failed login attempts before lockout. | Optional | `5` |
+| `FORTEXA_AUTH_LOCK_MINUTES` | Lockout window in minutes. | Optional | `10` |
+| `FORTEXA_JSON_BODY_MAX_BYTES` | Maximum request body size for JSON `POST` routes (returns `413` above this). | Optional | `65536` (64 KiB) |
+| `FORTEXA_IDEMPOTENCY_RETENTION_DAYS` | Retention window in days for submit-idempotency records. | Optional | `7` |
+| `FORTEXA_BLOCKLIST_URL` | External dynamic threat-intel blocklist URL (JSON array or `#`-commented text; 5-min in-memory cache). | Optional | _unset — analyzer uses the built-in blocklist only_ |
+| `FORTEXA_ALLOW_LOCAL_RESET` | Must be set to `true` (together with `npm run demo:reset -- --yes`) to wipe local demo state. Acts as a safety gate. | Optional (gate) | _unset — `demo:reset` runs as a dry-run only_ |
+| `NEXT_PUBLIC_STELLAR_DESTINATION` | Default destination prefill shown in `/console` for the demo payment quote. | Optional | _empty_ |
+
+¹ `GROQ_API_KEY` is only required if you call `POST /api/agent/plan`; the decision, policy, audit, and payment flows run without it.
+
+> **Security:** never commit real secrets. Keep dev values in `.env.local` (gitignored), leave placeholders in `.env.example`, and use your deployment platform's secret manager for production values.
+
 Reference (`.env.example`):
 
 ```bash
