@@ -387,7 +387,14 @@ export function PolicyEditor() {
             return (
               <div key={entry.version} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] p-2 text-sm">
                 <div>
-                  <p className="font-medium">v{entry.version}</p>
+                  <p className="font-medium flex items-center gap-2">
+                    <span>v{entry.version}</span>
+                    {version === entry.version && (
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs font-semibold text-emerald-400">
+                        Active
+                      </span>
+                    )}
+                  </p>
                   <p className="text-[hsl(var(--muted-foreground))]">
                     {entry.updatedAt}
                     {entry.updatedBy ? ` • ${entry.updatedBy}` : ""}
@@ -415,6 +422,13 @@ export function PolicyEditor() {
                     size="sm"
                     disabled={writeDisabled || version === entry.version}
                     onClick={() => rollback(entry.version)}
+                    title={
+                      writeDisabled
+                        ? "Viewer mode is read-only"
+                        : version === entry.version
+                          ? "Cannot rollback to the current active version"
+                          : "Rollback to this version"
+                    }
                   >
                     Rollback
                   </Button>
@@ -422,6 +436,13 @@ export function PolicyEditor() {
               </div>
             );
           })}
+
+          {history.length > 0 && !history.some((entry) => entry.version !== version) ? (
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
+              Rollback is unavailable because no prior policy versions exist.
+            </p>
+          ) : null}
+
 
           {diffA !== null && diffB !== null && diffA !== diffB ? (
             <PolicyDiff
