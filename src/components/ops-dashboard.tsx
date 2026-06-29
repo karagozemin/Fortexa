@@ -78,6 +78,7 @@ export function OpsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +148,7 @@ export function OpsDashboard() {
           return next.slice(-15);
         });
         setError(null);
+        setLastRefreshed(new Date().toISOString());
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Ops data fetch failed.");
@@ -198,7 +200,14 @@ export function OpsDashboard() {
               {health?.ok ? "Healthy" : loading ? "Loading" : "Unknown"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">{health?.timestamp ?? "-"}</CardContent>
+          <CardContent className="space-y-1 text-sm text-[hsl(var(--muted-foreground))]">
+            <p>{health?.timestamp ?? "-"}</p>
+            {lastRefreshed ? (
+              <p className="text-xs text-[hsl(var(--muted-foreground))] opacity-70" id="ops-last-refreshed" data-testid="last-refreshed">
+                Last refreshed: {formatShortTime(lastRefreshed)}
+              </p>
+            ) : null}
+          </CardContent>
         </Card>
 
         <Card>
