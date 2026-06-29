@@ -31,7 +31,7 @@ describe("GET /api/health", () => {
   it("returns healthy states when dependencies are configured and reachable", async () => {
     process.env.GROQ_API_KEY = "test-key";
     process.env.STELLAR_HORIZON_URL = "https://horizon.example.com";
-    
+
     mockRunWithDatabase.mockResolvedValue({ available: true });
     mockRoot.mockResolvedValue({});
     mockGetBlocklistHealth.mockReturnValue({

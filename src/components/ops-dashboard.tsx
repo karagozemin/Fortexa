@@ -79,7 +79,7 @@ function formatShortTime(iso: string) {
 function DependencyBadge({ name, status }: { name: string; status: string }) {
   const isHealthy = status === "healthy";
   const isDegraded = status === "degraded";
-  
+
   const colorClass = isHealthy
     ? "bg-emerald-900/30 text-emerald-300 border-emerald-800"
     : isDegraded
