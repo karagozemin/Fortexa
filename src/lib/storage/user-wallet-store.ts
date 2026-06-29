@@ -135,12 +135,10 @@ export async function getUserWallet(userId: string): Promise<UserWallet | { expi
   if (!wallet || typeof wallet !== "object" || !("source" in wallet) || !("publicKey" in wallet)) {
     return null;
   }
-  
   const userWallet = wallet as UserWallet;
   if (userWallet.expiresAt && new Date(userWallet.expiresAt).getTime() < Date.now()) {
     return { expired: true as const };
   }
-  
   return userWallet;
 }
 
@@ -167,7 +165,6 @@ export async function upsertUserWallet(
     const createdAt = existing.rows[0]?.created_at
       ? new Date(existing.rows[0].created_at).toISOString()
       : nowIso;
-      
     // Default expiration to 24 hours from now if not provided
     const expiresAt = payload.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
