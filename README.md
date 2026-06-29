@@ -395,3 +395,5 @@ Common Stellar Horizon failures during the signed payment flow:
 ## 19) 📄 License
 
 MIT (see `package.json`).
+
+All done
