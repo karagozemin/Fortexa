@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -74,6 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = pathname === "/" || pathname === "/login";
   const { wallet, role, loading } = useAuthSession();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (isPublicRoute) {
@@ -86,8 +87,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isPublicRoute]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   if (isPublicRoute) {
@@ -149,9 +155,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ) : null}
             </div>
           ) : null}
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={logout}>
-            <LogOut aria-hidden="true" className="h-4 w-4" />
-            Sign out
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" disabled={loggingOut} onClick={logout}>
+            {loggingOut ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+            )}
+            {loggingOut ? "Signing out…" : "Sign out"}
           </Button>
         </div>
       </aside>
