@@ -1,0 +1,9 @@
+{
+  "_fixtureNote": "Legacy policy shape missing riskThreshold, allowedHours, and blockedTools. normalizePolicy must fill safe defaults for all absent fields.",
+  "allowedDomains": ["api.safe-research.ai"],
+  "blockedDomains": ["wallet-drainer.evil"],
+  "allowedTools": ["research-pro"],
+  "perTxCapXLM": 50,
+  "dailyCapXLM": 200,
+  "maxToolCallsPerDay": 5
+}

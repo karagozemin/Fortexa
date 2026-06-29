@@ -1,0 +1,7 @@
+{
+  "_fixtureNote": "Partial legacy policy with only numeric caps stored. All array fields (allowedDomains, blockedDomains, allowedTools, blockedTools) are absent. normalizePolicy must restore them from defaults without widening permissions.",
+  "perTxCapXLM": 75,
+  "dailyCapXLM": 150,
+  "maxToolCallsPerDay": 4,
+  "riskThreshold": 60
+}

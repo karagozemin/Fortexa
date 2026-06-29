@@ -1,0 +1,3 @@
+{
+  "_fixtureNote": "Completely empty stored policy — worst-case missing data. normalizePolicy must return a full valid PolicyConfig using defaultPolicyConfig for every field."
+}
