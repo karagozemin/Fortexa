@@ -225,3 +225,49 @@ For operators who don't want to wire up Prometheus, the `/ops` page renders the 
 - **Per-instance.** If Fortexa is horizontally scaled, each replica exposes its own counters. Aggregate with `sum by (route)` in PromQL.
 - **No histogram.** p95 is a gauge derived from a 500-sample ring buffer, not a true Prometheus histogram. Don't use it for cross-instance percentile aggregation.
 - **Local vs deployed auth.** Locally, no allowlist means any pubkey works. In production, set `FORTEXA_OPERATOR_WALLETS` to restrict.
+
+
+---
+
+## Audit Export Verifier
+
+Fortexa stores a tamper-evident hash chain in every audit entry (`entryHash` / `previousHash`).
+The verifier CLI lets you confirm integrity of an exported audit file **without** a database,
+wallet session, or running Next.js server.
+
+### Usage
+
+    npx tsx scripts/verify-audit-export.ts <path-to-export.json>
+
+Or via the package script:
+
+    npm run verify:audit -- <path-to-export.json>
+
+### Export formats supported
+
+| Format | Example shape |
+|--------|--------------|
+| Plain array | [{"id": "...", "entryHash": "...", ...}] |
+| scope=mine | {"scope": "mine", "entries": [...]} |
+| scope=all | {"scope": "all", "entriesByUser": {"userId": [...]}} |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Chain valid |
+| 1 | Chain invalid (tampered, deleted, or reordered entries) |
+| 2 | File not found, unreadable, or unrecognized format |
+
+### Test fixtures
+
+Reference fixtures live in scripts/fixtures/:
+
+| File | Purpose |
+|------|---------|
+| valid-chain.json | 3-entry valid chain (plain array) |
+| valid-mine-export.json | 2-entry valid chain (scope=mine) |
+| valid-all-export.json | Valid multi-user export (scope=all) |
+| tampered-field.json | Entry with modified explanation (tamper detection) |
+| deleted-entry.json | Middle entry removed (gap detection) |
+| reordered-entries.json | Timestamps swapped to disguise reordering |
