@@ -11,6 +11,8 @@ It sits between agent intent and economic execution, applies governance/risk che
 
 This document reflects the **current implementation** in this repository.
 
+See [docs/SCF_TRANCHE_PLAN.md](docs/SCF_TRANCHE_PLAN.md) for the Stellar Community Fund (SCF) funding tranches and roadmap alignment.
+
 ---
 
 ## 1) ⚠️ Why This Matters
