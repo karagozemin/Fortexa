@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import express, { Request, Response } from 'express';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
