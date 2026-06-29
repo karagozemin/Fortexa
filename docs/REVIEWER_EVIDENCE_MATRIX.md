@@ -1,0 +1,37 @@
+# Reviewer Evidence Matrix
+
+This document maps Fortexa's core security and payment claims directly to the codebase, tests, and API routes. It is designed to allow an SCF or investor reviewer to verify all claims in under 15 minutes.
+
+## 15-Minute Reviewer Checklist
+
+- [ ] **Wallet-bound login**: Verify in `src/lib/auth/wallet-challenge.ts` and `src/lib/auth/freighter.ts`.
+- [ ] **Role-based access control**: Verify `requireAuth` usage in `src/app/api/stellar/submit-signed/route.ts` and `src/lib/auth/require-auth.ts`.
+- [ ] **Policy decision outcomes**: Verify logic in `src/lib/policy/engine.ts` and `src/lib/decision/engine.ts`.
+- [ ] **Human approval gate**: Verify UI block in `src/components/decision-console.tsx` and logic in `src/lib/decision/simulate.ts`.
+- [ ] **Signed-XDR only payment path**: Verify API only accepts signed XDR in `src/app/api/stellar/submit-signed/route.ts` and client builds unsigned in `src/lib/stellar/client.ts`.
+- [ ] **Audit hash-chain integrity**: Verify hashing mechanism in `src/lib/audit/hash-chain.ts`.
+- [ ] **Metrics and ops visibility**: Verify structured logging and metrics in `src/lib/observability/metrics.ts` and `src/lib/observability/logger.ts`.
+- [ ] **Idempotent submit behavior**: Verify deduplication logic via `xdrHash` in `src/app/api/stellar/submit-signed/route.ts`.
+- [ ] **No server-side private-key custody**: Verify absence of backend signing (`Keypair.fromSecret()`) in `src/lib/stellar/client.ts`.
+
+## Detailed Evidence Mapping
+
+| Claim | Source File(s) / API Routes | Tests / Documentation |
+| :--- | :--- | :--- |
+| **Wallet-bound login** | [`src/lib/auth/wallet-challenge.ts`](../src/lib/auth/wallet-challenge.ts)<br>[`src/lib/auth/freighter.ts`](../src/lib/auth/freighter.ts) | `src/lib/auth/freighter.test.ts`<br>`src/lib/auth/wallet-challenge.test.ts` |
+| **Role-based access control** | [`src/lib/auth/require-auth.ts`](../src/lib/auth/require-auth.ts)<br>[`src/lib/auth/wallet-role.ts`](../src/lib/auth/wallet-role.ts) | `src/lib/auth/login-lockout.test.ts` |
+| **Policy decision outcomes** | [`src/lib/policy/engine.ts`](../src/lib/policy/engine.ts)<br>[`src/lib/decision/engine.ts`](../src/lib/decision/engine.ts) | `src/lib/policy/engine.test.ts`<br>`src/lib/decision/engine.test.ts` |
+| **Human approval gate** | [`src/components/decision-console.tsx`](../src/components/decision-console.tsx)<br>[`src/lib/decision/simulate.ts`](../src/lib/decision/simulate.ts) | `src/lib/decision/simulate.test.ts` |
+| **Signed-XDR only payment path** | [`src/app/api/stellar/submit-signed/route.ts`](../src/app/api/stellar/submit-signed/route.ts)<br>[`src/lib/stellar/client.ts`](../src/lib/stellar/client.ts) | `src/lib/stellar/verify-payment-quote.test.ts` |
+| **Audit hash-chain integrity** | [`src/lib/audit/hash-chain.ts`](../src/lib/audit/hash-chain.ts) | `src/lib/audit/hash-chain.test.ts` |
+| **Metrics and ops visibility** | [`src/lib/observability/metrics.ts`](../src/lib/observability/metrics.ts)<br>[`src/lib/observability/logger.ts`](../src/lib/observability/logger.ts) | `src/lib/observability/metrics.test.ts` |
+| **Idempotent submit behavior** | [`src/app/api/stellar/submit-signed/route.ts`](../src/app/api/stellar/submit-signed/route.ts) | |
+| **No server-side private-key custody** | [`src/lib/stellar/client.ts`](../src/lib/stellar/client.ts) | |
+
+## Honest Limitations
+
+To maintain transparency for SCF reviewers and investors, we note the following current architectural constraints:
+
+1. **Audit Hash-Chain Storage**: The hash-chain is currently persisted in a standard database (Postgres) rather than being anchored to a decentralized public ledger or immutable storage network.
+2. **Idempotency State**: Idempotency keys rely on local storage/Redis, which may be volatile depending on the infrastructure configuration.
+3. **Hardware Wallet Integration**: The current wallet-bound login relies on browser extension wallets (like Freighter) and does not yet have direct native integrations with hardware signing devices.
