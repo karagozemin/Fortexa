@@ -112,7 +112,7 @@ export async function getUserWallet(userId: string): Promise<UserWallet | { expi
     }
 
     if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
-      return { expired: true };
+      return { expired: true as const };
     }
 
     return {
@@ -138,7 +138,7 @@ export async function getUserWallet(userId: string): Promise<UserWallet | { expi
   
   const userWallet = wallet as UserWallet;
   if (userWallet.expiresAt && new Date(userWallet.expiresAt).getTime() < Date.now()) {
-    return { expired: true };
+    return { expired: true as const };
   }
   
   return userWallet;

@@ -76,6 +76,19 @@ export interface Scenario {
   expectedDecision: DecisionType;
 }
 
+export type StellarNetworkId = "testnet";
+
+export type StellarAssetId = "native";
+
+/** Immutable payment parameters authorized by an APPROVE/WARN decision. */
+export interface PaymentQuote {
+  destination: string;
+  amountXLM: string;
+  asset: StellarAssetId;
+  memo: string;
+  network: StellarNetworkId;
+}
+
 export interface AuditEntry {
   id: string;
   timestamp: string;
@@ -84,6 +97,8 @@ export interface AuditEntry {
   explanation: string;
   triggeredPolicies: string[];
   riskFindings: string[];
+  /** Set when the decision authorizes a Stellar payment execution. */
+  paymentQuote?: PaymentQuote;
   stellarTxHash?: string;
   /** SHA-256 digest of this entry's canonical fields + previousHash. */
   entryHash?: string;

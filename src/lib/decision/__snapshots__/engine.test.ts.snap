@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Fortexa decision engine > snapshot - approver decision explanation (should not change without manual update) 1`] = `"Fortexa approved this action. Policy checks and risk analysis are within trusted operating bounds."`;
