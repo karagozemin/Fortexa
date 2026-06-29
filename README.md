@@ -11,6 +11,8 @@ It sits between agent intent and economic execution, applies governance/risk che
 
 This document reflects the **current implementation** in this repository.
 
+See [docs/SCF_TRANCHE_PLAN.md](docs/SCF_TRANCHE_PLAN.md) for the Stellar Community Fund (SCF) funding tranches and roadmap alignment.
+
 ---
 
 ## 1) ⚠️ Why This Matters
@@ -38,6 +40,24 @@ If you only read one section, read this:
 3. Receive decision: **`BLOCK` / `REQUIRE_APPROVAL` / `WARN` / `APPROVE`**.
 4. For allowed flows, **build unsigned XDR → sign in wallet → submit signed XDR**.
 5. Verify outcome with **Explorer link** and inspect evidence in `/activity` and `/ops`.
+
+### ✅ Reviewer Checklist: Wallet-Bound Payment Flow
+
+The core security premise of Fortexa is that it **does not hold private keys or perform server-side signing.**
+This end-to-end flow validates that design:
+
+| Step | UI / Route | Source / Logic | Expected Signal |
+|---|---|---|---|
+| **1. Login** | `/login` | [`POST /api/auth/login`](src/app/api/auth/login/route.ts) <br> [`src/components/login-form.tsx`](src/components/login-form.tsx) | **Success**: Freighter challenge signed, session issued.<br>**Failure**: Signature mismatch, unauthorized wallet. |
+| **2. Decision** | `/console` | [`POST /api/decision`](src/app/api/decision/route.ts) <br> [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Returns `APPROVE` or `WARN` with a fixed payment quote.<br>**Failure**: Returns `BLOCK` (no quote). |
+| **3. Quote Lock** | `/console` | [`POST /api/stellar/build-payment`](src/app/api/stellar/build-payment/route.ts) | **Success**: Build request perfectly matches the approved audit entry quote.<br>**Failure**: Server rejects tampered destination, amount, or memo with `403`. |
+| **4. Unsigned XDR Build** | `/console` | [`POST /api/stellar/build-payment`](src/app/api/stellar/build-payment/route.ts) | **Success**: Server returns valid unsigned XDR envelope.<br>**Failure**: Network timeout, missing parameters. |
+| **5. Wallet Signing** | `/console` | `signTransaction` inside <br> [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Freighter popup appears, user signs, UI holds signed XDR.<br>**Failure**: User rejects in wallet. |
+| **6. Signed Submit** | `/console` | [`POST /api/stellar/submit-signed`](src/app/api/stellar/submit-signed/route.ts) | **Success**: Broadcasts successfully to Stellar Testnet (200 OK).<br>**Failure**: Horizon error (`tx_bad_seq`, `op_underfunded`). |
+| **7. Explorer Link** | `/console` | [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Clickable link to Stellar Expert confirming hash matches. |
+| **8. Audit Evidence** | `/activity`<br>`/ops` | [`GET /api/audit`](src/app/api/audit/route.ts) <br> [`src/app/activity/page.tsx`](src/app/activity/page.tsx) | **Success**: Immutable record of the original decision and execution hash. |
+
+*(Note: Fortexa is currently built for testnet validation. Mainnet readiness requires further risk intel integrations.)*
 
 ---
 
@@ -212,6 +232,28 @@ npm run dev
 
 Open: `http://localhost:3000`
 
+### Resetting Local Demo State
+
+To clean up local developer state safely, you can use the local demo reset utility. This script is strictly for local environments and implements guardrails to prevent accidental cleanup of production/non-local databases.
+
+#### Guardrails
+- **Local Database Check**: Inspects `DATABASE_URL` and blocks execution if the hostname is not local (`localhost`, `127.0.0.1`, `::1`, or local UNIX sockets).
+- **Explicit Confirmation**: Rejects execution unless **both** the environment variable `FORTEXA_ALLOW_LOCAL_RESET=true` and CLI flag `--yes` are provided.
+
+#### Usage
+
+* **Dry-Run (Default)**: Inspect what files and databases would be cleared without modifying any data.
+  ```bash
+  npm run demo:reset
+  ```
+  *(or `npx tsx scripts/reset-local-demo-state.ts`)*
+
+* **Apply Reset**: Execute the state reset once all guardrails are met.
+  ```bash
+  FORTEXA_ALLOW_LOCAL_RESET=true npm run demo:reset -- --yes
+  ```
+  *(or `FORTEXA_ALLOW_LOCAL_RESET=true npx tsx scripts/reset-local-demo-state.ts --yes`)*
+
 ---
 
 ## 9) 🌍 Environment Variables
@@ -220,6 +262,8 @@ Reference (`.env.example`):
 
 ```bash
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+# Optional; defaults to testnet passphrase. Must agree with STELLAR_HORIZON_URL.
+STELLAR_NETWORK_PASSPHRASE=
 
 DATABASE_URL=
 DATABASE_SSL=false
@@ -237,6 +281,7 @@ FORTEXA_OPERATOR_WALLETS=
 FORTEXA_VIEWER_WALLETS=
 FORTEXA_AUTH_MAX_ATTEMPTS=5
 FORTEXA_AUTH_LOCK_MINUTES=10
+FORTEXA_JSON_BODY_MAX_BYTES=65536
 
 NEXT_PUBLIC_STELLAR_DESTINATION=
 
@@ -264,6 +309,8 @@ npm run db:migrate
 ---
 
 ## 11) 🔌 API Surface (Reference)
+
+JSON `POST` routes that accept request bodies enforce a shared size limit before parsing (default **64 KiB**, override with `FORTEXA_JSON_BODY_MAX_BYTES`). Oversized payloads receive HTTP **413** with a clear error message; malformed but small JSON still returns the route's normal validation error.
 
 ### Auth
 - `POST /api/auth/challenge`
@@ -389,6 +436,31 @@ Optional overrides:
 5. Full end-to-end automated coverage for the complete decision-to-payment lifecycle is still limited.
 
 Fortexa is intentionally optimized for hackathon clarity and wallet-native control, not full production deployment.
+
+---
+
+## 17) 🛡️ Decision Explanation Snapshot Tests
+
+Reviewer-facing explanation text is guarded by snapshot tests to ensure transparency and prevent accidental explanation drift across changes.
+
+**How to update snapshots:**
+```bash
+npm run test -- src/lib/decision/engine.scenarios.test.ts --updateSnapshot
+```
+
+**Files:**
+- `src/lib/decision/engine.scenarios.test.ts` - Snapshot tests for decision explanations
+- `src/lib/decision/engine.test.ts` - Updated summary file referencing the snapshots
+
+**Covered decision types:**
+- **APPROVE** - Safe research payment (human-readable approval message)
+- **BLOCK** - Malicious endpoint blocked by domain policy
+- **WARN** - Typosquat domain risk detected (caution warning)
+- **REQUIRE_APPROVAL** - Over-budget transfer requiring manual approval
+
+These snapshots make policy decision transparency reproducible for reviewers and protect against accidental explanation drift.
+
+---
 
 ---
 

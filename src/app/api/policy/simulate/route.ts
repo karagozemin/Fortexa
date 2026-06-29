@@ -10,6 +10,7 @@ import {
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
+import { readJsonBody } from "@/lib/http/read-json-body";
 import { getDailyUsage, listAuditEntries } from "@/lib/storage/audit-store";
 import { getPolicyConfig } from "@/lib/storage/policy-store";
 import { policySimulateRequestSchema } from "@/lib/validation/schemas";
@@ -44,8 +45,19 @@ export async function POST(request: NextRequest) {
   try {
     const userId = auth.session.userId;
 
-    const rawBody = (await request.json().catch(() => ({}))) as unknown;
-    const parsed = policySimulateRequestSchema.safeParse(rawBody);
+    const bodyResult = await readJsonBody(request);
+    if (!bodyResult.ok) {
+      logWarn("Policy simulate payload too large", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/policy/simulate",
+        startedAtMs,
+        status: 413,
+        body: { error: bodyResult.error },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    const parsed = policySimulateRequestSchema.safeParse(bodyResult.data);
 
     if (!parsed.success) {
       logWarn("Policy simulate validation failed", { ...context, userId });
