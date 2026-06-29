@@ -80,8 +80,15 @@ export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
           <p className="text-xs text-[hsl(var(--muted-foreground))]">Balance</p>
           <p className="text-lg font-semibold">{data?.balance ?? "—"} <span className="text-sm font-normal text-[hsl(var(--muted-foreground))]">XLM</span></p>
         </div>
-        <Button variant="ghost" size="sm" onClick={loadWallet} disabled={loading} className="shrink-0">
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={loadWallet}
+          disabled={loading}
+          aria-label={loading ? "Refreshing wallet…" : "Refresh wallet balance"}
+          className="shrink-0"
+        >
+          <RefreshCw aria-hidden="true" className={cn("h-4 w-4", loading && "animate-spin")} />
         </Button>
       </div>
     );
@@ -95,7 +102,7 @@ export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
           <p className="text-lg font-semibold">Agent wallet</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadWallet} disabled={loading}>
-          <RefreshCw className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")} />
+          <RefreshCw aria-hidden="true" className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")} />
           Refresh
         </Button>
       </div>
