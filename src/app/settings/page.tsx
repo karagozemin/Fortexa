@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 
 import { ActivityTimeline } from "@/components/activity-timeline";
-import { EnvSelfCheckPanel } from "@/components/env-self-check-panel";
 import { OpsDashboard } from "@/components/ops-dashboard";
 import { PolicyEditor } from "@/components/policy-editor";
 import { ScenariosCatalog } from "@/components/scenarios-catalog";
@@ -15,7 +14,6 @@ const tabs: TabItem[] = [
   { id: "wallet", label: "Wallet", href: "/settings?tab=wallet" },
   { id: "scenarios", label: "Scenarios", href: "/settings?tab=scenarios" },
   { id: "ops", label: "Ops", href: "/settings?tab=ops" },
-  { id: "self-check", label: "Self-Check", href: "/settings?tab=self-check" },
   { id: "activity", label: "Activity", href: "/settings?tab=activity" },
 ];
 
@@ -41,7 +39,6 @@ export default async function SettingsPage({
       {activeTab === "wallet" ? <WalletStatusCard /> : null}
       {activeTab === "scenarios" ? <ScenariosCatalog /> : null}
       {activeTab === "ops" ? <OpsDashboard /> : null}
-      {activeTab === "self-check" ? <EnvSelfCheckPanel /> : null}
       {activeTab === "activity" ? <ActivityTimeline entries={entries} /> : null}
     </div>
   );
