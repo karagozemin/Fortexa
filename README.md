@@ -166,6 +166,7 @@ The policy decision authorizes a fixed payment quote (destination, amount, asset
 |---|---|---|
 | Missing/invalid body (`auditEntryId`, schema) | `400` | `Invalid payment build request.` + zod details |
 | Unknown audit entry or non-executable decision | `403` | `No authorized payment decision found…` / `Decision 'BLOCK' does not authorize…` |
+| Quote older than `FORTEXA_PAYMENT_QUOTE_TTL_SECONDS` (default 300 s) | `403` | `Payment quote has expired. Please re-evaluate the action.` |
 | Tampered destination, amount, asset, or memo | `403` | `{ error, field }` naming the mismatched field |
 | Valid approved request | `200` | `{ ok: true, xdr, networkPassphrase, … }` |
 
@@ -334,7 +335,7 @@ The file covers every variable used by the app, organized into:
 
 | Category | Variables |
 |---|---|
-| **Stellar Network** | `STELLAR_HORIZON_URL`, `STELLAR_NETWORK_PASSPHRASE`, `NEXT_PUBLIC_STELLAR_DESTINATION` |
+| **Stellar Network** | `STELLAR_HORIZON_URL`, `STELLAR_NETWORK_PASSPHRASE`, `NEXT_PUBLIC_STELLAR_DESTINATION`, `FORTEXA_PAYMENT_QUOTE_TTL_SECONDS` |
 | **Auth** | `FORTEXA_AUTH_SECRET`, `FORTEXA_OPERATOR_WALLETS`, `FORTEXA_VIEWER_WALLETS`, `FORTEXA_AUTH_CHALLENGE_TTL_SECONDS`, `FORTEXA_AUTH_MAX_ATTEMPTS`, `FORTEXA_AUTH_LOCK_MINUTES` |
 | **Storage** | `DATABASE_URL`, `DATABASE_SSL`, `FORTEXA_STORE_DIR` |
 | **Shared State** | `FORTEXA_SHARED_STATE_PATH`, `REDIS_URL` |
