@@ -252,7 +252,7 @@ export function PolicyEditor() {
       setStatus("Viewer role is read-only. Login as operator to import policy.");
       return;
     }
-  
+
     setLoading(true);
     try {
       const response = await fetch("/api/policy", {
@@ -260,14 +260,14 @@ export function PolicyEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(importedPolicy),
       });
-  
+
       const payload = (await response.json()) as PolicyResponse;
-  
+
       if (!response.ok || payload.error || !payload.policy) {
         setStatus(payload.error ?? "Failed to save imported policy.");
         return;
       }
-  
+
       setPolicy(payload.policy);
       setAllowedDomains(listToText(payload.policy.allowedDomains));
       setBlockedDomains(listToText(payload.policy.blockedDomains));
@@ -416,7 +416,7 @@ export function PolicyEditor() {
           isOperator={isOperator}
           isLoading={loading || sessionLoading}
         />
-        
+
       <Card>
         <CardHeader>
           <CardTitle>Policy Version History</CardTitle>
