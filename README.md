@@ -247,7 +247,16 @@ FORTEXA_AUTH_MAX_ATTEMPTS=5
 FORTEXA_AUTH_LOCK_MINUTES=10
 FORTEXA_JSON_BODY_MAX_BYTES=65536
 
+# Optional: extra keys to redact from /api/audit/export payloads.
+# Comma-separated. Matched case-insensitively. Useful for org-specific
+# internal secret names.
+# FORTEXA_AUDIT_EXPORT_SENSITIVE_KEYS=internalSecret,corpApiKey
+
 NEXT_PUBLIC_STELLAR_DESTINATION=
+
+# Optional: keys (comma-separated) treated as sensitive in audit export payloads.
+# See §11.1 Audit Export Redaction.
+# FORTEXA_AUDIT_EXPORT_SENSITIVE_KEYS=internalSecret,corpApiKey
 
 # Optional external blocklist URL for dynamic threat-intel
 # Accepts JSON array of domains or plain-text (one domain per line, # comments ignored)
@@ -303,6 +312,10 @@ JSON `POST` routes that accept request bodies enforce a shared size limit before
     - `GET /api/audit/export?format=csv&scope=mine&from=2025-06-01T00:00:00Z&to=2025-06-30T23:59:59Z`
     - `GET /api/audit/export?format=json&scope=all&decision=BLOCK&domain=malicious.example.com`
     - `GET /api/audit/export?format=json&scope=mine&actionId=evt_abc123`
+  - **Redaction:** All `format=json` and `format=csv` responses are passed through
+    `src/lib/audit/redact.ts` *before* leaving the route — see
+    [§11.1 Audit Export Redaction](#111-audit-export-redaction) below for the full
+    contract (what is redacted, what is preserved, and how to extend it).
 - `GET /api/health`
 - `GET /api/metrics` (`?format=prometheus`)
 
@@ -313,6 +326,65 @@ JSON `POST` routes that accept request bodies enforce a shared size limit before
 - `POST /api/stellar/submit-signed` (supports `Idempotency-Key` header/body for safe UI retries)
 - `POST /api/stellar/pay` (legacy disabled)
 - `POST /api/stellar/fund` (removed behavior, returns `410`)
+
+### 11.1 Audit Export Redaction
+
+Exported operator reports (`/api/audit/export`) are intended for sharing with reviewers
+and external auditors. To make those reports safe to forward, every payload — JSON or
+CSV, `scope=mine` or `scope=all` — is run through `redactAuditExportPayload`
+(`src/lib/audit/redact.ts`) before it leaves the route. The goal is "useful but
+non-leaky": reviewers can still see what was decided, why, and how Horizon responded,
+but they never see raw secrets.
+
+**What is always redacted** (replaced with a `{ "$redacted": "<reason>" }` placeholder):
+
+| Reason            | Examples of redacted keys / values                                            |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `session`         | `sessionKey`, `session_id`, `wallet_session`, `authSession`                  |
+| `token`           | `token`, `accessToken`, `refreshToken`, `bearer`, `authorization`, `auth`, `jwt`, `access_token`, `refresh_token`, plus any value matching a JWT-shaped pattern |
+| `signed_xdr`      | `signedXDR`, `signed_xdr`, `xdr`, `signature`, plus any value that starts with `XDR:`, contains `signed xdr`/`signed tx`, or is a long base64-ish block |
+| `sensitive_field` | Anything that matches a configured sensitive key or pattern that doesn't fit a more specific bucket |
+
+The redaction is recursive — nested objects, arrays, and unknown keys are walked
+until the configured max depth (25). It also catches value-only matches: a JWT-shaped
+string under a benign key (e.g. `note: "eyJ..."`) is still redacted.
+
+**What is preserved (decision evidence):**
+
+- `id`, `timestamp`
+- `decision`, `explanation`
+- `triggeredPolicies`, `riskFindings`
+- `entryHash`, `previousHash` (the audit hash chain itself)
+- `horizonResultCode`, `resultCode`, `opCodes`, `code`, `status`, `reason` — Horizon result codes are kept verbatim so operators can debug `tx_bad_seq`, `tx_insufficient_fee`, `op_no_destination`, `op_underfunded`, etc.
+- `userId`, `exportedBy`, `scope` (the export envelope)
+- CSV columns emitted by the route: `userId`, `id`, `timestamp`, `decision`, `actionId`, `actionName`, `domain`, `amountXLM`, `explanation`, `entryHash`, `previousHash`
+
+**Why this matters for debugging policy and Horizon failures:**
+
+- You can still see which scenario was evaluated, what the decision was, which policy
+  triggers fired, which security findings were raised, and the SHA-256 hash chain.
+- You can still see Horizon `tx_*` and `op_*` result codes.
+- You can never accidentally ship a raw signed XDR, a session token, or a bearer
+  header to a reviewer or a chat tool.
+
+**Extending the redaction list:**
+
+The redaction config supports a per-deployment env override
+`FORTEXA_AUDIT_EXPORT_SENSITIVE_KEYS` (comma-separated). Add a key to that env var
+and the redactor will treat it as sensitive for both JSON and CSV exports in that
+environment.
+
+```bash
+# Example: redact any field named like an internal secret
+FORTEXA_AUDIT_EXPORT_SENSITIVE_KEYS=internalSecret,corpApiKey
+```
+
+The redaction logic itself is unit-tested in `src/lib/audit/redact.test.ts` —
+covering nested payloads, arrays, value-heuristic JWT/XDR matches, allowlisted
+decision evidence, and pattern-based unknown keys — and the export route is
+covered in `src/app/api/audit/export/route.test.ts`, which asserts that
+`scope=all` JSON exports never contain raw `XDR:`, `Bearer ey…`, `sessionKey`,
+or `signedXdr` strings.
 
 ---
 
