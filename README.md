@@ -343,6 +343,10 @@ The file covers every variable used by the app, organized into:
 | **Request Handling** | `FORTEXA_JSON_BODY_MAX_BYTES` |
 | **Dev Utilities** | `FORTEXA_ALLOW_LOCAL_RESET` |
 
+> [!IMPORTANT]
+> **Stellar Network Configuration Pairing:**
+> `STELLAR_HORIZON_URL` and `STELLAR_NETWORK_PASSPHRASE` are paired settings and must always be configured together. When switching between local development and Stellar testnet, ensure both values are updated in tandem. Mismatched values can cause confusing failures (e.g., submitting transactions to one Horizon instance while signing for another network). In production, ensure both are set to the correct production values.
+
 ---
 
 ## 10) ▶️ Scripts
