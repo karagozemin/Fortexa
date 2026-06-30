@@ -16,6 +16,18 @@ function operatorCookie() {
   return `${AUTH_COOKIE_KEY}=${token}`;
 }
 
+function viewerCookie() {
+  process.env.FORTEXA_AUTH_SECRET = "integration-test-secret";
+  const token = createSessionToken({
+    email: "viewer@fortexa.local",
+    role: "viewer",
+    userId: "decision-viewer-id",
+    expiresInSeconds: 120,
+  });
+
+  return `${AUTH_COOKIE_KEY}=${token}`;
+}
+
 describe("/api/decision route", () => {
   it("returns 401 when unauthenticated", async () => {
     const request = new NextRequest("http://localhost/api/decision", {
@@ -26,6 +38,20 @@ describe("/api/decision route", () => {
 
     const response = await POST(request);
     expect(response.status).toBe(401);
+  });
+
+  it("returns 403 for viewer role (operator-only route)", async () => {
+    const request = new NextRequest("http://localhost/api/decision", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: viewerCookie(),
+      },
+      body: JSON.stringify({ scenarioId: "safe-research-payment" }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
   });
 
   it("evaluates scenario for operator", async () => {

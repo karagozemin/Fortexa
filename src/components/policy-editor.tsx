@@ -454,7 +454,14 @@ export function PolicyEditor() {
             return (
               <div key={entry.version} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] p-2 text-sm">
                 <div>
-                  <p className="font-medium">v{entry.version}</p>
+                  <p className="font-medium flex items-center gap-2">
+                    <span>v{entry.version}</span>
+                    {version === entry.version && (
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs font-semibold text-emerald-400">
+                        Active
+                      </span>
+                    )}
+                  </p>
                   <p className="text-[hsl(var(--muted-foreground))]">
                     {entry.updatedAt}
                     {entry.updatedBy ? ` • ${entry.updatedBy}` : ""}
@@ -465,7 +472,8 @@ export function PolicyEditor() {
                     variant={isA ? "default" : "outline"}
                     size="sm"
                     onClick={() => setDiffA(isA ? null : entry.version)}
-                    title="Select as version A for diff"
+                    aria-label={isA ? `Deselect version ${entry.version} as diff baseline (A)` : `Select version ${entry.version} as diff baseline (A)`}
+                    aria-pressed={isA}
                   >
                     A
                   </Button>
@@ -473,22 +481,27 @@ export function PolicyEditor() {
                     variant={isB ? "default" : "outline"}
                     size="sm"
                     onClick={() => setDiffB(isB ? null : entry.version)}
-                    title="Select as version B for diff"
+                    aria-label={isB ? `Deselect version ${entry.version} as diff comparison (B)` : `Select version ${entry.version} as diff comparison (B)`}
+                    aria-pressed={isB}
                   >
                     B
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
-                    disabled={writeDisabled || version === entry.version || previewingRollback}
-                    onClick={() => previewRollback(entry.version)}
-                  >
+                    size="sm"     >
                     Preview
                   </Button>
                 </div>
               </div>
             );
           })}
+
+          {history.length > 0 && !history.some((entry) => entry.version !== version) ? (
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
+              Rollback is unavailable because no prior policy versions exist.
+            </p>
+          ) : null}
+
 
           {diffA !== null && diffB !== null && diffA !== diffB ? (
             <PolicyDiff
@@ -591,7 +604,7 @@ export function PolicyEditor() {
 
 type DiffStatus = "added" | "removed" | "unchanged";
 
-function diffLists(a: string[], b: string[]): Array<{ value: string; status: DiffStatus }> {
+export function diffLists(a: string[], b: string[]): Array<{ value: string; status: DiffStatus }> {
   const setA = new Set(a);
   const setB = new Set(b);
   const all = Array.from(new Set([...a, ...b]));

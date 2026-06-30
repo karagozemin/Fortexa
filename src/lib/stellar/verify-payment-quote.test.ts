@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildPaymentQuoteFromDecision,
@@ -33,6 +33,10 @@ function mockAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 }
 
 describe("verifyPaymentAgainstQuote", () => {
+  afterEach(() => {
+    delete process.env.FORTEXA_PAYMENT_QUOTE_TTL_SECONDS;
+  });
+
   it("accepts a matching build request", () => {
     const entry = mockAuditEntry();
     const result = verifyPaymentAgainstQuote(entry, {
@@ -62,7 +66,88 @@ describe("verifyPaymentAgainstQuote", () => {
       expect(result.error).toContain("BLOCK");
     }
   });
+
+  it("rejects an expired quote", () => {
+    process.env.FORTEXA_PAYMENT_QUOTE_TTL_SECONDS = "300";
+    // Timestamp 6 minutes in the past — beyond the 300 s TTL
+    const staleTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    const entry = mockAuditEntry({ timestamp: staleTimestamp });
+
+    const result = verifyPaymentAgainstQuote(entry, {
+      destination: entry.paymentQuote!.destination,
+      amountXLM: entry.paymentQuote!.amountXLM,
+      asset: "native",
+      memo: entry.paymentQuote!.memo,
+      network: "testnet",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(403);
+      expect(result.error).toContain("expired");
+    }
+  });
+
+  it("accepts a fresh quote when TTL is configured", () => {
+    process.env.FORTEXA_PAYMENT_QUOTE_TTL_SECONDS = "300";
+    // Timestamp 30 seconds in the past — well within the 300 s TTL
+    const recentTimestamp = new Date(Date.now() - 30 * 1000).toISOString();
+    const entry = mockAuditEntry({ timestamp: recentTimestamp });
+
+    const result = verifyPaymentAgainstQuote(entry, {
+      destination: entry.paymentQuote!.destination,
+      amountXLM: entry.paymentQuote!.amountXLM,
+      asset: "native",
+      memo: entry.paymentQuote!.memo,
+      network: "testnet",
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("falls back to the 300 s default when TTL env var is invalid", () => {
+    process.env.FORTEXA_PAYMENT_QUOTE_TTL_SECONDS = "not-a-number";
+    // Timestamp 6 minutes in the past — expired under the 300 s default
+    const staleTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    const entry = mockAuditEntry({ timestamp: staleTimestamp });
+
+    const result = verifyPaymentAgainstQuote(entry, {
+      destination: entry.paymentQuote!.destination,
+      amountXLM: entry.paymentQuote!.amountXLM,
+      asset: "native",
+      memo: entry.paymentQuote!.memo,
+      network: "testnet",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(403);
+      expect(result.error).toContain("expired");
+    }
+  });
+
+  it("falls back to the 300 s default when TTL env var is zero", () => {
+    process.env.FORTEXA_PAYMENT_QUOTE_TTL_SECONDS = "0";
+    // Timestamp 6 minutes in the past — expired under the 300 s default
+    const staleTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    const entry = mockAuditEntry({ timestamp: staleTimestamp });
+
+    const result = verifyPaymentAgainstQuote(entry, {
+      destination: entry.paymentQuote!.destination,
+      amountXLM: entry.paymentQuote!.amountXLM,
+      asset: "native",
+      memo: entry.paymentQuote!.memo,
+      network: "testnet",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(403);
+      expect(result.error).toContain("expired");
+    }
+  });
 });
+
 
 describe("normalizeAmountXLM", () => {
   it("formats numeric and string amounts consistently", () => {

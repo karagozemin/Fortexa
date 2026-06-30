@@ -28,7 +28,7 @@ export default async function DashboardPage() {
         </div>
         <Link href="/console">
           <Button className="gap-2">
-            Run evaluation <ArrowRight className="h-4 w-4" />
+            Run evaluation <ArrowRight aria-hidden="true" className="h-4 w-4" />
           </Button>
         </Link>
       </div>

@@ -11,6 +11,8 @@ It sits between agent intent and economic execution, applies governance/risk che
 
 This document reflects the **current implementation** in this repository.
 
+See [docs/SCF_TRANCHE_PLAN.md](docs/SCF_TRANCHE_PLAN.md) for the Stellar Community Fund (SCF) funding tranches and roadmap alignment.
+
 ---
 
 ## 1) ⚠️ Why This Matters
@@ -38,6 +40,24 @@ If you only read one section, read this:
 3. Receive decision: **`BLOCK` / `REQUIRE_APPROVAL` / `WARN` / `APPROVE`**.
 4. For allowed flows, **build unsigned XDR → sign in wallet → submit signed XDR**.
 5. Verify outcome with **Explorer link** and inspect evidence in `/activity` and `/ops`.
+
+### ✅ Reviewer Checklist: Wallet-Bound Payment Flow
+
+The core security premise of Fortexa is that it **does not hold private keys or perform server-side signing.**
+This end-to-end flow validates that design:
+
+| Step | UI / Route | Source / Logic | Expected Signal |
+|---|---|---|---|
+| **1. Login** | `/login` | [`POST /api/auth/login`](src/app/api/auth/login/route.ts) <br> [`src/components/login-form.tsx`](src/components/login-form.tsx) | **Success**: Freighter challenge signed, session issued.<br>**Failure**: Signature mismatch, unauthorized wallet. |
+| **2. Decision** | `/console` | [`POST /api/decision`](src/app/api/decision/route.ts) <br> [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Returns `APPROVE` or `WARN` with a fixed payment quote.<br>**Failure**: Returns `BLOCK` (no quote). |
+| **3. Quote Lock** | `/console` | [`POST /api/stellar/build-payment`](src/app/api/stellar/build-payment/route.ts) | **Success**: Build request perfectly matches the approved audit entry quote.<br>**Failure**: Server rejects tampered destination, amount, or memo with `403`. |
+| **4. Unsigned XDR Build** | `/console` | [`POST /api/stellar/build-payment`](src/app/api/stellar/build-payment/route.ts) | **Success**: Server returns valid unsigned XDR envelope.<br>**Failure**: Network timeout, missing parameters. |
+| **5. Wallet Signing** | `/console` | `signTransaction` inside <br> [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Freighter popup appears, user signs, UI holds signed XDR.<br>**Failure**: User rejects in wallet. |
+| **6. Signed Submit** | `/console` | [`POST /api/stellar/submit-signed`](src/app/api/stellar/submit-signed/route.ts) | **Success**: Broadcasts successfully to Stellar Testnet (200 OK).<br>**Failure**: Horizon error (`tx_bad_seq`, `op_underfunded`). |
+| **7. Explorer Link** | `/console` | [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Clickable link to Stellar Expert confirming hash matches. |
+| **8. Audit Evidence** | `/activity`<br>`/ops` | [`GET /api/audit`](src/app/api/audit/route.ts) <br> [`src/app/activity/page.tsx`](src/app/activity/page.tsx) | **Success**: Immutable record of the original decision and execution hash. |
+
+*(Note: Fortexa is currently built for testnet validation. Mainnet readiness requires further risk intel integrations.)*
 
 ---
 
@@ -97,6 +117,8 @@ Fortexa currently does **not perform server-side signing or private-key custody*
 
 - Session is wallet-bound at login.
 - Execution source wallet is derived from session identity.
+- Session wallet mappings expire automatically after 24 hours. Expired sessions will receive a `401 Unauthorized` response on protected endpoints.
+- Operators can forcefully revoke a compromised or stale session mapping via `DELETE /api/auth/wallet/revoke`. This deterministically removes the mapping from storage, requiring the user to reconnect their wallet.
 - Manual arbitrary wallet assignment in UI is removed.
 - `/api/stellar/balance` auto-syncs missing wallet mapping from session when possible.
 
@@ -124,6 +146,8 @@ Before committing a policy change, operators can dry-run the unsaved draft from 
 
 Simulation is strictly read-only: it never saves the policy and never consumes usage. Saving still happens only through `POST /api/policy`. See `src/lib/decision/simulate.ts` and `POST /api/policy/simulate`.
 
+> **Reporting API failures:** Include the `x-request-id` header value from the response (or the `requestId` field from server-side logs) when filing a bug report. See [docs/observability.md](docs/observability.md#reporting-api-failures) for details.
+
 ### 6.2 Signed XDR Payment Path
 
 1. Evaluate action in `/console` with a **payment quote** (`paymentQuoteInput`: destination, optional memo, network). On `APPROVE`/`WARN`, Fortexa stores an immutable `paymentQuote` on the audit entry.
@@ -142,6 +166,7 @@ The policy decision authorizes a fixed payment quote (destination, amount, asset
 |---|---|---|
 | Missing/invalid body (`auditEntryId`, schema) | `400` | `Invalid payment build request.` + zod details |
 | Unknown audit entry or non-executable decision | `403` | `No authorized payment decision found…` / `Decision 'BLOCK' does not authorize…` |
+| Quote older than `FORTEXA_PAYMENT_QUOTE_TTL_SECONDS` (default 300 s) | `403` | `Payment quote has expired. Please re-evaluate the action.` |
 | Tampered destination, amount, asset, or memo | `403` | `{ error, field }` naming the mismatched field |
 | Valid approved request | `200` | `{ ok: true, xdr, networkPassphrase, … }` |
 
@@ -161,6 +186,10 @@ Additional behavior:
 - `/activity` reads entries by authenticated session user id.
 - Export endpoint supports `mine` and `all` scopes in JSON/CSV.
 
+### Timestamp timezone
+
+All audit timestamps are recorded and exported in **UTC** (ISO 8601 format with a `Z` suffix, e.g. `2025-06-01T12:00:00.000Z`). This applies to both JSON and CSV exports — the `timestamp` column in CSV output carries the raw UTC string with no local-time conversion. The `from`/`to` query parameters on the export endpoint are also compared against these UTC timestamps, so any filter dates should be expressed in UTC.
+
 ### Hash chain integrity
 
 Every new audit entry is linked into a tamper-evident SHA-256 hash chain:
@@ -175,6 +204,24 @@ Both fields are included in JSON exports. CSV exports add `entryHash` and `previ
 Verification helper: `verifyHashChain(entries)` in `src/lib/audit/hash-chain.ts` — returns `{ valid: true }` for an untouched log and `{ valid: false, reason }` when it detects a modified, deleted, or reordered entry.
 
 Entries written before this feature was introduced carry no hash fields and are treated as **legacy** entries; they do not break verification of newer hashed entries.
+
+#### CLI verifier
+
+An exported JSON audit file can be verified outside the running application:
+
+```bash
+npm run verify:audit -- path/to/export.json
+```
+
+The script reads the JSON export, extracts the entries (handles `scope=mine` and `scope=all` formats), and runs the same `verifyHashChain` logic that the library uses. Exit code:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | All entries verified successfully |
+| `1` | Chain integrity check failed (see stdout for details) |
+| `2` | Usage error or file not readable |
+
+Usage: `tsx scripts/verify-audit-export.ts <file>`
 
 ---
 
@@ -194,39 +241,112 @@ npm run dev
 
 Open: `http://localhost:3000`
 
+### Resetting Local Demo State
+
+To clean up local developer state safely, use the built-in reset utility (`scripts/reset-local-demo-state.ts`). The script is strictly for local environments and enforces guardrails to prevent accidental destruction of non-local data.
+
+#### Guardrails
+
+- **Local Database Check**: Inspects `DATABASE_URL` and blocks execution if the hostname is not `localhost`, `127.0.0.1`, `::1`, or a local UNIX socket.
+- **Local Redis Check**: Skips Redis cleanup entirely when `REDIS_URL` points to a non-local host.
+- **Explicit Confirmation**: Runs in dry-run mode unless **both** `FORTEXA_ALLOW_LOCAL_RESET=true` (env var) and `--yes` (CLI flag) are provided together.
+
+#### Usage
+
+* **Dry-Run (Default)** — preview what would be cleared without touching any data:
+  ```bash
+  npm run demo:reset
+  ```
+  *(or `npx tsx scripts/reset-local-demo-state.ts`)*
+
+* **Apply Reset** — execute once both guardrails are satisfied:
+  ```bash
+  FORTEXA_ALLOW_LOCAL_RESET=true npm run demo:reset -- --yes
+  ```
+  *(or `FORTEXA_ALLOW_LOCAL_RESET=true npx tsx scripts/reset-local-demo-state.ts --yes`)*
+
+#### What Gets Cleared
+
+**JSON store files** (inside `FORTEXA_STORE_DIR`, default `.fortexa/`):
+
+| File | Contents |
+|---|---|
+| `audit.json` | Audit log entries |
+| `policy.json` | Active policy configuration |
+| `policy-history.json` | Policy change history |
+| `submit-idempotency.json` | Payment idempotency cache |
+| `wallets.json` | Wallet registrations |
+| `FORTEXA_SHARED_STATE_PATH` | Shared-state file (if configured) |
+
+**Database tables** (only when `DATABASE_URL` is set to a local host):
+
+| Table | Contents |
+|---|---|
+| `fortexa_wallets` | Wallet registrations |
+| `fortexa_audit_entries` | Audit log entries |
+| `fortexa_usage` | Usage tracking records |
+| `fortexa_policy_state` | Active policy state |
+| `fortexa_policy_history` | Policy change history |
+| `fortexa_submit_idempotency` | Payment idempotency records |
+
+Tables are truncated with `RESTART IDENTITY CASCADE`.
+
+**Redis keys** (only when `REDIS_URL` points to a local host):
+- All keys matching `fortexa:*` are deleted.
+
+#### What Gets Re-seeded
+
+After clearing, the script re-inserts the **default policy configuration at version 1** into both `fortexa_policy_state` and `fortexa_policy_history`. The app starts in a known, valid policy state immediately — no manual re-seed required.
+
+#### What Is NOT Cleared
+
+- `.env.local` and all environment variables
+- Database schema and migrations
+- `node_modules` and build artifacts
+- Any files outside `FORTEXA_STORE_DIR`
+
+#### Recommended Workflow
+
+```bash
+# 1. Preview what will be affected (safe — no changes made)
+npm run demo:reset
+
+# 2. Apply the reset
+FORTEXA_ALLOW_LOCAL_RESET=true npm run demo:reset -- --yes
+
+# 3. Optionally reload fresh demo scenarios
+npm run demo:scenarios
+
+# 4. Restart the dev server — default state is regenerated on startup
+npm run dev
+```
+
 ---
 
 ## 9) 🌍 Environment Variables
 
-Reference (`.env.example`):
+All configuration is documented in [`.env.example`](.env.example). Copy it to `.env.local` and fill in the values you need:
 
 ```bash
-STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
-
-DATABASE_URL=
-DATABASE_SSL=false
-
-FORTEXA_STORE_DIR=
-
-FORTEXA_SHARED_STATE_PATH=
-REDIS_URL=
-
-GROQ_API_KEY=
-GROQ_MODEL=llama-3.3-70b-versatile
-
-FORTEXA_AUTH_SECRET=
-FORTEXA_OPERATOR_WALLETS=
-FORTEXA_VIEWER_WALLETS=
-FORTEXA_AUTH_MAX_ATTEMPTS=5
-FORTEXA_AUTH_LOCK_MINUTES=10
-
-NEXT_PUBLIC_STELLAR_DESTINATION=
-
-# Optional external blocklist URL for dynamic threat-intel
-# Accepts JSON array of domains or plain-text (one domain per line, # comments ignored)
-# Cached in-memory for 5 minutes; feed failures fall back silently
-FORTEXA_BLOCKLIST_URL=
+cp .env.example .env.local
 ```
+
+The file covers every variable used by the app, organized into:
+
+| Category | Variables |
+|---|---|
+| **Stellar Network** | `STELLAR_HORIZON_URL`, `STELLAR_NETWORK_PASSPHRASE`, `NEXT_PUBLIC_STELLAR_DESTINATION`, `FORTEXA_PAYMENT_QUOTE_TTL_SECONDS` |
+| **Auth** | `FORTEXA_AUTH_SECRET`, `FORTEXA_OPERATOR_WALLETS`, `FORTEXA_VIEWER_WALLETS`, `FORTEXA_AUTH_CHALLENGE_TTL_SECONDS`, `FORTEXA_AUTH_MAX_ATTEMPTS`, `FORTEXA_AUTH_LOCK_MINUTES` |
+| **Storage** | `DATABASE_URL`, `DATABASE_SSL`, `FORTEXA_STORE_DIR` |
+| **Shared State** | `FORTEXA_SHARED_STATE_PATH`, `REDIS_URL` |
+| **Idempotency** | `FORTEXA_IDEMPOTENCY_RETENTION_DAYS` |
+| **Optional Integrations** | `GROQ_API_KEY`, `GROQ_MODEL`, `FORTEXA_BLOCKLIST_URL` |
+| **Request Handling** | `FORTEXA_JSON_BODY_MAX_BYTES` |
+| **Dev Utilities** | `FORTEXA_ALLOW_LOCAL_RESET` |
+
+> [!IMPORTANT]
+> **Stellar Network Configuration Pairing:**
+> `STELLAR_HORIZON_URL` and `STELLAR_NETWORK_PASSPHRASE` are paired settings and must always be configured together. When switching between local development and Stellar testnet, ensure both values are updated in tandem. Mismatched values can cause confusing failures (e.g., submitting transactions to one Horizon instance while signing for another network). In production, ensure both are set to the correct production values.
 
 ---
 
@@ -237,15 +357,33 @@ npm run dev
 npm run build
 npm run start
 npm run lint
-npm run test
+npm test
 npm run test:watch
 npm run demo:scenarios
 npm run db:migrate
 ```
 
+### Running the policy pack regression suite
+
+The investor-facing scenario pack lives in `src/lib/scenarios/seed.ts` and its regression suite in `src/lib/scenarios/scenario-pack.test.ts`.
+
+Run the full scenario pack:
+
+```bash
+npm test -- src/lib/scenarios/scenario-pack.test.ts
+```
+
+Run the standalone demo runner (prints expected vs actual for every seeded scenario):
+
+```bash
+npm run demo:scenarios
+```
+
 ---
 
 ## 11) 🔌 API Surface (Reference)
+
+JSON `POST` routes that accept request bodies enforce a shared size limit before parsing (default **64 KiB**, override with `FORTEXA_JSON_BODY_MAX_BYTES`). Oversized payloads receive HTTP **413** with a clear error message; malformed but small JSON still returns the route's normal validation error.
 
 ### Auth
 - `POST /api/auth/challenge`
@@ -253,6 +391,7 @@ npm run db:migrate
 - `POST /api/auth/logout`
 - `GET /api/auth/session`
 - `POST /api/auth/refresh`
+- `DELETE /api/auth/wallet/revoke` (`operator`) — revokes session wallet mapping
 
 ### Policy
 - `GET /api/policy`
@@ -285,6 +424,8 @@ npm run db:migrate
 - `POST /api/stellar/submit-signed` (supports `Idempotency-Key` header/body for safe UI retries)
 - `POST /api/stellar/pay` (legacy disabled)
 - `POST /api/stellar/fund` (removed behavior, returns `410`)
+
+> **Note:** Newly created Stellar testnet wallets start with zero balance. Unfunded wallets cannot perform balance queries, payment flows, or other wallet operations. Before testing, fund the wallet using the Stellar testnet friendbot (`GET https://friendbot.stellar.org?addr=YOUR_PUBLIC_KEY`) or the in‑app `/api/stellar/setup` endpoint. This applies only to the testnet; production wallets are funded via standard Stellar distribution channels.
 
 ---
 
@@ -363,7 +504,27 @@ Optional overrides:
 
 ---
 
-## 16) 🧪 Known Limitations (Current)
+## 16) 🛡️ Security Headers
+
+Fortexa applies baseline security headers to every response (pages and API routes) via `src/middleware.ts`.
+
+| Header | Value | Rationale |
+|---|---|---|
+| `X-Content-Type-Options` | `nosniff` | Prevents MIME-type sniffing — browsers trust the declared `Content-Type` without guessing. |
+| `X-Frame-Options` | `DENY` | Blocks the app from being embedded in `<frame>`, `<iframe>`, or `<object>` — prevents clickjacking. |
+| `Content-Security-Policy` | `default-src 'self'`; + per-resource directives | Restricts resource loading to the origin. Inlines styles are allowed (required by `next/font` and Tailwind). In **development** `script-src` also allows `'unsafe-inline'` and `'unsafe-eval'` for Next.js hot-reload; in **production** only `'self'` scripts are permitted. `frame-ancestors 'none'` and `form-action 'self'` provide additional clickjacking and form-redirect protection. `base-uri 'self'` prevents injected `<base>` tag attacks. |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Disables unused browser capabilities to reduce the attack surface. |
+
+### Development vs. Production
+
+- In `NODE_ENV=development` the CSP `script-src` includes `'unsafe-inline'` and `'unsafe-eval'` because the Next.js dev server injects inline scripts for hot-module reload. The production build strips these, relying on Next.js's hashed/external script strategy.
+- All other directives are identical across environments.
+
+These headers are applied by Next.js Middleware (`src/middleware.ts`), which runs on every request matching `/((?!_next/static|_next/image|favicon.ico|icon.jpg).*)`. The helper function `buildSecurityHeaders()` in `src/lib/security/headers.ts` constructs the header map and is unit-tested independently.
+
+---
+
+## 17) 🧪 Known Limitations (Current)
 
 1. Shared security state supports Redis distributed locking, but defaults to file-based for local development.
 2. Risk scoring remains heuristic-heavy (no external threat-intel integration).
@@ -375,7 +536,30 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
-## 17) ❓ Troubleshooting Payment Failures
+## 17) 🛡️ Decision Explanation Snapshot Tests
+
+Reviewer-facing explanation text is guarded by snapshot tests to ensure transparency and prevent accidental explanation drift across changes.
+
+**How to update snapshots:**
+```bash
+npm run test -- src/lib/decision/engine.scenarios.test.ts --updateSnapshot
+```
+
+**Files:**
+- `src/lib/decision/engine.scenarios.test.ts` - Snapshot tests for decision explanations
+- `src/lib/decision/engine.test.ts` - Updated summary file referencing the snapshots
+
+**Covered decision types:**
+- **APPROVE** - Safe research payment (human-readable approval message)
+- **BLOCK** - Malicious endpoint blocked by domain policy
+- **WARN** - Typosquat domain risk detected (caution warning)
+- **REQUIRE_APPROVAL** - Over-budget transfer requiring manual approval
+
+These snapshots make policy decision transparency reproducible for reviewers and protect against accidental explanation drift.
+
+---
+
+## 18) ❓ Troubleshooting Payment Failures
 
 Common Stellar Horizon failures during the signed payment flow:
 
@@ -386,13 +570,13 @@ Common Stellar Horizon failures during the signed payment flow:
 
 ---
 
-## 18) 🛣️ Practical Next Steps
+## 19) 🛣️ Practical Next Steps
 
 - Add stronger risk intelligence + anomaly detection.
 - Expand end-to-end payment verification and automated lifecycle tests.
 
 ---
 
-## 19) 📄 License
+## 20) 📄 License
 
 MIT (see `package.json`).

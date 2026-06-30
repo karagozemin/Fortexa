@@ -107,12 +107,12 @@ export function LoginForm() {
         <Button onClick={handleSignIn} disabled={loading} className="h-12 w-full gap-2 text-base">
           {loading ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
               {successWallet ? "Opening console..." : loginStepLabel(loginStep)}
             </>
           ) : (
             <>
-              <Wallet className="h-5 w-5" />
+              <Wallet aria-hidden="true" className="h-5 w-5" />
               Sign in with Freighter
             </>
           )}
@@ -138,7 +138,7 @@ export function LoginForm() {
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-[hsl(var(--accent))] hover:underline"
           >
-            Get extension <ExternalLink className="h-3 w-3" />
+            Get extension <ExternalLink aria-hidden="true" className="h-3 w-3" />
           </a>
         </p>
       </CardContent>
