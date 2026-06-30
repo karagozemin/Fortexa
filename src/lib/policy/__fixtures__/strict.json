@@ -1,0 +1,14 @@
+{
+  "allowedDomains": ["api.safe-research.ai"],
+  "blockedDomains": ["wallet-drainer.evil", "prompt-pwn.io", "untrusted-mirror.xyz"],
+  "allowedTools": ["research-pro"],
+  "blockedTools": ["shadow-shell", "autonomous-payout-bypass"],
+  "perTxCapXLM": 50,
+  "dailyCapXLM": 100,
+  "maxToolCallsPerDay": 3,
+  "riskThreshold": 90,
+  "allowedHours": {
+    "start": 9,
+    "end": 17
+  }
+}

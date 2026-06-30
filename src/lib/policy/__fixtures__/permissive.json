@@ -1,0 +1,14 @@
+{
+  "allowedDomains": ["api.safe-research.ai", "tools.verified-data.dev", "workers.fortexa-demo.stellar"],
+  "blockedDomains": ["wallet-drainer.evil"],
+  "allowedTools": ["research-pro", "market-feed", "settlement-worker"],
+  "blockedTools": ["shadow-shell"],
+  "perTxCapXLM": 500,
+  "dailyCapXLM": 1000,
+  "maxToolCallsPerDay": 20,
+  "riskThreshold": 50,
+  "allowedHours": {
+    "start": 0,
+    "end": 23
+  }
+}
