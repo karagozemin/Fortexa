@@ -38,7 +38,7 @@ describe("normalizeDomain", () => {
     expect(normalizeDomain("https://")).toBeNull();
     expect(normalizeDomain("!@#$%")).toBeNull();
     expect(normalizeDomain("")).toBeNull();
-    expect(normalizeDomain(undefined as any)).toBeNull();
-    expect(normalizeDomain(null as any)).toBeNull();
+    expect(normalizeDomain(undefined)).toBeNull();
+    expect(normalizeDomain(null)).toBeNull();
   });
 });
