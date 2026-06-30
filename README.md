@@ -285,6 +285,8 @@ npm run db:migrate
 - `POST /api/stellar/pay` (legacy disabled)
 - `POST /api/stellar/fund` (removed behavior, returns `410`)
 
+> **Note:** Newly created Stellar testnet wallets start with zero balance. Unfunded wallets cannot perform balance queries, payment flows, or other wallet operations. Before testing, fund the wallet using the Stellar testnet friendbot (`GET https://friendbot.stellar.org?addr=YOUR_PUBLIC_KEY`) or the in‑app `/api/stellar/setup` endpoint. This applies only to the testnet; production wallets are funded via standard Stellar distribution channels.
+
 ---
 
 ## 12) 🗺️ Pages
