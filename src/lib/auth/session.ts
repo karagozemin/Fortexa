@@ -15,15 +15,15 @@ describe('Fortexa Session Cookie Security Regression Tests', () => {
     process.env.FORTEXA_AUTH_SECRET = 'test-secret-key-fortexa-security-hardening';
   });
 
-  afterEach(() => {
-    process.env.FORTEXA_AUTH_SECRET = originalEnv;
-  });
-  
-  ### 1. Hardening & Verification Logic Tests
-  it('should reject structurally modified or tampered tokens safely', () => {
-    const validToken = createSessionToken({ email: 'user@fortexa.com', role: 'viewer' });
-    
-    // Tamper with the signature portion
+  function getAuthSecret(){
+    const secret = process.env.FORTEXA_AUTH_SECRET?.trim();
+    if (!secret){
+      throw new Error("FORTEXA_AUTH_SECRET is required for auth session signing.");
+    }
+    return secret
+  }
+
+  function encodeBase64Url(value: string | Buffer){
     const parts = validToken.split('.');
     const tamperedToken = `${parts[0]}.invalidSignatureString`;
 
