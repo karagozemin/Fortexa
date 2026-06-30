@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Database, Shield, ShieldOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Database, HelpCircle, Shield, ShieldOff } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,12 @@ type HealthResponse = {
     hasHorizonUrl: boolean;
   };
   blocklist: BlocklistHealth;
+  dependencies: {
+    storage: string;
+    horizon: string;
+    blocklist: string;
+    groq: string;
+  };
 };
 
 type MetricsResponse = {
@@ -68,6 +74,30 @@ function formatShortTime(iso: string) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(
     date.getSeconds()
   ).padStart(2, "0")}`;
+}
+
+function DependencyBadge({ name, status }: { name: string; status: string }) {
+  const isHealthy = status === "healthy";
+  const isDegraded = status === "degraded";
+
+  const colorClass = isHealthy
+    ? "bg-emerald-900/30 text-emerald-300 border-emerald-800"
+    : isDegraded
+    ? "bg-amber-900/30 text-amber-300 border-amber-800"
+    : "bg-neutral-900/30 text-neutral-400 border-neutral-800";
+
+  return (
+    <div className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${colorClass}`}>
+      {isHealthy ? (
+        <CheckCircle2 aria-hidden="true" className="h-3 w-3" />
+      ) : isDegraded ? (
+        <AlertTriangle aria-hidden="true" className="h-3 w-3" />
+      ) : (
+        <HelpCircle aria-hidden="true" className="h-3 w-3" />
+      )}
+      {name}
+    </div>
+  );
 }
 
 export function OpsDashboard() {
@@ -194,18 +224,30 @@ export function OpsDashboard() {
           <CardHeader>
             <CardDescription>Service Health</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
-              <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+              <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-emerald-300" />
               {health?.ok ? "Healthy" : loading ? "Loading" : "Unknown"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">{health?.timestamp ?? "-"}</CardContent>
+          <CardContent className="space-y-3">
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">
+              {health?.timestamp ?? "-"}
+            </div>
+            {health?.dependencies ? (
+              <div className="flex flex-wrap gap-2">
+                <DependencyBadge name="Storage" status={health.dependencies.storage} />
+                <DependencyBadge name="Horizon" status={health.dependencies.horizon} />
+                <DependencyBadge name="Blocklist" status={health.dependencies.blocklist} />
+                <DependencyBadge name="Groq" status={health.dependencies.groq} />
+              </div>
+            ) : null}
+          </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardDescription>Total Requests</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
-              <Database className="h-5 w-5 text-blue-300" />
+              <Database aria-hidden="true" className="h-5 w-5 text-blue-300" />
               {metrics?.totals.totalCount ?? 0}
             </CardTitle>
           </CardHeader>
@@ -218,7 +260,7 @@ export function OpsDashboard() {
           <CardHeader>
             <CardDescription>Error Rate</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
-              <AlertTriangle className="h-5 w-5 text-amber-300" />
+              <AlertTriangle aria-hidden="true" className="h-5 w-5 text-amber-300" />
               {metrics ? formatPct(metrics.totals.errorRate) : "0.00%"}
             </CardTitle>
           </CardHeader>
@@ -231,7 +273,7 @@ export function OpsDashboard() {
           <CardHeader>
             <CardDescription>Signed TX Count</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
-              <Clock3 className="h-5 w-5 text-fuchsia-300" />
+              <Clock3 aria-hidden="true" className="h-5 w-5 text-fuchsia-300" />
               {txLoading ? "Loading" : txCount ?? "-"}
             </CardTitle>
           </CardHeader>
@@ -245,9 +287,9 @@ export function OpsDashboard() {
             <CardDescription>Blocklist Feed</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
               {health?.blocklist.configured ? (
-                <Shield className="h-5 w-5 text-emerald-300" />
+                <Shield aria-hidden="true" className="h-5 w-5 text-emerald-300" />
               ) : (
-                <ShieldOff className="h-5 w-5 text-amber-400" />
+                <ShieldOff aria-hidden="true" className="h-5 w-5 text-amber-400" />
               )}
               {health ? (health.blocklist.configured ? "Active" : "Unconfigured") : loading ? "Loading" : "-"}
             </CardTitle>

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { agentActionSchema, type AgentPlanRequestInput } from "@/lib/validation/schemas";
+import { PLAN_ERRORS, PlanError } from "@/lib/ai/plan-errors";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
@@ -14,7 +15,7 @@ function extractJsonObject(text: string) {
   const lastBrace = candidate.lastIndexOf("}");
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    throw new Error("Model did not return a valid JSON object.");
+    throw new PlanError(PLAN_ERRORS.MALFORMED_JSON);
   }
 
   return candidate.slice(firstBrace, lastBrace + 1);
@@ -24,7 +25,7 @@ export async function generateAgentActionWithGroq(input: AgentPlanRequestInput) 
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
-    throw new Error("GROQ_API_KEY is missing. Set it in .env.local.");
+    throw new PlanError(PLAN_ERRORS.PROVIDER_UNAVAILABLE, "GROQ_API_KEY is not configured.");
   }
 
   const systemPrompt = [
@@ -66,8 +67,10 @@ export async function generateAgentActionWithGroq(input: AgentPlanRequestInput) 
   });
 
   if (!completionResponse.ok) {
-    const detail = await completionResponse.text();
-    throw new Error(`Groq request failed (${completionResponse.status}): ${detail}`);
+    throw new PlanError(
+      PLAN_ERRORS.PROVIDER_UNAVAILABLE,
+      `Groq API responded with status ${completionResponse.status}.`
+    );
   }
 
   const payload = (await completionResponse.json()) as {
@@ -77,15 +80,35 @@ export async function generateAgentActionWithGroq(input: AgentPlanRequestInput) 
   const content = payload.choices?.[0]?.message?.content;
 
   if (!content) {
-    throw new Error("Groq response did not include model content.");
+    throw new PlanError(PLAN_ERRORS.EMPTY_RESPONSE);
   }
 
-  const parsed = JSON.parse(extractJsonObject(content));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJsonObject(content));
+  } catch (err) {
+    if (err instanceof PlanError) throw err;
+    throw new PlanError(PLAN_ERRORS.MALFORMED_JSON);
+  }
 
-  const validated = agentActionSchema.parse({
-    ...parsed,
-    id: parsed.id || randomUUID(),
+  const result = agentActionSchema.safeParse({
+    ...(typeof parsed === "object" && parsed !== null ? parsed : {}),
+    id: (parsed as Record<string, unknown>)?.id || randomUUID(),
   });
+
+  if (!result.success) {
+    throw new PlanError(PLAN_ERRORS.SCHEMA_MISMATCH);
+  }
+
+  const validated = result.data;
+
+  if (validated.tool && defaultPolicyConfig.blockedTools.includes(validated.tool)) {
+    throw new PlanError(PLAN_ERRORS.UNSAFE_TOOL);
+  }
+
+  if (defaultPolicyConfig.blockedDomains.includes(validated.domain)) {
+    throw new PlanError(PLAN_ERRORS.UNSAFE_DOMAIN);
+  }
 
   return validated;
 }

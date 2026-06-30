@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -48,7 +48,7 @@ function SessionChip({
   if (loading) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-1 text-xs text-[hsl(var(--muted-foreground))]">
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
         Session
       </span>
     );
@@ -74,6 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = pathname === "/" || pathname === "/login";
   const { wallet, role, loading } = useAuthSession();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (isPublicRoute) {
@@ -86,8 +87,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isPublicRoute]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   if (isPublicRoute) {
@@ -133,7 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {active ? (
                   <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-[hsl(var(--accent))]" />
                 ) : null}
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
                 {item.label}
               </Link>
             );
@@ -149,9 +155,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ) : null}
             </div>
           ) : null}
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={logout}>
-            <LogOut className="h-4 w-4" />
-            Sign out
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" disabled={loggingOut} onClick={logout}>
+            {loggingOut ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+            )}
+            {loggingOut ? "Signing out…" : "Sign out"}
           </Button>
         </div>
       </aside>
@@ -167,7 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center gap-2">
               <span className="hidden items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-3 py-1 text-xs text-[hsl(var(--muted-foreground))] sm:inline-flex">
-                <Radio className="h-3 w-3 text-[hsl(var(--accent))]" />
+                <Radio aria-hidden="true" className="h-3 w-3 text-[hsl(var(--accent))]" />
                 Stellar Testnet
               </span>
               <SessionChip loading={loading} wallet={wallet} role={role} />
@@ -195,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   active ? "text-[hsl(var(--accent))]" : "text-[hsl(var(--muted-foreground))]"
                 )}
               >
-                <Icon className="h-5 w-5" />
+                <Icon aria-hidden="true" className="h-5 w-5" />
                 {item.label}
               </Link>
             );

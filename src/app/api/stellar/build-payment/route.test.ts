@@ -261,3 +261,55 @@ describe("POST /api/stellar/build-payment quote verification", () => {
     expect(payload.error).toBe("Invalid payment build request.");
   });
 });
+
+function viewerCookie() {
+  const token = createSessionToken({
+    email: "viewer@fortexa.local",
+    role: "viewer",
+    userId: "build-payment-viewer",
+    expiresInSeconds: 120,
+  });
+
+  return `${AUTH_COOKIE_KEY}=${token}`;
+}
+
+describe("POST /api/stellar/build-payment authorization", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const request = new NextRequest("http://localhost/api/stellar/build-payment", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        auditEntryId: "any-id",
+        destination: destinationKeypair.publicKey(),
+        amountXLM: "10.0000000",
+        asset: "native",
+        memo: "fortexa:test",
+        network: "testnet",
+      }),
+    });
+
+    const response = await buildPaymentPost(request);
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 403 for viewer role (operator-only route)", async () => {
+    const request = new NextRequest("http://localhost/api/stellar/build-payment", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: viewerCookie(),
+      },
+      body: JSON.stringify({
+        auditEntryId: "any-id",
+        destination: destinationKeypair.publicKey(),
+        amountXLM: "10.0000000",
+        asset: "native",
+        memo: "fortexa:test",
+        network: "testnet",
+      }),
+    });
+
+    const response = await buildPaymentPost(request);
+    expect(response.status).toBe(403);
+  });
+});

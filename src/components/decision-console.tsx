@@ -530,7 +530,7 @@ export function DecisionConsole() {
                   placeholder="Additional context"
                 />
                 <Button variant="outline" onClick={generateActionWithAi} disabled={writeDisabled || generatingAction} className="gap-2">
-                  {generatingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {generatingAction ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Sparkles aria-hidden="true" className="h-4 w-4" />}
                   Generate action
                 </Button>
                 {generatedAction ? (
@@ -550,7 +550,7 @@ export function DecisionConsole() {
                 disabled={intentMode === "ai" && !generatedAction}
                 className="gap-2"
               >
-                Continue <ChevronRight className="h-4 w-4" />
+                Continue <ChevronRight aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
@@ -575,7 +575,7 @@ export function DecisionConsole() {
             ) : null}
 
             <Button onClick={() => runDecision(false)} disabled={writeDisabled} className="w-full gap-2">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {loading ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Play aria-hidden="true" className="h-4 w-4" />}
               Run evaluation
             </Button>
 
@@ -597,7 +597,7 @@ export function DecisionConsole() {
 
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => setStep(1)} className="gap-2">
-                <ChevronLeft className="h-4 w-4" /> Back
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" /> Back
               </Button>
             </div>
           </CardContent>
@@ -609,7 +609,7 @@ export function DecisionConsole() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Hand className="h-5 w-5 text-violet-400" />
+              <Hand aria-hidden="true" className="h-5 w-5 text-violet-400" />
               Human approval
             </CardTitle>
             <CardDescription>Operator confirmation required before execution.</CardDescription>
@@ -625,7 +625,7 @@ export function DecisionConsole() {
               </>
             ) : null}
             <Button variant="ghost" onClick={() => setStep(2)} className="gap-2">
-              <ChevronLeft className="h-4 w-4" /> Back
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" /> Back
             </Button>
           </CardContent>
         </Card>
@@ -732,7 +732,7 @@ export function DecisionConsole() {
             {signError ? (
               <Alert className="border-rose-500/30 bg-rose-500/10" role="alert">
                 <AlertTitle className="flex items-center gap-2 text-rose-200">
-                  <ShieldAlert className="h-4 w-4" />
+                  <ShieldAlert aria-hidden="true" className="h-4 w-4" />
                   {SIGN_ERROR_TITLES[signError.code]}
                 </AlertTitle>
                 <AlertDescription className="space-y-2 text-rose-100/90">
@@ -754,12 +754,12 @@ export function DecisionConsole() {
                 disabled={writeDisabled || !decisionData || !destinationPreview || !executeAmount}
                 className="w-full gap-2 sm:w-auto"
               >
-                {preparingXdr ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {preparingXdr ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
                 {preparingXdr ? "Preparing XDR..." : "Prepare XDR"}
               </Button>
               {signError && unsignedXdr ? (
                 <Button onClick={signWithFreighter} disabled={writeDisabled} className="w-full gap-2 sm:w-auto">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                  {loading ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <RefreshCcw aria-hidden="true" className="h-4 w-4" />}
                   Retry sign
                 </Button>
               ) : (
@@ -768,7 +768,7 @@ export function DecisionConsole() {
                   disabled={writeDisabled || (!signedXdrInput.trim() && !unsignedXdr)}
                   className="w-full gap-2 sm:w-auto"
                 >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {loading ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
                   Sign & submit
                 </Button>
               )}
@@ -786,7 +786,7 @@ export function DecisionConsole() {
             ) : null}
 
             <Button variant="ghost" onClick={() => setStep(decisionData?.result.decision === "REQUIRE_APPROVAL" ? 3 : 2)} className="gap-2">
-              <ChevronLeft className="h-4 w-4" /> Back
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" /> Back
             </Button>
           </CardContent>
         </Card>
@@ -800,7 +800,7 @@ export function DecisionConsole() {
           )}
         >
           <AlertTitle className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4" />
+            <ShieldAlert aria-hidden="true" className="h-4 w-4" />
             Status
           </AlertTitle>
           <AlertDescription>
