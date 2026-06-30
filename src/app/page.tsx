@@ -74,7 +74,7 @@ export default function LandingPage() {
         <div className="animate-fade-up mt-10 flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: "0.3s" }}>
           <Link href="/login">
             <Button size="lg" className="gap-2">
-              Launch Console <ArrowRight className="h-4 w-4" />
+              Launch Console <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Button>
           </Link>
           <Link href="/dashboard">
@@ -114,7 +114,7 @@ export default function LandingPage() {
                 key={d.label}
                 className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wider ${d.color}`}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon aria-hidden="true" className="h-3.5 w-3.5" />
                 {d.label}
               </div>
             );
@@ -136,7 +136,7 @@ export default function LandingPage() {
                     <div className="absolute left-[calc(50%+28px)] top-6 hidden h-px w-[calc(100%-56px)] bg-[hsl(var(--border))] lg:block" />
                   ) : null}
                   <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)]">
-                    <Icon className="h-5 w-5 text-[hsl(var(--accent))]" />
+                    <Icon aria-hidden="true" className="h-5 w-5 text-[hsl(var(--accent))]" />
                   </div>
                   <p className="font-medium">{step.title}</p>
                   <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{step.desc}</p>
@@ -152,7 +152,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl px-6">
           <div className="surface-elevated p-8 md:p-10">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--accent)/0.3)] bg-[hsl(var(--accent)/0.08)] px-3 py-1 text-xs font-medium text-[hsl(var(--accent))]">
-              <Lock className="h-3.5 w-3.5" />
+              <Lock aria-hidden="true" className="h-3.5 w-3.5" />
               Wallet-native trust boundary
             </div>
             <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">No server-side signing. Ever.</h2>
@@ -169,7 +169,7 @@ export default function LandingPage() {
           <h2 className="text-2xl font-semibold md:text-3xl">Ready to govern agent payments?</h2>
           <Link href="/login" className="mt-6 inline-block">
             <Button size="lg" className="gap-2">
-              Connect Wallet <ArrowRight className="h-4 w-4" />
+              Connect Wallet <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Button>
           </Link>
         </div>

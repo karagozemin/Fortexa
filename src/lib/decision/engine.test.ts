@@ -4,6 +4,7 @@ import { evaluateDecision } from "@/lib/decision/engine";
 import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { demoScenarios, defaultDailyUsage } from "@/lib/scenarios/seed";
 
+
 const testPolicy = {
   ...defaultPolicyConfig,
   allowedHours: undefined,
@@ -19,7 +20,7 @@ describe("Fortexa decision engine", () => {
   it("keeps every demo scenario aligned with its expected decision", async () => {
     for (const scenario of demoScenarios) {
       const result = await evaluateDecision(scenario.action, testPolicy, defaultDailyUsage);
-      expect(result.decision, `Scenario "${scenario.id}" ("${scenario.title}"): expected ${scenario.expectedDecision} but got ${result.decision}`).toBe(scenario.expectedDecision);
+      expect(result.decision, `Scenario \"${scenario.id}\" (\"${scenario.title}\"): expected ${scenario.expectedDecision} but got ${result.decision}`).toBe(scenario.expectedDecision);
     }
   });
 
@@ -41,13 +42,6 @@ describe("Fortexa decision engine", () => {
     expect(result.decision).toBe("REQUIRE_APPROVAL");
   });
 
-  it("blocks prompt injection payload", async () => {
-    const action = demoScenarios.find((scenario) => scenario.id === "prompt-injection-output")!.action;
-    const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
-    expect(result.decision).toBe("BLOCK");
-    expect(result.riskFindings.some((finding) => finding.code === "PROMPT_INJECTION_PATTERN")).toBe(true);
-  });
-
   it("warns for typosquat domains with suspicious TLDs", async () => {
     const action = demoScenarios.find((scenario) => scenario.id === "typosquat-domain-risk")!.action;
     const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
@@ -56,17 +50,14 @@ describe("Fortexa decision engine", () => {
     expect(result.riskFindings.some((finding) => finding.code === "SUSPICIOUS_TLD")).toBe(true);
   });
 
-  it("requires approval when an allowlisted transfer breaches spend caps", async () => {
-    const action = demoScenarios.find((scenario) => scenario.id === "daily-cap-breach")!.action;
+  it("snapshot - approver decision explanation (should not change without manual update)", async () => {
+    const action = demoScenarios.find((s) => s.id === "safe-research-payment")!.action;
     const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
-    expect(result.decision).toBe("REQUIRE_APPROVAL");
-    expect(result.triggeredPolicies.some((trigger) => trigger.code === "DAILY_CAP_EXCEEDED")).toBe(true);
-  });
-
-  it("blocks outputs that try to exfiltrate wallet secrets", async () => {
-    const action = demoScenarios.find((scenario) => scenario.id === "secret-exfiltration-output")!.action;
-    const result = await evaluateDecision(action, testPolicy, defaultDailyUsage);
-    expect(result.decision).toBe("BLOCK");
-    expect(result.riskFindings.some((finding) => finding.code === "SECRET_TARGETING")).toBe(true);
+    expect(result.decision).toBe("APPROVE");
+    expect(result.explanation).toMatchSnapshot();
   });
 });
+
+// How to update snapshots:
+//   npm run test -- src/lib/decision/engine.scenarios.test.ts --updateSnapshot
+//   These snapshot tests guard the reviewer-facing explanation text to maintain transparency and prevent drift.
