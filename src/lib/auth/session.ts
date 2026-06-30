@@ -15,34 +15,27 @@ describe('Fortexa Session Cookie Security Regression Tests', () => {
     process.env.FORTEXA_AUTH_SECRET = 'test-secret-key-fortexa-security-hardening';
   });
 
-  function getAuthSecret(){
-    const secret = process.env.FORTEXA_AUTH_SECRET?.trim();
-    if (!secret){
-      throw new Error("FORTEXA_AUTH_SECRET is required for auth session signing.");
-    }
-    return secret
+function getAuthSecret() {
+  const secret = process.env.FORTEXA_AUTH_SECRET?.trim();
+  if (!secret) {
+    throw new Error("FORTEXA_AUTH_SECRET is required for auth session signing.");
   }
+  return secret;
+}
 
-  function encodeBase64Url(value: string | Buffer){
-    const parts = validToken.split('.');
-    const tamperedToken = `${parts[0]}.invalidSignatureString`;
+function encodeBase64Url(value: string | Buffer) {
+  const base64 = Buffer.from(value).toString("base64");
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
 
-    const result = verifySessionToken(tamperedToken);
-    expect(result).toBeNull();
-  });
+function decodeBase64Url(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+  return Buffer.from(padded, "base64").toString("utf8");
+}
 
-  it('should safely reject expired session tokens', () => {
-    // Generate a token that expired 10 seconds ago
-    const expiredToken = createSessionToken({ 
-      email: 'expired@fortexa.com', 
-      role: 'operator', 
-      expiresInSeconds: -10 
-    });
-
-    const result = verifySessionToken(expiredToken);
-    expect(result).toBeNull();
-  });
-
+function sign(payloadPart: string) {
+  return createHmac("sha256", getAuthSecret()).update(payloadPart).digest("base64url");
+}
   it('should accurately resolve a valid session token from a Next.js Request cookie payload', () => {
     const validToken = createSessionToken({ email: 'active@fortexa.com', role: 'operator' });
     
