@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { AUTH_COOKIE_KEY, verifySessionToken } from "@/lib/auth/session";
+import { buildSecurityHeaders } from "@/lib/security/headers";
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -46,16 +47,14 @@ export function proxy(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") || crypto.randomUUID();
 
   response.headers.set("x-request-id", requestId);
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
-  response.headers.set(
-    "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https:; frame-ancestors 'none';"
-  );
+
+  const securityHeaders = buildSecurityHeaders();
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    response.headers.set(key, value);
+  }
 
   return response;
 }

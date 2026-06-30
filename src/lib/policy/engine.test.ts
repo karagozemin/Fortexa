@@ -77,6 +77,23 @@ describe("policy engine", () => {
     expect(result.triggers).toEqual([expect.objectContaining({ code: "UNLISTED_DOMAIN", severity: "medium" })]);
   });
 
+  it("normalizes domains before allowlist checks (whitespace, casing, trailing dot, URL)", () => {
+    expect(triggerCodes({ domain: " API.safe-research.ai  " })).not.toContain("UNLISTED_DOMAIN");
+    expect(triggerCodes({ domain: "https://api.safe-research.ai/path?query=1" })).not.toContain("UNLISTED_DOMAIN");
+    expect(triggerCodes({ domain: "api.safe-research.ai." })).not.toContain("UNLISTED_DOMAIN");
+  });
+
+  it("hard-blocks malformed domains", () => {
+    const result = evaluate({ domain: "not a domain" });
+
+    expect(result.hardBlock).toBe(true);
+    expect(result.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "MALFORMED_DOMAIN", severity: "high" }),
+      ]),
+    );
+  });
+
   it("hard-blocks a blocked tool and records unapproved tool use", () => {
     const result = evaluate({ tool: "shadow-shell" });
 
