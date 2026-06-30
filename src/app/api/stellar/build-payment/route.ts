@@ -33,6 +33,13 @@ export async function POST(request: NextRequest) {
     const userId = auth.session.userId;
     const assignedWallet = await getUserWallet(userId);
 
+    if (assignedWallet && "expired" in assignedWallet) {
+      return NextResponse.json(
+        { error: "Session wallet mapping has expired." },
+        { status: 401, headers: rateLimitHeaders(rate) }
+      );
+    }
+
     const bodyResult = await readJsonBody(request);
     if (!bodyResult.ok) {
       return NextResponse.json(

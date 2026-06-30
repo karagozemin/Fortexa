@@ -13,7 +13,9 @@ import {
   maybeRunCleanup,
   putIdempotencyRecord,
 } from "@/lib/storage/submit-idempotency-store";
+import { getUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
+import { normalizeHorizonError } from "@/lib/utils/horizonErrors";
 
 type HorizonErrorContext = {
   explanation: string;
@@ -133,6 +135,18 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = auth.session.userId;
+    const assignedWallet = await getUserWallet(userId);
+
+    if (assignedWallet && "expired" in assignedWallet) {
+      logWarn("Submit signed wallet expired", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 401,
+        body: { error: "Session wallet mapping has expired." },
+        headers: rateLimitHeaders(rate),
+      });
+    }
 
     const bodyResult = await readJsonBody(request);
     if (!bodyResult.ok) {
@@ -245,11 +259,14 @@ export async function POST(request: NextRequest) {
         ? { ...rateLimitHeaders(rate), "Idempotency-Replayed": "false" }
         : rateLimitHeaders(rate),
     });
-  } catch (error) {
+
+} catch (error) {
     const formatted = formatSubmitError(error);
+    const category = normalizeHorizonError(formatted.txCode);
     logError("Submit signed internal error", {
       ...context,
       detail: formatted.message,
+      horizonCategory: category,
     });
     recordStellarSubmitResult("horizon_failure");
     return jsonWithRequestContext(request, {
@@ -258,10 +275,12 @@ export async function POST(request: NextRequest) {
       status: 500,
       body: {
         error: formatted.message,
+        category,
         resultCode: formatted.txCode,
         operationCodes: formatted.opCodes,
         explanation: formatted.explanation,
         nextStep: formatted.nextStep,
+        rawError: formatted,
       },
       headers: rateLimitHeaders(rate),
     });

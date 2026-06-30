@@ -225,3 +225,70 @@ For operators who don't want to wire up Prometheus, the `/ops` page renders the 
 - **Per-instance.** If Fortexa is horizontally scaled, each replica exposes its own counters. Aggregate with `sum by (route)` in PromQL.
 - **No histogram.** p95 is a gauge derived from a 500-sample ring buffer, not a true Prometheus histogram. Don't use it for cross-instance percentile aggregation.
 - **Local vs deployed auth.** Locally, no allowlist means any pubkey works. In production, set `FORTEXA_OPERATOR_WALLETS` to restrict.
+
+
+---
+
+## Reporting API Failures
+
+Every API response includes an `x-request-id` header whose value is a UUID v4. The same identifier appears in structured logs as the `requestId` field.
+
+When reporting a failure, include the `x-request-id` value so operators can correlate the issue with server-side logs. A complete report should contain:
+
+- **`x-request-id`** — the UUID from the response header or `requestId` from the log line
+- **Route and method** — e.g. `POST /api/decision`
+- **HTTP status code** — e.g. `500`, `403`
+- **Timestamp** — the `ts` field from the log line, or the wall-clock time of the failure
+
+Example log line:
+
+```json
+{"ts":"2026-06-29T12:34:56.789Z","level":"error","message":"Horizon submission failed","requestId":"a1b2c3d4-...","route":"/api/stellar/submit-signed","method":"POST","statusCode":502}
+```
+
+If an upstream proxy or load balancer already set an `x-request-id` header on the incoming request, that value is forwarded in both the response and the logs. Otherwise the server generates one automatically.
+
+---
+
+## Audit Export Verifier
+
+Fortexa stores a tamper-evident hash chain in every audit entry (`entryHash` / `previousHash`).
+The verifier CLI lets you confirm integrity of an exported audit file **without** a database,
+wallet session, or running Next.js server.
+
+### Usage
+
+    npx tsx scripts/verify-audit-export.ts <path-to-export.json>
+
+Or via the package script:
+
+    npm run verify:audit -- <path-to-export.json>
+
+### Export formats supported
+
+| Format | Example shape |
+|--------|--------------|
+| Plain array | [{"id": "...", "entryHash": "...", ...}] |
+| scope=mine | {"scope": "mine", "entries": [...]} |
+| scope=all | {"scope": "all", "entriesByUser": {"userId": [...]}} |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Chain valid |
+| 1 | Chain invalid (tampered, deleted, or reordered entries) |
+| 2 | File not found, unreadable, or unrecognized format |
+
+### Test fixtures
+
+Reference fixtures live in scripts/fixtures/:
+
+| File | Purpose |
+|------|---------|
+| valid-chain.json | 3-entry valid chain (plain array) |
+| valid-mine-export.json | 2-entry valid chain (scope=mine) |
+| valid-all-export.json | Valid multi-user export (scope=all) |
+| tampered-field.json | Entry with modified explanation (tamper detection) |
+| deleted-entry.json | Middle entry removed (gap detection) |
+| reordered-entries.json | Timestamps swapped to disguise reordering |

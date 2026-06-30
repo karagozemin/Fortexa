@@ -157,6 +157,9 @@ describe("/api/audit/export route", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+    expect(response.headers.get("Content-Disposition")).toMatch(
+      /^attachment; filename=fortexa-audit-all-\d{4}-\d{2}-\d{2}\.csv$/
+    );
   });
 
   it("redacts entriesByUser on all-scope JSON exports for operators", async () => {
@@ -284,6 +287,9 @@ describe("/api/audit/export route", () => {
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+      expect(response.headers.get("Content-Disposition")).toMatch(
+        /^attachment; filename=fortexa-audit-mine-\d{4}-\d{2}-\d{2}\.csv$/
+      );
 
       const body = await response.text();
       expect(body).toContain("viewer-seeded");
@@ -319,6 +325,9 @@ describe("/api/audit/export route", () => {
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+      expect(response.headers.get("Content-Disposition")).toMatch(
+        /^attachment; filename=fortexa-audit-all-\d{4}-\d{2}-\d{2}\.csv$/
+      );
 
       const body = await response.text();
       expect(body).toContain("viewer-seeded");
