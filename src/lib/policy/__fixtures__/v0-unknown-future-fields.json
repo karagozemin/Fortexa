@@ -1,0 +1,14 @@
+{
+  "_fixtureNote": "Future policy shape with unknown extra fields (allowedRegions, ipAllowlist, auditWebhook). normalizePolicy must strip them and not widen any permissions.",
+  "allowedDomains": ["api.safe-research.ai"],
+  "blockedDomains": ["wallet-drainer.evil"],
+  "allowedTools": ["research-pro"],
+  "blockedTools": ["shadow-shell"],
+  "perTxCapXLM": 120,
+  "dailyCapXLM": 300,
+  "maxToolCallsPerDay": 8,
+  "riskThreshold": 78,
+  "allowedRegions": ["US", "EU"],
+  "ipAllowlist": ["192.168.1.0/24"],
+  "auditWebhook": "https://internal.example/audit"
+}

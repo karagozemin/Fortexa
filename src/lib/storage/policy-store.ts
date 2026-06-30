@@ -97,7 +97,7 @@ async function readHistoryStore() {
   }
 }
 
-function normalizePolicy(policy?: Partial<PolicyConfig>): PolicyConfig {
+export function normalizePolicy(policy?: Partial<PolicyConfig>): PolicyConfig {
   return {
     allowedDomains: policy?.allowedDomains ?? defaultPolicyConfig.allowedDomains,
     blockedDomains: policy?.blockedDomains ?? defaultPolicyConfig.blockedDomains,
