@@ -6,7 +6,7 @@ import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { recordStellarSubmitResult } from "@/lib/observability/metrics";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
-import { submitSignedTransactionXdr } from "@/lib/stellar/client";
+import { decodeSignedXdrSourceAccount, submitSignedTransactionXdr } from "@/lib/stellar/client";
 import {
   getIdempotencyRecord,
   hashSignedXdr,
@@ -135,18 +135,6 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = auth.session.userId;
-    const assignedWallet = await getUserWallet(userId);
-
-    if (assignedWallet && "expired" in assignedWallet) {
-      logWarn("Submit signed wallet expired", { ...context, userId });
-      return jsonWithRequestContext(request, {
-        route: "/api/stellar/submit-signed",
-        startedAtMs,
-        status: 401,
-        body: { error: "Session wallet mapping has expired." },
-        headers: rateLimitHeaders(rate),
-      });
-    }
 
     const bodyResult = await readJsonBody(request);
     if (!bodyResult.ok) {
@@ -177,6 +165,62 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = parsedPayload.data;
+
+    const assignedWallet = await getUserWallet(userId);
+
+    if (assignedWallet && "expired" in assignedWallet) {
+      logWarn("Submit signed wallet expired", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 401,
+        body: { error: "Session wallet mapping has expired." },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    if (!assignedWallet) {
+      logWarn("Submit signed missing wallet mapping", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 401,
+        body: { error: "No session wallet mapping found for this user." },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    const xdrSourceResult = decodeSignedXdrSourceAccount(payload.signedXdr);
+
+    if (!xdrSourceResult.ok) {
+      logWarn("Submit signed XDR malformed", { ...context, userId });
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 400,
+        body: { error: "Signed XDR could not be decoded. It may be malformed or built for the wrong network." },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    if (xdrSourceResult.sourceAccount !== assignedWallet.publicKey) {
+      logWarn("Submit signed source wallet mismatch", {
+        ...context,
+        userId,
+        expectedWallet: assignedWallet.publicKey,
+        actualSource: xdrSourceResult.sourceAccount,
+      });
+      recordStellarSubmitResult("source_wallet_mismatch");
+      return jsonWithRequestContext(request, {
+        route: "/api/stellar/submit-signed",
+        startedAtMs,
+        status: 400,
+        body: {
+          error: "Signed transaction source account does not match your session wallet.",
+        },
+        headers: rateLimitHeaders(rate),
+      });
+    }
 
     const headerKey = request.headers.get("idempotency-key")?.trim();
     const bodyKey = payload.idempotencyKey?.trim();

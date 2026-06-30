@@ -39,9 +39,16 @@ import { NextRequest } from "next/server";
 import { POST as submitSignedPost } from "@/app/api/stellar/submit-signed/route";
 import { AUTH_COOKIE_KEY, createSessionToken } from "@/lib/auth/session";
 import { resetSubmitIdempotencyState } from "@/lib/storage/submit-idempotency-store";
+import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
 
 const OPERATOR_USER_ID = "idem-operator-id";
 const mockTxHash = "b".repeat(64);
+
+// Fixed source wallet for this operator. The submit-signed route now verifies
+// that a signed XDR's source account matches the session wallet (issue #26),
+// so every signed transaction in this file must be built FROM this keypair,
+// and this keypair must be registered as idem-operator-id's session wallet.
+const OPERATOR_WALLET_KEYPAIR = Keypair.random();
 
 function operatorCookie() {
   const token = createSessionToken({
@@ -67,9 +74,8 @@ function submitRequest(body: unknown, extraHeaders: Record<string, string> = {})
 }
 
 function buildSignedXdr(amount: string) {
-  const source = Keypair.random();
   const destination = Keypair.random();
-  const account = new Account(source.publicKey(), "1");
+  const account = new Account(OPERATOR_WALLET_KEYPAIR.publicKey(), "1");
   const tx = new TransactionBuilder(account, {
     fee: "100",
     networkPassphrase: Networks.TESTNET,
@@ -83,7 +89,7 @@ function buildSignedXdr(amount: string) {
     )
     .setTimeout(30)
     .build();
-  tx.sign(source);
+  tx.sign(OPERATOR_WALLET_KEYPAIR);
   return tx.toXDR();
 }
 
@@ -97,6 +103,12 @@ beforeEach(async () => {
   });
 
   await resetSubmitIdempotencyState(OPERATOR_USER_ID);
+
+  await upsertUserWallet(OPERATOR_USER_ID, {
+    publicKey: OPERATOR_WALLET_KEYPAIR.publicKey(),
+    source: "external",
+    provider: "test-fixture",
+  });
 });
 
 afterAll(async () => {

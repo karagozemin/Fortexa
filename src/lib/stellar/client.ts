@@ -1,8 +1,10 @@
 import {
   Asset,
+  FeeBumpTransaction,
   Horizon,
   Memo,
   Operation,
+  Transaction,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 
@@ -45,6 +47,44 @@ export async function buildUnsignedPaymentTransaction(request: StellarPaymentReq
     xdr: transaction.toXDR(),
     networkPassphrase,
   };
+}
+
+export type SignedXdrSourceResult =
+  | { ok: true; sourceAccount: string; isFeeBump: boolean }
+  | { ok: false; reason: "malformed" };
+
+/**
+ * Decodes a signed transaction XDR (without submitting it to Horizon) and
+ * extracts the transaction-level source account.
+ *
+ * For a regular Transaction, this is `transaction.source`.
+ * For a FeeBumpTransaction, the outer envelope's `source`/`feeSource` pays
+ * the fee but does not "own" the operations, so we resolve to the inner
+ * transaction's source account instead — that's the account whose signed
+ * intent actually matches the session wallet.
+ *
+ * Returns `{ ok: false, reason: "malformed" }` instead of throwing so
+ * callers can return a clean 400 response.
+ */
+export function decodeSignedXdrSourceAccount(signedXdr: string): SignedXdrSourceResult {
+  const { networkPassphrase } = assertStellarNetworkConfig();
+
+  let decoded: Transaction | FeeBumpTransaction;
+  try {
+    decoded = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+
+  if (decoded instanceof FeeBumpTransaction) {
+    return {
+      ok: true,
+      sourceAccount: decoded.innerTransaction.source,
+      isFeeBump: true,
+    };
+  }
+
+  return { ok: true, sourceAccount: decoded.source, isFeeBump: false };
 }
 
 export async function submitSignedTransactionXdr(signedXdr: string) {
