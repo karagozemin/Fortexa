@@ -1,5 +1,16 @@
 type MetricKey = `${string}:${string}`;
 
+export type DecisionOutcome = "APPROVE" | "WARN" | "REQUIRE_APPROVAL" | "BLOCK";
+export type StellarSubmitResult =
+  | "success"
+  | "horizon_failure"
+  | "validation_failure"
+  | "idempotency_replay"
+  | "idempotency_conflict";
+
+const decisionOutcomeCounts = new Map<DecisionOutcome, number>();
+const stellarSubmitResultCounts = new Map<StellarSubmitResult, number>();
+
 type MetricBucket = {
   route: string;
   method: string;
@@ -133,9 +144,39 @@ export function toPrometheusText() {
     );
   }
 
+  lines.push("# HELP fortexa_decision_outcomes_total Total decision evaluations by outcome");
+  lines.push("# TYPE fortexa_decision_outcomes_total counter");
+  for (const [outcome, count] of decisionOutcomeCounts) {
+    lines.push(`fortexa_decision_outcomes_total{outcome="${outcome}"} ${count}`);
+  }
+
+  lines.push("# HELP fortexa_stellar_submit_results_total Total Stellar submission attempts by result");
+  lines.push("# TYPE fortexa_stellar_submit_results_total counter");
+  for (const [result, count] of stellarSubmitResultCounts) {
+    lines.push(`fortexa_stellar_submit_results_total{result="${result}"} ${count}`);
+  }
+
   return `${lines.join("\n")}\n`;
+}
+
+export function recordDecisionOutcome(outcome: DecisionOutcome) {
+  decisionOutcomeCounts.set(outcome, (decisionOutcomeCounts.get(outcome) ?? 0) + 1);
+}
+
+export function recordStellarSubmitResult(result: StellarSubmitResult) {
+  stellarSubmitResultCounts.set(result, (stellarSubmitResultCounts.get(result) ?? 0) + 1);
 }
 
 export function resetMetrics() {
   buckets.clear();
+  decisionOutcomeCounts.clear();
+  stellarSubmitResultCounts.clear();
+}
+
+export function getDecisionOutcomeCounts(): ReadonlyMap<DecisionOutcome, number> {
+  return decisionOutcomeCounts;
+}
+
+export function getStellarSubmitResultCounts(): ReadonlyMap<StellarSubmitResult, number> {
+  return stellarSubmitResultCounts;
 }

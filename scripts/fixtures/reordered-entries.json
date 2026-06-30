@@ -1,0 +1,56 @@
+[
+  {
+    "id": "entry-1",
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "action": {
+      "id": "action-1",
+      "name": "pay",
+      "kind": "api_payment",
+      "target": "GDEST3XZHS7SQCD3NELG6AV47BPUOZCTBM2TKEGP5LYELXQHEBSCCZ",
+      "domain": "stellar.org",
+      "amountXLM": 10
+    },
+    "decision": "APPROVE",
+    "explanation": "Within policy limits",
+    "triggeredPolicies": [],
+    "riskFindings": [],
+    "previousHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "entryHash": "40d41a2cd44030891f69b1054c9553e8a2cdfcda5824c9aad0aedec3a285cadb"
+  },
+  {
+    "id": "entry-2",
+    "timestamp": "2024-01-01T00:02:00.000Z",
+    "action": {
+      "id": "action-2",
+      "name": "pay",
+      "kind": "api_payment",
+      "target": "GDEST3XZHS7SQCD3NELG6AV47BPUOZCTBM2TKEGP5LYELXQHEBSCCZ",
+      "domain": "stellar.org",
+      "amountXLM": 10
+    },
+    "decision": "APPROVE",
+    "explanation": "Within policy limits",
+    "triggeredPolicies": [],
+    "riskFindings": [],
+    "previousHash": "40d41a2cd44030891f69b1054c9553e8a2cdfcda5824c9aad0aedec3a285cadb",
+    "entryHash": "0c04ba78fcf51b7a7a18abf6dc17282a8cd4cff5f2c81407f068726a07d88be9"
+  },
+  {
+    "id": "entry-3",
+    "timestamp": "2024-01-01T00:01:00.000Z",
+    "action": {
+      "id": "action-3",
+      "name": "pay",
+      "kind": "api_payment",
+      "target": "GDEST3XZHS7SQCD3NELG6AV47BPUOZCTBM2TKEGP5LYELXQHEBSCCZ",
+      "domain": "stellar.org",
+      "amountXLM": 10
+    },
+    "decision": "APPROVE",
+    "explanation": "Within policy limits",
+    "triggeredPolicies": [],
+    "riskFindings": [],
+    "previousHash": "0c04ba78fcf51b7a7a18abf6dc17282a8cd4cff5f2c81407f068726a07d88be9",
+    "entryHash": "97ed99eede8dacf8b1787db4ac036a2dd0002588e6b1865ff702899d725d2a4c"
+  }
+]

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getWalletFromSession } from "@/lib/auth/session-wallet";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
-import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
+import { getUserWallet, upsertUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarSetupRequestSchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
@@ -42,6 +42,16 @@ export async function POST(request: NextRequest) {
       return auth.response;
     }
 
+    const userId = auth.session.userId;
+    const assignedWallet = await getUserWallet(userId);
+
+    if (assignedWallet && "expired" in assignedWallet) {
+      return NextResponse.json(
+        { error: "Session wallet mapping has expired." },
+        { status: 401, headers: rateLimitHeaders(rate) }
+      );
+    }
+
     const sessionWallet = getWalletFromSession(auth.session);
     if (!sessionWallet) {
       return NextResponse.json(
@@ -50,7 +60,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = auth.session.userId;
 
     await upsertUserWallet(userId, {
       publicKey: sessionWallet,

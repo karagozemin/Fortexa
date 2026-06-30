@@ -14,6 +14,26 @@ export async function GET(request: NextRequest) {
 
   const userId = auth.session.userId;
   let assignedWallet = await getUserWallet(userId);
+
+  if (assignedWallet && "expired" in assignedWallet) {
+    return NextResponse.json(
+      { error: "Session wallet mapping has expired." },
+      { status: 401 }
+    );
+  }
+
+  if (!assignedWallet && process.env.NODE_ENV === "development") {
+    try {
+      assignedWallet = await upsertUserWallet(userId, {
+        publicKey: "GDEV...",
+        source: "external",
+        provider: "freighter",
+      });
+    } catch {
+      // ignore
+    }
+  }
+
   let publicKey = assignedWallet?.publicKey;
 
   if (!publicKey || assignedWallet?.source !== "external") {

@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { redactSensitiveFields } from "@/lib/observability/redact";
+
 type LogLevel = "info" | "warn" | "error";
 
 type LogContext = {
@@ -13,12 +15,14 @@ type LogContext = {
 };
 
 function serialize(level: LogLevel, message: string, context?: LogContext) {
-  return JSON.stringify({
-    ts: new Date().toISOString(),
-    level,
-    message,
-    ...context,
-  });
+  return JSON.stringify(
+    redactSensitiveFields({
+      ts: new Date().toISOString(),
+      level,
+      message,
+      ...context,
+    }),
+  );
 }
 
 export function getRequestId(request: NextRequest) {
