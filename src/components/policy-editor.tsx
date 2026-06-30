@@ -521,7 +521,7 @@ export function PolicyEditor() {
 
 type DiffStatus = "added" | "removed" | "unchanged";
 
-function diffLists(a: string[], b: string[]): Array<{ value: string; status: DiffStatus }> {
+export function diffLists(a: string[], b: string[]): Array<{ value: string; status: DiffStatus }> {
   const setA = new Set(a);
   const setB = new Set(b);
   const all = Array.from(new Set([...a, ...b]));

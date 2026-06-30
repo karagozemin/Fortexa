@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { evaluateDecision } from "@/lib/decision/engine";
 import { defaultPolicyConfig } from "@/lib/policy/engine";
 import { demoScenarios, defaultDailyUsage } from "@/lib/scenarios/seed";
-import type { AgentAction, DailyUsage, DecisionResult, PolicyConfig } from "@/lib/types/domain";
+
 
 const testPolicy = {
   ...defaultPolicyConfig,

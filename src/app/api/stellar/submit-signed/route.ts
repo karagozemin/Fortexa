@@ -15,7 +15,7 @@ import {
 } from "@/lib/storage/submit-idempotency-store";
 import { getUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
-import { normalizeHorizonError, HorizonErrorCategory } from "@/lib/utils/horizonErrors";
+import { normalizeHorizonError } from "@/lib/utils/horizonErrors";
 
 type HorizonErrorContext = {
   explanation: string;
