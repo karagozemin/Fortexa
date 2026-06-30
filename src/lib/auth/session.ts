@@ -18,7 +18,7 @@ describe('Fortexa Session Cookie Security Regression Tests', () => {
   afterEach(() => {
     process.env.FORTEXA_AUTH_SECRET = originalEnv;
   });
-
+  
   ### 1. Hardening & Verification Logic Tests
   it('should reject structurally modified or tampered tokens safely', () => {
     const validToken = createSessionToken({ email: 'user@fortexa.com', role: 'viewer' });

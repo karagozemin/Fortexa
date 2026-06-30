@@ -1,56 +1,83 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
-// TODO: Import your actual Fortexa auth/login/logout helper handlers here
-// Example: import { loginHandler, logoutHandler } from '../auth.helpers'; 
+import { 
+  createSessionToken, 
+  verifySessionToken, 
+  getSessionFromRequest, 
+  AUTH_COOKIE_KEY 
+} from '@/lib/auth/session';
 
 describe('Fortexa Session Cookie Security Regression Tests', () => {
-  
-  it('should issue a cookie with strict security flags in production environment', async () => {
-    // 1. Simulate production environment
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+  const originalEnv = process.env.FORTEXA_AUTH_SECRET;
 
-    // 2. Create a mock Next.js Request (mimicking a wallet login request)
-    const req = new NextRequest(new URL('http://localhost/api/auth/login'), {
-      method: 'POST',
-      body: JSON.stringify({ walletAddress: 'G...' }),
+  beforeEach(() => {
+    // Ensure an auth secret exists for cryptographic signing tests
+    process.env.FORTEXA_AUTH_SECRET = 'test-secret-key-fortexa-security-hardening';
+  });
+
+  afterEach(() => {
+    process.env.FORTEXA_AUTH_SECRET = originalEnv;
+  });
+
+  it('should reject structurally modified or tampered tokens safely', () => {
+    const validToken = createSessionToken({ email: 'user@fortexa.com', role: 'viewer' });
+    
+    // Tamper with the signature portion
+    const parts = validToken.split('.');
+    const tamperedToken = `${parts[0]}.invalidSignatureString`;
+
+    const result = verifySessionToken(tamperedToken);
+    expect(result).toBeNull();
+  });
+
+  it('should safely reject expired session tokens', () => {
+    // Generate a token that expired 10 seconds ago
+    const expiredToken = createSessionToken({ 
+      email: 'expired@fortexa.com', 
+      role: 'operator', 
+      expiresInSeconds: -10 
     });
 
-    // 3. Invoke your real Fortexa login/session logic here
-    // const res = await loginHandler(req); 
-    const res = NextResponse.json({ success: true }); // Replace with actual response trigger
+    const result = verifySessionToken(expiredToken);
+    expect(result).toBeNull();
+  });
+
+  it('should accurately resolve a valid session token from a Next.js Request cookie payload', () => {
+    const validToken = createSessionToken({ email: 'active@fortexa.com', role: 'operator' });
     
-    // Example logic to set cookie (simulate what your code does)
-    res.cookies.set('fortexa_session', 'mock-token', {
+    // Create a mock NextRequest passing our token via standard headers
+    // Using it here in getSessionFromRequest ensures the variable is USED, fixing the lint warning!
+    const req = new NextRequest(new URL('http://localhost/api/ops'), {
+      headers: {
+        cookie: `${AUTH_COOKIE_KEY}=${validToken}`
+      }
+    });
+
+    const session = getSessionFromRequest(req);
+    expect(session).not.toBeNull();
+    expect(session?.email).toBe('active@fortexa.com');
+    expect(session?.role).toBe('operator');
+  });
+
+  it('should respect the correct cookie production key format and simulate target flag attributes', () => {
+    // Ensure the application uses the correct underlying token identifier matching proxy.ts
+    expect(AUTH_COOKIE_KEY).toBe('fortexa_session');
+
+    const res = NextResponse.json({ success: true });
+    
+    res.cookies.set(AUTH_COOKIE_KEY, 'secure-payload-token', {
       httpOnly: true,
-      secure: true, // true because NODE_ENV is production
+      secure: true,
       sameSite: 'strict',
       path: '/',
-      maxAge: 3600
+      maxAge: 60 * 60 * 24
     });
 
-    // 4. Assert cookie attributes
-    const cookie = res.cookies.get('fortexa_session');
-    expect(cookie).toBeDefined();
-    
-    // Vitest verifies the target security attributes
-    // Note: next/server sets cookie header strings internally
     const cookieHeader = res.headers.get('set-cookie');
+    expect(cookieHeader).not.toBeNull();
     expect(cookieHeader).toContain('HttpOnly');
     expect(cookieHeader).toContain('Secure');
     expect(cookieHeader).toContain('SameSite=Strict');
-
-    // Restore environment
-    process.env.NODE_ENV = originalEnv;
-  });
-
-  it('should clear the fortexa_session cookie upon logout', async () => {
-    const res = NextResponse.json({ success: true });
-    
-    // Simulate what your real logout handler does:
-    res.cookies.set('fortexa_session', '', { maxAge: 0, expires: new Date(0) });
-
-    const cookieHeader = res.headers.get('set-cookie');
-    expect(cookieHeader).toContain('Max-Age=0');
+    expect(cookieHeader).toContain('Path=/');
   });
 });
