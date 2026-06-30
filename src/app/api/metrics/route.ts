@@ -1,33 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth/require-auth";
-import { jsonWithRequestContext } from "@/lib/observability/http";
-import { getMetricsSnapshot, toPrometheusText } from "@/lib/observability/metrics";
+import { getMetricsSnapshot, recordApiMetric, toPrometheusText } from "@/lib/observability/metrics";
 
 export async function GET(request: NextRequest) {
-  const startedAtMs = Date.now();
   const auth = requireAuth(request, { allowedRoles: ["operator"] });
 
   if (!auth.ok) {
     return auth.response;
   }
 
+  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   const format = request.nextUrl.searchParams.get("format")?.toLowerCase();
+
+  recordApiMetric({
+    route: "/api/metrics",
+    method: request.method,
+    statusCode: 200,
+    durationMs: 0,
+  });
 
   if (format === "prometheus") {
     return new NextResponse(toPrometheusText(), {
       status: 200,
       headers: {
         "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
-        "x-request-id": request.headers.get("x-request-id") ?? crypto.randomUUID(),
+        "x-request-id": requestId,
       },
     });
   }
 
-  return jsonWithRequestContext(request, {
-    route: "/api/metrics",
-    startedAtMs,
+  return NextResponse.json(getMetricsSnapshot(), {
     status: 200,
-    body: getMetricsSnapshot(),
+    headers: {
+      "x-request-id": requestId,
+    },
   });
 }

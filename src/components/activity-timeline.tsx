@@ -56,7 +56,7 @@ export function ActivityTimeline({
             <div className="mt-3 space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
               <p className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 break-words">{entry.explanation}</p>
               <p className="inline-flex items-center gap-1 text-xs break-all">
-                <ScrollText className="h-3 w-3 shrink-0" /> {entry.id}
+                <ScrollText aria-hidden="true" className="h-3 w-3 shrink-0" /> {entry.id}
               </p>
             </div>
           ) : (
@@ -76,7 +76,7 @@ export function ActivityTimeline({
               </div>
               <div className="rounded-lg bg-[hsl(var(--muted)/0.35)] px-3 py-2 text-xs">
                 <p className="mb-0.5 inline-flex items-center gap-1 uppercase tracking-wider text-[hsl(var(--accent))]">
-                  <Clock4 className="h-3 w-3" /> Time
+                  <Clock4 aria-hidden="true" className="h-3 w-3" /> Time
                 </p>
                 {new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </div>

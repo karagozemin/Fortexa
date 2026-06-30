@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RefreshCw, Wallet } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Copy, RefreshCw, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { truncateMiddle } from "@/lib/utils/format";
@@ -22,6 +22,8 @@ type WalletData = {
 export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function loadWallet() {
     setLoading(true);
@@ -39,6 +41,24 @@ export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     void loadWallet();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeout.current) {
+        clearTimeout(copyResetTimeout.current);
+      }
+    };
+  }, []);
+
+  async function copyPublicKey() {
+    if (!data?.publicKey) return;
+    await navigator.clipboard.writeText(data.publicKey);
+    setCopied(true);
+    if (copyResetTimeout.current) {
+      clearTimeout(copyResetTimeout.current);
+    }
+    copyResetTimeout.current = setTimeout(() => setCopied(false), 2000);
+  }
 
   if (compact) {
     return (
@@ -60,8 +80,15 @@ export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
           <p className="text-xs text-[hsl(var(--muted-foreground))]">Balance</p>
           <p className="text-lg font-semibold">{data?.balance ?? "—"} <span className="text-sm font-normal text-[hsl(var(--muted-foreground))]">XLM</span></p>
         </div>
-        <Button variant="ghost" size="sm" onClick={loadWallet} disabled={loading} className="shrink-0">
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={loadWallet}
+          disabled={loading}
+          aria-label={loading ? "Refreshing wallet…" : "Refresh wallet balance"}
+          className="shrink-0"
+        >
+          <RefreshCw aria-hidden="true" className={cn("h-4 w-4", loading && "animate-spin")} />
         </Button>
       </div>
     );
@@ -75,7 +102,7 @@ export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
           <p className="text-lg font-semibold">Agent wallet</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadWallet} disabled={loading}>
-          <RefreshCw className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")} />
+          <RefreshCw aria-hidden="true" className={cn("mr-2 h-3.5 w-3.5", loading && "animate-spin")} />
           Refresh
         </Button>
       </div>
@@ -83,7 +110,29 @@ export function WalletStatusCard({ compact = false }: { compact?: boolean }) {
       {data?.publicKey ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-[hsl(var(--muted)/0.4)] p-4">
-            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Public key</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Public key</p>
+              <button
+                type="button"
+                onClick={copyPublicKey}
+                aria-label={
+                  copied ? "Wallet public key copied" : "Copy wallet public key to clipboard"
+                }
+                className="inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-2 text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--border))] hover:bg-[hsl(var(--background))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3" aria-hidden="true" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
             <p className="mt-1 font-mono text-xs">{truncateMiddle(data.publicKey, 14, 14)}</p>
           </div>
           <div className="rounded-xl bg-[hsl(var(--muted)/0.4)] p-4">
