@@ -31,6 +31,24 @@ export type VerifyPaymentQuoteResult =
 
 const EXECUTABLE_DECISIONS = new Set(["APPROVE", "WARN"]);
 
+/** Default quote TTL: 300 seconds (5 minutes). */
+const DEFAULT_QUOTE_TTL_SECONDS = 300;
+
+/**
+ * Returns the payment quote TTL in milliseconds.
+ * Reads FORTEXA_PAYMENT_QUOTE_TTL_SECONDS; falls back to 300 s when the
+ * value is absent, non-numeric, or less than 1.
+ */
+function getQuoteTtlMs(): number {
+  const parsed = Number(
+    process.env.FORTEXA_PAYMENT_QUOTE_TTL_SECONDS ?? DEFAULT_QUOTE_TTL_SECONDS,
+  );
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return DEFAULT_QUOTE_TTL_SECONDS * 1000;
+  }
+  return Math.floor(parsed) * 1000;
+}
+
 export function normalizeAmountXLM(amount: number | string): string {
   const parsed = typeof amount === "number" ? amount : Number.parseFloat(amount);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -72,6 +90,14 @@ export function verifyPaymentAgainstQuote(
       ok: false,
       status: 403,
       error: `Decision '${auditEntry.decision}' does not authorize payment execution.`,
+    };
+  }
+
+  if (Date.now() - Date.parse(auditEntry.timestamp) > getQuoteTtlMs()) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Payment quote has expired. Please re-evaluate the action.",
     };
   }
 
