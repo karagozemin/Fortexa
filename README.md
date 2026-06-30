@@ -41,6 +41,24 @@ If you only read one section, read this:
 4. For allowed flows, **build unsigned XDR → sign in wallet → submit signed XDR**.
 5. Verify outcome with **Explorer link** and inspect evidence in `/activity` and `/ops`.
 
+### ✅ Reviewer Checklist: Wallet-Bound Payment Flow
+
+The core security premise of Fortexa is that it **does not hold private keys or perform server-side signing.**
+This end-to-end flow validates that design:
+
+| Step | UI / Route | Source / Logic | Expected Signal |
+|---|---|---|---|
+| **1. Login** | `/login` | [`POST /api/auth/login`](src/app/api/auth/login/route.ts) <br> [`src/components/login-form.tsx`](src/components/login-form.tsx) | **Success**: Freighter challenge signed, session issued.<br>**Failure**: Signature mismatch, unauthorized wallet. |
+| **2. Decision** | `/console` | [`POST /api/decision`](src/app/api/decision/route.ts) <br> [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Returns `APPROVE` or `WARN` with a fixed payment quote.<br>**Failure**: Returns `BLOCK` (no quote). |
+| **3. Quote Lock** | `/console` | [`POST /api/stellar/build-payment`](src/app/api/stellar/build-payment/route.ts) | **Success**: Build request perfectly matches the approved audit entry quote.<br>**Failure**: Server rejects tampered destination, amount, or memo with `403`. |
+| **4. Unsigned XDR Build** | `/console` | [`POST /api/stellar/build-payment`](src/app/api/stellar/build-payment/route.ts) | **Success**: Server returns valid unsigned XDR envelope.<br>**Failure**: Network timeout, missing parameters. |
+| **5. Wallet Signing** | `/console` | `signTransaction` inside <br> [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Freighter popup appears, user signs, UI holds signed XDR.<br>**Failure**: User rejects in wallet. |
+| **6. Signed Submit** | `/console` | [`POST /api/stellar/submit-signed`](src/app/api/stellar/submit-signed/route.ts) | **Success**: Broadcasts successfully to Stellar Testnet (200 OK).<br>**Failure**: Horizon error (`tx_bad_seq`, `op_underfunded`). |
+| **7. Explorer Link** | `/console` | [`src/components/decision-console.tsx`](src/components/decision-console.tsx) | **Success**: Clickable link to Stellar Expert confirming hash matches. |
+| **8. Audit Evidence** | `/activity`<br>`/ops` | [`GET /api/audit`](src/app/api/audit/route.ts) <br> [`src/app/activity/page.tsx`](src/app/activity/page.tsx) | **Success**: Immutable record of the original decision and execution hash. |
+
+*(Note: Fortexa is currently built for testnet validation. Mainnet readiness requires further risk intel integrations.)*
+
 ---
 
 ## 3) 🧭 Current Product Model
@@ -99,6 +117,8 @@ Fortexa currently does **not perform server-side signing or private-key custody*
 
 - Session is wallet-bound at login.
 - Execution source wallet is derived from session identity.
+- Session wallet mappings expire automatically after 24 hours. Expired sessions will receive a `401 Unauthorized` response on protected endpoints.
+- Operators can forcefully revoke a compromised or stale session mapping via `DELETE /api/auth/wallet/revoke`. This deterministically removes the mapping from storage, requiring the user to reconnect their wallet.
 - Manual arbitrary wallet assignment in UI is removed.
 - `/api/stellar/balance` auto-syncs missing wallet mapping from session when possible.
 
@@ -125,6 +145,8 @@ Decision outcomes:
 Before committing a policy change, operators can dry-run the unsaved draft from the Policy editor (**Run simulation**). The draft is evaluated against the seeded demo scenarios — and, optionally, a small recent-audit sample — and the result shows each action's `current → proposed` decision so risky edits surface before they go live.
 
 Simulation is strictly read-only: it never saves the policy and never consumes usage. Saving still happens only through `POST /api/policy`. See `src/lib/decision/simulate.ts` and `POST /api/policy/simulate`.
+
+> **Reporting API failures:** Include the `x-request-id` header value from the response (or the `requestId` field from server-side logs) when filing a bug report. See [docs/observability.md](docs/observability.md#reporting-api-failures) for details.
 
 ### 6.2 Signed XDR Payment Path
 
@@ -163,6 +185,10 @@ Additional behavior:
 - `/activity` reads entries by authenticated session user id.
 - Export endpoint supports `mine` and `all` scopes in JSON/CSV.
 
+### Timestamp timezone
+
+All audit timestamps are recorded and exported in **UTC** (ISO 8601 format with a `Z` suffix, e.g. `2025-06-01T12:00:00.000Z`). This applies to both JSON and CSV exports — the `timestamp` column in CSV output carries the raw UTC string with no local-time conversion. The `from`/`to` query parameters on the export endpoint are also compared against these UTC timestamps, so any filter dates should be expressed in UTC.
+
 ### Hash chain integrity
 
 Every new audit entry is linked into a tamper-evident SHA-256 hash chain:
@@ -177,6 +203,24 @@ Both fields are included in JSON exports. CSV exports add `entryHash` and `previ
 Verification helper: `verifyHashChain(entries)` in `src/lib/audit/hash-chain.ts` — returns `{ valid: true }` for an untouched log and `{ valid: false, reason }` when it detects a modified, deleted, or reordered entry.
 
 Entries written before this feature was introduced carry no hash fields and are treated as **legacy** entries; they do not break verification of newer hashed entries.
+
+#### CLI verifier
+
+An exported JSON audit file can be verified outside the running application:
+
+```bash
+npm run verify:audit -- path/to/export.json
+```
+
+The script reads the JSON export, extracts the entries (handles `scope=mine` and `scope=all` formats), and runs the same `verifyHashChain` logic that the library uses. Exit code:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | All entries verified successfully |
+| `1` | Chain integrity check failed (see stdout for details) |
+| `2` | Usage error or file not readable |
+
+Usage: `tsx scripts/verify-audit-export.ts <file>`
 
 ---
 
@@ -222,35 +266,24 @@ To clean up local developer state safely, you can use the local demo reset utili
 
 ## 9) 🌍 Environment Variables
 
-Reference (`.env.example`):
+All configuration is documented in [`.env.example`](.env.example). Copy it to `.env.local` and fill in the values you need:
 
 ```bash
-STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
-
-DATABASE_URL=
-DATABASE_SSL=false
-
-FORTEXA_STORE_DIR=
-
-FORTEXA_SHARED_STATE_PATH=
-REDIS_URL=
-
-GROQ_API_KEY=
-GROQ_MODEL=llama-3.3-70b-versatile
-
-FORTEXA_AUTH_SECRET=
-FORTEXA_OPERATOR_WALLETS=
-FORTEXA_VIEWER_WALLETS=
-FORTEXA_AUTH_MAX_ATTEMPTS=5
-FORTEXA_AUTH_LOCK_MINUTES=10
-
-NEXT_PUBLIC_STELLAR_DESTINATION=
-
-# Optional external blocklist URL for dynamic threat-intel
-# Accepts JSON array of domains or plain-text (one domain per line, # comments ignored)
-# Cached in-memory for 5 minutes; feed failures fall back silently
-FORTEXA_BLOCKLIST_URL=
+cp .env.example .env.local
 ```
+
+The file covers every variable used by the app, organized into:
+
+| Category | Variables |
+|---|---|
+| **Stellar Network** | `STELLAR_HORIZON_URL`, `STELLAR_NETWORK_PASSPHRASE`, `NEXT_PUBLIC_STELLAR_DESTINATION` |
+| **Auth** | `FORTEXA_AUTH_SECRET`, `FORTEXA_OPERATOR_WALLETS`, `FORTEXA_VIEWER_WALLETS`, `FORTEXA_AUTH_CHALLENGE_TTL_SECONDS`, `FORTEXA_AUTH_MAX_ATTEMPTS`, `FORTEXA_AUTH_LOCK_MINUTES` |
+| **Storage** | `DATABASE_URL`, `DATABASE_SSL`, `FORTEXA_STORE_DIR` |
+| **Shared State** | `FORTEXA_SHARED_STATE_PATH`, `REDIS_URL` |
+| **Idempotency** | `FORTEXA_IDEMPOTENCY_RETENTION_DAYS` |
+| **Optional Integrations** | `GROQ_API_KEY`, `GROQ_MODEL`, `FORTEXA_BLOCKLIST_URL` |
+| **Request Handling** | `FORTEXA_JSON_BODY_MAX_BYTES` |
+| **Dev Utilities** | `FORTEXA_ALLOW_LOCAL_RESET` |
 
 ---
 
@@ -261,15 +294,33 @@ npm run dev
 npm run build
 npm run start
 npm run lint
-npm run test
+npm test
 npm run test:watch
 npm run demo:scenarios
 npm run db:migrate
 ```
 
+### Running the policy pack regression suite
+
+The investor-facing scenario pack lives in `src/lib/scenarios/seed.ts` and its regression suite in `src/lib/scenarios/scenario-pack.test.ts`.
+
+Run the full scenario pack:
+
+```bash
+npm test -- src/lib/scenarios/scenario-pack.test.ts
+```
+
+Run the standalone demo runner (prints expected vs actual for every seeded scenario):
+
+```bash
+npm run demo:scenarios
+```
+
 ---
 
 ## 11) 🔌 API Surface (Reference)
+
+JSON `POST` routes that accept request bodies enforce a shared size limit before parsing (default **64 KiB**, override with `FORTEXA_JSON_BODY_MAX_BYTES`). Oversized payloads receive HTTP **413** with a clear error message; malformed but small JSON still returns the route's normal validation error.
 
 ### Auth
 - `POST /api/auth/challenge`
@@ -277,6 +328,7 @@ npm run db:migrate
 - `POST /api/auth/logout`
 - `GET /api/auth/session`
 - `POST /api/auth/refresh`
+- `DELETE /api/auth/wallet/revoke` (`operator`) — revokes session wallet mapping
 
 ### Policy
 - `GET /api/policy`
@@ -395,6 +447,31 @@ Optional overrides:
 5. Full end-to-end automated coverage for the complete decision-to-payment lifecycle is still limited.
 
 Fortexa is intentionally optimized for hackathon clarity and wallet-native control, not full production deployment.
+
+---
+
+## 17) 🛡️ Decision Explanation Snapshot Tests
+
+Reviewer-facing explanation text is guarded by snapshot tests to ensure transparency and prevent accidental explanation drift across changes.
+
+**How to update snapshots:**
+```bash
+npm run test -- src/lib/decision/engine.scenarios.test.ts --updateSnapshot
+```
+
+**Files:**
+- `src/lib/decision/engine.scenarios.test.ts` - Snapshot tests for decision explanations
+- `src/lib/decision/engine.test.ts` - Updated summary file referencing the snapshots
+
+**Covered decision types:**
+- **APPROVE** - Safe research payment (human-readable approval message)
+- **BLOCK** - Malicious endpoint blocked by domain policy
+- **WARN** - Typosquat domain risk detected (caution warning)
+- **REQUIRE_APPROVAL** - Over-budget transfer requiring manual approval
+
+These snapshots make policy decision transparency reproducible for reviewers and protect against accidental explanation drift.
+
+---
 
 ---
 

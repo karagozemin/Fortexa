@@ -16,10 +16,19 @@ type IdempotencyStoreFile = {
   records: Record<string, SubmitIdempotencyRecord>;
 };
 
+const DEFAULT_RETENTION_DAYS = 7;
 const storePath = getFortexaStorePath("submit-idempotency.json");
 
 export function hashSignedXdr(signedXdr: string) {
   return createHash("sha256").update(signedXdr).digest("hex");
+}
+
+export function getIdempotencyRetentionDays(): number {
+  const raw = process.env.FORTEXA_IDEMPOTENCY_RETENTION_DAYS?.trim();
+  if (!raw) return DEFAULT_RETENTION_DAYS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_RETENTION_DAYS;
+  return parsed;
 }
 
 function fileKey(userId: string, idempotencyKey: string) {
@@ -150,4 +159,68 @@ export async function resetSubmitIdempotencyState(userId: string) {
   if (mutated) {
     await writeStore(store);
   }
+}
+
+export async function cleanupOldIdempotencyRecords(
+  retentionDays?: number
+): Promise<number> {
+  const days = retentionDays ?? getIdempotencyRetentionDays();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+
+  const db = await runWithDatabase("cleanupOldIdempotencyRecords", async (pool) => {
+    const result = await pool.query(
+      `DELETE FROM fortexa_submit_idempotency
+       WHERE created_at < $1::timestamptz
+         AND created_at::date != CURRENT_DATE`,
+      [cutoff.toISOString()]
+    );
+    return result.rowCount ?? 0;
+  });
+
+  if (db.available) {
+    return db.value;
+  }
+
+  const store = await readStore();
+  const today = new Date().toISOString().slice(0, 10);
+  let deletedCount = 0;
+  let mutated = false;
+
+  for (const [key, record] of Object.entries(store.records)) {
+    const recordDate = new Date(record.createdAt);
+    if (recordDate < cutoff && record.createdAt.slice(0, 10) !== today) {
+      delete store.records[key];
+      deletedCount++;
+      mutated = true;
+    }
+  }
+
+  if (mutated) {
+    await writeStore(store);
+  }
+
+  return deletedCount;
+}
+
+let lastCleanupTime = 0;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
+export function getLastCleanupTime(): number {
+  return lastCleanupTime;
+}
+
+/** Reset the last cleanup time (used in tests). */
+export function __resetLastCleanupTime() {
+  lastCleanupTime = 0;
+}
+
+export function maybeRunCleanup(): void {
+  const now = Date.now();
+  if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) return;
+  lastCleanupTime = now;
+
+  cleanupOldIdempotencyRecords().catch(() => {
+    // Cleanup is best-effort; failures should not affect the request.
+  });
 }
