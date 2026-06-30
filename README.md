@@ -441,9 +441,6 @@ Fortexa is intentionally optimized for hackathon clarity and wallet-native contr
 
 ---
 
-<<<<<<< fix/add-security-headers
-## 18) ❓ Troubleshooting Payment Failures
-=======
 ## 17) 🛡️ Decision Explanation Snapshot Tests
 
 Reviewer-facing explanation text is guarded by snapshot tests to ensure transparency and prevent accidental explanation drift across changes.
@@ -467,10 +464,7 @@ These snapshots make policy decision transparency reproducible for reviewers and
 
 ---
 
----
-
-## 17) ❓ Troubleshooting Payment Failures
->>>>>>> main
+## 18) ❓ Troubleshooting Payment Failures
 
 Common Stellar Horizon failures during the signed payment flow:
 
