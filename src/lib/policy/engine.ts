@@ -1,4 +1,5 @@
 import { isWithinInterval } from "date-fns";
+import { normalizeDomain } from "@/lib/policy/domain";
 
 import type { AgentAction, DailyUsage, PolicyConfig, PolicyEvaluation, PolicyTrigger } from "@/lib/types/domain";
 
@@ -20,20 +21,30 @@ export const defaultPolicyConfig: PolicyConfig = {
 export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage: DailyUsage): PolicyEvaluation {
   const triggers: PolicyTrigger[] = [];
 
-  if (policy.blockedDomains.includes(action.domain)) {
+  const normalizedDomain = normalizeDomain(action.domain);
+
+  if (!normalizedDomain) {
     triggers.push({
-      code: "BLOCKED_DOMAIN",
-      message: `Domain ${action.domain} is explicitly blocked by policy.`,
+      code: "MALFORMED_DOMAIN",
+      message: `Domain ${action.domain} is malformed or invalid.`,
       severity: "high",
     });
-  }
+  } else {
+    if (policy.blockedDomains.includes(normalizedDomain)) {
+      triggers.push({
+        code: "BLOCKED_DOMAIN",
+        message: `Domain ${normalizedDomain} is explicitly blocked by policy.`,
+        severity: "high",
+      });
+    }
 
-  if (!policy.allowedDomains.includes(action.domain)) {
-    triggers.push({
-      code: "UNLISTED_DOMAIN",
-      message: `Domain ${action.domain} is not present in allowlist.`,
-      severity: "medium",
-    });
+    if (!policy.allowedDomains.includes(normalizedDomain)) {
+      triggers.push({
+        code: "UNLISTED_DOMAIN",
+        message: `Domain ${normalizedDomain} is not present in allowlist.`,
+        severity: "medium",
+      });
+    }
   }
 
   if (action.tool && policy.blockedTools.includes(action.tool)) {
@@ -92,7 +103,7 @@ export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage:
     }
   }
 
-  const hardBlock = triggers.some((t) => t.severity === "high" && ["BLOCKED_DOMAIN", "BLOCKED_TOOL"].includes(t.code));
+  const hardBlock = triggers.some((t) => t.severity === "high" && ["BLOCKED_DOMAIN", "BLOCKED_TOOL", "MALFORMED_DOMAIN"].includes(t.code));
   const requireApproval = triggers.some((t) => t.code === "PER_TX_CAP_EXCEEDED" || t.code === "DAILY_CAP_EXCEEDED");
   const warning = triggers.some((t) => t.severity === "medium");
 
