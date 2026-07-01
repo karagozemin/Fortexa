@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Database, HelpCircle, Shield, ShieldOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Database, HelpCircle, Shield, ShieldAlert, ShieldCheck, ShieldOff } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -171,7 +171,7 @@ export function OpsDashboard() {
           return;
         }
         setIntegrity(integrityPayload);
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
           setIntegrity(null);
         }
