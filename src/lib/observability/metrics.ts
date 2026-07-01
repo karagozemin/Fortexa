@@ -6,7 +6,8 @@ export type StellarSubmitResult =
   | "horizon_failure"
   | "validation_failure"
   | "idempotency_replay"
-  | "idempotency_conflict";
+  | "idempotency_conflict"
+  | "source_wallet_mismatch";
 
 const decisionOutcomeCounts = new Map<DecisionOutcome, number>();
 const stellarSubmitResultCounts = new Map<StellarSubmitResult, number>();
