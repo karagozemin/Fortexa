@@ -89,6 +89,18 @@ export const policyConfigSchema = z.object({
   }),
 });
 
+/**
+ * Body schema for POST /api/policy.
+ *
+ * Accepts the same `policy` fields as `policyConfigSchema`, plus an optional
+ * `expectedVersion` integer for optimistic concurrency control. When supplied,
+ * the server compares it to the current stored version and rejects stale saves
+ * with 409 Conflict. When omitted, behavior matches the pre-versioning API.
+ */
+export const policyUpdateSchema = policyConfigSchema.extend({
+  expectedVersion: z.number().int().positive().optional(),
+});
+
 export const policyRollbackSchema = z.object({
   targetVersion: z.number().int().positive(),
 });

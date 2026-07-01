@@ -101,8 +101,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const updated = await updatePolicyConfig(parsed.data, auth.session.userId);
-    logInfo("Policy update success", { ...context, userId: auth.session.userId });
+    const { expectedVersion, ...nextPolicyFields } = parsed.data;
+
+    const updated = await updatePolicyConfig(nextPolicyFields, auth.session.userId, {
+      expectedVersion,
+    });
+    logInfo("Policy update success", {
+      ...context,
+      userId: auth.session.userId,
+      version: updated.version,
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+    });
     return jsonWithRequestContext(request, {
       route: "/api/policy",
       startedAtMs,
@@ -111,6 +120,28 @@ export async function POST(request: NextRequest) {
       headers: rateLimitHeaders(rate),
     });
   } catch (error) {
+    if (error instanceof PolicyVersionConflict) {
+      logWarn("Policy update version conflict", {
+        ...context,
+        userId: auth.session.userId,
+        expectedVersion: error.expectedVersion,
+        currentVersion: error.currentVersion,
+      });
+      return jsonWithRequestContext(request, {
+        route: "/api/policy",
+        startedAtMs,
+        status: 409,
+        body: {
+          error: error.message,
+          code: "POLICY_VERSION_CONFLICT",
+          expectedVersion: error.expectedVersion,
+          currentVersion: error.currentVersion,
+          currentUpdatedAt: error.currentUpdatedAt,
+        },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
     logError("Policy update internal error", {
       ...context,
       userId: auth.session.userId,

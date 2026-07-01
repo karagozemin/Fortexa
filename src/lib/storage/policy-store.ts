@@ -14,6 +14,33 @@ type PolicyStoreFile = {
   version: number;
 };
 
+/**
+ * Raised when a policy save is rejected because the submitted `expectedVersion`
+ * does not match the current server version. Carries the current version
+ * metadata so the API route can return a 409 Conflict with reconciliation info.
+ *
+ * History is never appended in this path — a conflicting save is a no-op.
+ */
+export class PolicyVersionConflict extends Error {
+  public readonly currentVersion: number;
+  public readonly currentUpdatedAt: string | null;
+  public readonly expectedVersion: number;
+
+  constructor(input: {
+    currentVersion: number;
+    currentUpdatedAt: string | null;
+    expectedVersion: number;
+  }) {
+    super(
+      `Policy version conflict: expected v${input.expectedVersion} but current is v${input.currentVersion}.`,
+    );
+    this.name = "PolicyVersionConflict";
+    this.currentVersion = input.currentVersion;
+    this.currentUpdatedAt = input.currentUpdatedAt;
+    this.expectedVersion = input.expectedVersion;
+  }
+}
+
 type PolicyHistoryEntry = {
   version: number;
   updatedAt: string;
@@ -214,40 +241,104 @@ export async function getPolicyConfig() {
   };
 }
 
-export async function updatePolicyConfig(nextPolicy: PolicyConfig, updatedBy?: string) {
+export async function updatePolicyConfig(
+  nextPolicy: PolicyConfig,
+  updatedBy?: string,
+  options?: { expectedVersion?: number },
+) {
+  const expectedVersion = options?.expectedVersion;
   const initialized = await ensureDbPolicyState();
   if (initialized.available) {
     const db = await runWithDatabase("updatePolicyConfig", async (pool) => {
       const now = new Date().toISOString();
       const normalized = normalizePolicy(nextPolicy);
 
-      const current = await pool.query<{ version: number }>(
+      const current = await pool.query<{
+        version: number;
+        updated_at: string;
+      }>(
         `
-          SELECT version
+          SELECT version, updated_at
           FROM fortexa_policy_state
           WHERE id = 1
         `
       );
 
-      const nextVersion = (current.rows[0]?.version ?? 1) + 1;
+      const currentRow = current.rows[0];
+      const currentVersion = currentRow?.version ?? 1;
+      const currentUpdatedAt = currentRow
+        ? new Date(currentRow.updated_at).toISOString()
+        : null;
 
+      if (
+        typeof expectedVersion === "number" &&
+        expectedVersion !== currentVersion
+      ) {
+        throw new PolicyVersionConflict({
+          currentVersion,
+          currentUpdatedAt,
+          expectedVersion,
+        });
+      }
+
+      // Atomic compare-and-swap: refuse to overwrite if the version changed
+      // between the read above and this update (another writer won the race).
+      const nextVersion = currentVersion + 1;
+
+      const updateResult = expectedVersion === undefined
+        ? await pool.query(
+            `
+              UPDATE fortexa_policy_state
+              SET version = $1,
+                  updated_at = $2::timestamptz,
+                  policy = $3::jsonb
+              WHERE id = 1
+            `,
+            [nextVersion, now, JSON.stringify(normalized)]
+          )
+        : await pool.query(
+            `
+              UPDATE fortexa_policy_state
+              SET version = $1,
+                  updated_at = $2::timestamptz,
+                  policy = $3::jsonb
+              WHERE id = 1 AND version = $4
+            `,
+            [nextVersion, now, JSON.stringify(normalized), expectedVersion]
+          );
+
+      if (updateResult.rowCount === 0) {
+        // We expected to find version = expectedVersion but it changed under us.
+        // Re-read to report the new current version back to the caller.
+        const refreshed = await pool.query<{
+          version: number;
+          updated_at: string;
+        }>(
+          `
+            SELECT version, updated_at
+            FROM fortexa_policy_state
+            WHERE id = 1
+          `
+        );
+
+        const refreshedRow = refreshed.rows[0];
+        throw new PolicyVersionConflict({
+          currentVersion: refreshedRow?.version ?? currentVersion,
+          currentUpdatedAt: refreshedRow
+            ? new Date(refreshedRow.updated_at).toISOString()
+            : currentUpdatedAt,
+          expectedVersion: expectedVersion ?? currentVersion,
+        });
+      }
+
+      // Only after the state UPDATE succeeded do we append to history. This
+      // guarantees conflicting saves never pollute the version history.
       await pool.query(
         `
           INSERT INTO fortexa_policy_history (version, updated_at, updated_by, policy)
           VALUES ($1, $2::timestamptz, $3, $4::jsonb)
         `,
         [nextVersion, now, updatedBy ?? null, JSON.stringify(normalized)]
-      );
-
-      await pool.query(
-        `
-          UPDATE fortexa_policy_state
-          SET version = $1,
-              updated_at = $2::timestamptz,
-              policy = $3::jsonb
-          WHERE id = 1
-        `,
-        [nextVersion, now, JSON.stringify(normalized)]
       );
 
       return {
@@ -262,7 +353,22 @@ export async function updatePolicyConfig(nextPolicy: PolicyConfig, updatedBy?: s
     }
   }
 
+  // File fallback: read the live store first so the precondition reflects the
+  // latest persisted state. The classic check-then-write race window remains,
+  // which is acceptable for a single-node fallback.
   const current = await getPolicyConfig();
+
+  if (
+    typeof expectedVersion === "number" &&
+    expectedVersion !== (current.version ?? 1)
+  ) {
+    throw new PolicyVersionConflict({
+      currentVersion: current.version ?? 1,
+      currentUpdatedAt: current.updatedAt ?? null,
+      expectedVersion,
+    });
+  }
+
   const historyStore = await readHistoryStore();
   const nextVersion = (current.version ?? 1) + 1;
   const normalized = normalizePolicy(nextPolicy);
