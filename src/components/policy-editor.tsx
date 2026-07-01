@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { History } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -380,7 +381,19 @@ export function PolicyEditor() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {history.length === 0 ? <p className="text-sm text-[hsl(var(--muted-foreground))]">No history records.</p> : null}
+          {history.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.15)] px-6 py-10 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--muted)/0.4)]">
+                <History className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-[hsl(var(--foreground))]">No version history yet</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  Saved policy changes will appear here. After your first policy update, each version will be listed for comparison and rollback.
+                </p>
+              </div>
+            </div>
+          ) : null}
           {history.map((entry) => {
             const isA = diffA === entry.version;
             const isB = diffB === entry.version;
