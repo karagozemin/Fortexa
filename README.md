@@ -555,4 +555,103 @@ Common Stellar Horizon failures during the signed payment flow:
 
 ## 19) 📄 License
 
-MIT (see `package.json`).
+MIT (see `package.json`).## Policy Import/Export
+
+The policy editor supports importing and exporting policies as JSON files, enabling backup, restore, and policy migration workflows.
+
+### Export a Policy
+
+1. Navigate to the **Policy Engine Rules** page (`/ops/policies`)
+2. Scroll to **Policy Import / Export** section
+3. Click **Export Policy** button
+4. A JSON file will download (e.g., `policy-v1719741123.json`) containing the complete active policy
+
+**Who can export:** All users (operators and viewers)
+
+### Import a Policy
+
+Operators can import a new policy with automatic validation and preview:
+
+1. Click **Import Policy** button in the **Policy Import / Export** section
+2. Select a policy JSON file from your computer
+3. The system validates the JSON against the policy schema
+4. If valid, a **Review Changes** dialog appears showing:
+   - Summary of additions, removals, and modifications
+   - Detailed changes grouped by category:
+     - **Caps & Thresholds** — Per-transaction cap, daily cap, max tool calls, risk threshold
+     - **Allowed/Blocked Domains** — Domain whitelist and blacklist changes
+     - **Allowed/Blocked Tools** — Tool access whitelist and blacklist changes
+   - Optional raw JSON viewer for advanced inspection
+5. Review the changes carefully, then click **Import & Save** to apply the policy
+6. The policy is updated and a new version is created in the history
+
+**Who can import:** Operators only. Viewers cannot import or save policies.
+
+### Policy JSON Format
+
+A valid policy JSON includes:
+
+```json
+{
+  "allowedDomains": ["api.example.com", "data.example.com"],
+  "blockedDomains": ["malicious.com"],
+  "allowedTools": ["research-pro", "data-analyzer"],
+  "blockedTools": ["shadow-shell"],
+  "perTxCapXLM": 100,
+  "dailyCapXLM": 500,
+  "maxToolCallsPerDay": 10,
+  "riskThreshold": 75,
+  "allowedHours": { "start": 6, "end": 23 }
+}
+```
+
+**Field Requirements:**
+- `allowedDomains`, `blockedDomains`, `allowedTools`, `blockedTools` — Arrays with minimum 1 item each
+- `perTxCapXLM`, `dailyCapXLM` — Positive numbers up to 1,000,000
+- `maxToolCallsPerDay` — Positive integer up to 10,000
+- `riskThreshold` — Integer between 1 and 100
+- `allowedHours` — Optional object with `start` and `end` (0–23)
+
+### Diff Preview
+
+Before saving an imported policy, the system displays a human-readable diff showing:
+
+- ✅ **Unchanged fields** — No visual highlight
+- ➕ **Added items** — Green highlight (e.g., new domains or tools)
+- ➖ **Removed items** — Red highlight with strikethrough (e.g., deleted domains or tools)
+- 🔄 **Modified values** — Amber highlight showing old → new (e.g., cap changes)
+
+This preview ensures operators never accidentally save unintended policy changes.
+
+### Validation & Error Handling
+
+During import, the system validates:
+
+1. **JSON Format** — File must be valid JSON; invalid syntax is rejected immediately
+2. **Schema Compliance** — All required fields must be present with correct types and ranges
+3. **Data Constraints** — Arrays must have at least 1 item; numeric values must be within limits
+
+If validation fails, an error message displays the specific field and reason without modifying the current policy. The operator can then fix the JSON and retry.
+
+### Viewer Role Limitations
+
+Users with **Viewer role** can:
+- ✅ Export the active policy as JSON
+- ✅ View policy history and version diffs
+- ✅ Review simulation reports
+
+Users with **Viewer role** cannot:
+- ❌ Import policies
+- ❌ Save policy changes
+- ❌ Modify any policy settings
+
+Attempt to import as a viewer will show: *"Viewer role is read-only. Login as operator to import policies."*
+
+### Best Practices
+
+- **Always review the diff preview** before saving imported policies
+- **Export before major changes** to create a backup
+- **Use a JSON editor** with syntax validation when editing policy files locally
+- **Test policies in staging** before deploying to production
+- **Validate domains** — Ensure domain names are at least 3 characters
+- **Check numeric ranges** — Caps must be positive and within limits
