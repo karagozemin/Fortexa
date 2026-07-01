@@ -313,6 +313,17 @@ This fallback is intentional for local resilience, but introduces consistency tr
 - Runtime bootstrap: `src/lib/storage/db.ts`
 - Script: `npm run db:migrate`
 
+### 6.5 Policy Payload Resilience Contract
+
+Stored policy JSON (current state + history) can outlive the active schema. To prevent silent corruption when `policyConfigSchema` evolves:
+
+- Valid current payloads parse unchanged.
+- Older payloads missing *only* documented optional fields are migrated by `parseStoredPolicy` (`src/lib/policy/migrations.ts`), which fills the safe defaults listed in `OPTIONAL_DEFAULTS` and reports the exact set of migrations applied.
+- Malformed payloads (wrong types, unsafe values, mixes of missing-optional and non-rectifiable issues) fail closed with a structured `{ ok: false, error, issues }` result. Every Zod issue is surfaced with its path and message — no defaults are silently substituted for non-optional fields.
+- The strict schema is never weakened for backwards compatibility. Migrating a new optional field is an explicit one-line change to `OPTIONAL_DEFAULTS` plus a corresponding fixture under `src/lib/policy/__fixtures__/`.
+- `parseStoredPolicy` is a pure helper: it does not read or rewrite `.fortexa/` policy files. Callers decide whether to persist a migrated policy, reject one, or surface the error.
+- Smoke coverage lives at `src/lib/policy/migrations.test.ts`.
+
 ## 7) 🔐 Security and Trust Boundaries
 
 ### 7.1 Trust boundaries

@@ -1,0 +1,18 @@
+{
+  "allowedDomains": [
+    "only-one-ok"
+  ],
+  "blockedDomains": "should-be-an-array",
+  "allowedTools": [
+    "ok-tool"
+  ],
+  "blockedTools": [],
+  "perTxCapXLM": "120",
+  "dailyCapXLM": -50,
+  "maxToolCallsPerDay": 8.5,
+  "riskThreshold": 250,
+  "allowedHours": {
+    "start": "06",
+    "end": 23
+  }
+}
