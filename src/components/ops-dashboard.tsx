@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Database, HelpCircle, Shield, ShieldOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Database, HelpCircle, Shield, ShieldAlert, ShieldCheck, ShieldOff } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,17 @@ type HealthResponse = {
     blocklist: string;
     groq: string;
   };
+};
+
+type IntegrityResponse = {
+  valid: boolean;
+  checkedEntries: number;
+  legacyEntries: number;
+  firstBrokenEntryId: string | null;
+  reason: string | null;
+  scope: "mine" | "all";
+  userId?: string;
+  timestamp: string;
 };
 
 type MetricsResponse = {
@@ -103,11 +114,13 @@ function DependencyBadge({ name, status }: { name: string; status: string }) {
 export function OpsDashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
+  const [integrity, setIntegrity] = useState<IntegrityResponse | null>(null);
   const [txCount, setTxCount] = useState<number | null>(null);
   const [samples, setSamples] = useState<MetricSample[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
+  const [integrityLoading, setIntegrityLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +152,32 @@ export function OpsDashboard() {
       } finally {
         if (!cancelled) {
           setTxLoading(false);
+        }
+      }
+    }
+
+    async function loadIntegrity() {
+      try {
+        const integrityResponse = await fetch("/api/audit/integrity?scope=all", {
+          cache: "no-store",
+        });
+
+        if (!integrityResponse.ok) {
+          throw new Error("Failed to fetch audit integrity.");
+        }
+
+        const integrityPayload = (await integrityResponse.json()) as IntegrityResponse;
+        if (cancelled) {
+          return;
+        }
+        setIntegrity(integrityPayload);
+      } catch {
+        if (!cancelled) {
+          setIntegrity(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIntegrityLoading(false);
         }
       }
     }
@@ -191,8 +230,10 @@ export function OpsDashboard() {
     }
 
     void loadCore();
+    void loadIntegrity();
     const interval = window.setInterval(() => {
       void loadCore();
+      void loadIntegrity();
     }, 8000);
 
     return () => {
@@ -219,7 +260,7 @@ export function OpsDashboard() {
         </Card>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardDescription>Service Health</CardDescription>
@@ -279,6 +320,56 @@ export function OpsDashboard() {
           </CardHeader>
           <CardContent className="text-sm text-[hsl(var(--muted-foreground))]">
             From audit export (`scope=all`)
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardDescription>Audit Integrity</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              {integrity ? (
+                integrity.valid ? (
+                  <ShieldCheck className="h-5 w-5 text-emerald-300" />
+                ) : (
+                  <ShieldAlert className="h-5 w-5 text-red-400" />
+                )
+              ) : (
+                <Shield className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+              )}
+              {integrity
+                ? integrity.valid
+                  ? "Valid"
+                  : "Tampered"
+                : integrityLoading
+                  ? "Loading"
+                  : "Unknown"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm text-[hsl(var(--muted-foreground))]">
+            {integrity ? (
+              <>
+                <p>
+                  Checked entries: <span className="text-white">{integrity.checkedEntries}</span>
+                </p>
+                {integrity.legacyEntries > 0 ? (
+                  <p>Legacy entries: {integrity.legacyEntries}</p>
+                ) : null}
+                {integrity.valid ? null : (
+                  <div className="rounded-md border border-red-400/40 bg-red-500/10 p-2 text-red-300">
+                    <p>
+                      First broken entry:{" "}
+                      <span className="font-mono text-white">
+                        {integrity.firstBrokenEntryId ?? "unknown"}
+                      </span>
+                    </p>
+                    {integrity.reason ? <p className="mt-1">{integrity.reason}</p> : null}
+                  </div>
+                )}
+                <p>Last verified: {new Date(integrity.timestamp).toLocaleString()}</p>
+              </>
+            ) : (
+              <p>Last verified: —</p>
+            )}
           </CardContent>
         </Card>
 
