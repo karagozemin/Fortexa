@@ -54,9 +54,32 @@ export interface SecurityFinding {
   scoreDelta: number;
 }
 
+/** Analyzer component status - tracks timeout, failure, or success states. */
+export type AnalyzerComponentStatus =
+  | "success"
+  | "timeout"
+  | "error"
+  | "degraded";
+
+/** Tracks health and availability of security checks. */
+export interface AnalyzerStatus {
+  // Blocklist fetch status
+  blocklistStatus: AnalyzerComponentStatus;
+  blocklistError?: string;
+  blocklistTimedOut?: boolean;
+  // Future: risk feed status
+  riskFeedStatus?: AnalyzerComponentStatus;
+  riskFeedError?: string;
+  riskFeedTimedOut?: boolean;
+  // Whether the evaluation is operating in degraded mode (not all checks ran)
+  isDegraded: boolean;
+  degradationReasons?: string[];
+}
+
 export interface SecurityEvaluation {
   riskScore: number;
   findings: SecurityFinding[];
+  analyzerStatus: AnalyzerStatus;
 }
 
 export interface DecisionResult {
@@ -66,6 +89,8 @@ export interface DecisionResult {
   riskScore: number;
   riskFindings: SecurityFinding[];
   requiresManualApproval: boolean;
+  /** Analyzer health metadata - tracks timeouts and degradation. */
+  analyzerStatus?: AnalyzerStatus;
 }
 
 export interface Scenario {
@@ -104,6 +129,12 @@ export interface AuditEntry {
   entryHash?: string;
   /** entryHash of the preceding entry, or the genesis sentinel for the first. */
   previousHash?: string;
+  /** Analyzer health at time of decision - tracks if checks timed out or degraded. */
+  analyzerStatus?: {
+    isDegraded: boolean;
+    degradationReasons?: string[];
+    blocklistStatus?: AnalyzerComponentStatus;
+  };
 }
 
 export interface StellarPaymentRequest {
