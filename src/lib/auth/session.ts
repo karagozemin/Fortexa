@@ -1,19 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { NextRequest, NextResponse } from 'next/server';
-import { 
-  createSessionToken, 
-  verifySessionToken, 
-  getSessionFromRequest, 
-  AUTH_COOKIE_KEY 
-} from '@/lib/auth/session';
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
-describe('Fortexa Session Cookie Security Regression Tests', () => {
-  const originalEnv = process.env.FORTEXA_AUTH_SECRET;
+import type { NextRequest } from "next/server";
 
-  beforeEach(() => {
-    // Ensure an auth secret exists for cryptographic signing tests
-    process.env.FORTEXA_AUTH_SECRET = 'test-secret-key-fortexa-security-hardening';
-  });
+export type AuthRole = "operator" | "viewer";
+
+export type AuthSession = {
+  userId: string;
+  email: string;
+  role: AuthRole;
+  exp: number;
+};
+
+export const AUTH_COOKIE_KEY = "fortexa_session";
 
 function getAuthSecret() {
   const secret = process.env.FORTEXA_AUTH_SECRET?.trim();
@@ -36,42 +34,68 @@ function decodeBase64Url(value: string) {
 function sign(payloadPart: string) {
   return createHmac("sha256", getAuthSecret()).update(payloadPart).digest("base64url");
 }
-  it('should accurately resolve a valid session token from a Next.js Request cookie payload', () => {
-    const validToken = createSessionToken({ email: 'active@fortexa.com', role: 'operator' });
-    
-    // Create a mock NextRequest passing our token via standard headers
-    const req = new NextRequest(new URL('http://localhost/api/ops'), {
-      headers: {
-        cookie: `${AUTH_COOKIE_KEY}=${validToken}`
-      }
-    });
 
-    const session = getSessionFromRequest(req);
-    expect(session).not.toBeNull();
-    expect(session?.email).toBe('active@fortexa.com');
-    expect(session?.role).toBe('operator');
-  });
+export function createSessionToken(input: { email: string; role: AuthRole; userId?: string; expiresInSeconds?: number }) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload: AuthSession = {
+    userId: input.userId ?? randomUUID(),
+    email: input.email,
+    role: input.role,
+    exp: now + (input.expiresInSeconds ?? 60 * 60 * 24 * 7),
+  };
 
-  ### 2. Cookie Attribute Behavior Assertions
-  it('should respect the correct cookie production key format and simulate target flag attributes', () => {
-    // Ensure the application uses the correct underlying token identifier matching proxy.ts
-    expect(AUTH_COOKIE_KEY).toBe('fortexa_session');
+  const payloadPart = encodeBase64Url(JSON.stringify(payload));
+  const signaturePart = sign(payloadPart);
 
-    const res = NextResponse.json({ success: true });
-    
-    // Simulate runtime behavior for cookie emission matching your hardened spec
-    res.cookies.set(AUTH_COOKIE_KEY, 'secure-payload-token', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 60 * 60 * 24
-    });
+  return `${payloadPart}.${signaturePart}`;
+}
 
-    const cookieHeader = res.headers.get('set-cookie');
-    expect(cookieHeader).toContain('HttpOnly');
-    expect(cookieHeader).toContain('Secure');
-    expect(cookieHeader).toContain('SameSite=Strict');
-    expect(cookieHeader).toContain('Path=/');
-  });
-});
+export function verifySessionToken(token: string): AuthSession | null {
+  const parts = token.split(".");
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [payloadPart, signaturePart] = parts;
+  const expectedSignature = sign(payloadPart);
+
+  const actualBuffer = Buffer.from(signaturePart);
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  if (actualBuffer.length !== expectedBuffer.length) {
+    return null;
+  }
+
+  if (!timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decodeBase64Url(payloadPart)) as AuthSession;
+
+    if (!parsed.userId || !parsed.email || !parsed.role || !parsed.exp) {
+      return null;
+    }
+
+    if (parsed.exp <= Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+
+    if (parsed.role !== "operator" && parsed.role !== "viewer") {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function getSessionFromRequest(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_KEY)?.value;
+  if (!token) {
+    return null;
+  }
+
+  return verifySessionToken(token);
+}
