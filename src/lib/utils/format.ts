@@ -12,3 +12,24 @@ export function decisionVariant(decision: string): "approve" | "warn" | "require
   if (decision === "BLOCK") return "block";
   return "default";
 }
+
+export function formatNumber(value: number, minDecimals = 0, maxDecimals = 2): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "0";
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
+  }).format(value);
+}
+
+export function formatCurrency(value: number, currency = "USD"): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "$0.00";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+  }).format(value);
+}
+
+export function formatPct(value: number): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "0.00%";
+  return `${(value * 100).toFixed(2)}%`;
+}
