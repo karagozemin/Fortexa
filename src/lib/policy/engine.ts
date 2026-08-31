@@ -3,6 +3,48 @@ import { normalizeDomain } from "@/lib/policy/domain";
 
 import type { AgentAction, DailyUsage, PolicyConfig, PolicyEvaluation, PolicyTrigger } from "@/lib/types/domain";
 
+/**
+ * Raised when a policy contains duplicate identifiers within a single rule
+ * list (allowedDomains, blockedDomains, allowedTools, blockedTools).
+ */
+export class DuplicateRuleError extends Error {
+  public readonly field: string;
+  public readonly value: string;
+
+  constructor(field: string, value: string) {
+    super(
+      `Duplicate rule identifier "${value}" found in ${field}. Remove the duplicate before saving or evaluating the policy.`,
+    );
+    this.name = "DuplicateRuleError";
+    this.field = field;
+    this.value = value;
+  }
+}
+
+const RULE_LISTS: Array<keyof Pick<
+  PolicyConfig,
+  "allowedDomains" | "blockedDomains" | "allowedTools" | "blockedTools"
+>> = ["allowedDomains", "blockedDomains", "allowedTools", "blockedTools"];
+
+/**
+ * Reject a policy that contains repeated identifiers within any single rule
+ * list. Identifiers are compared case-sensitively because domain normalization
+ * is applied elsewhere and tool names are case-sensitive by convention.
+ *
+ * @throws {DuplicateRuleError} when a duplicate is found.
+ */
+export function validateNoDuplicateRules(policy: PolicyConfig): void {
+  for (const field of RULE_LISTS) {
+    const seen = new Set<string>();
+    for (const id of policy[field]) {
+      if (seen.has(id)) {
+        throw new DuplicateRuleError(field, id);
+      }
+      seen.add(id);
+    }
+  }
+}
+
 export const defaultPolicyConfig: PolicyConfig = {
   allowedDomains: ["api.safe-research.ai", "tools.verified-data.dev", "workers.fortexa-demo.stellar"],
   blockedDomains: ["wallet-drainer.evil", "prompt-pwn.io", "untrusted-mirror.xyz"],
@@ -19,6 +61,8 @@ export const defaultPolicyConfig: PolicyConfig = {
 };
 
 export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage: DailyUsage): PolicyEvaluation {
+  validateNoDuplicateRules(policy);
+
   const triggers: PolicyTrigger[] = [];
 
   const normalizedDomain = normalizeDomain(action.domain);

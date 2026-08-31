@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { evaluatePolicy, defaultPolicyConfig } from "@/lib/policy/engine";
+import { DuplicateRuleError, evaluatePolicy, defaultPolicyConfig, validateNoDuplicateRules } from "@/lib/policy/engine";
 import type { AgentAction, DailyUsage, PolicyConfig } from "@/lib/types/domain";
 
 const baseAction: AgentAction = {
@@ -189,5 +189,147 @@ describe("policy engine", () => {
         expect.objectContaining({ code: "UNAPPROVED_TOOL" }),
       ]),
     );
+  });
+
+  it("rejects policies with duplicate identifiers in allowedDomains", () => {
+    const duplicatePolicy: PolicyConfig = {
+      ...basePolicy,
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+    };
+
+    expect(() => validateNoDuplicateRules(duplicatePolicy)).toThrow(DuplicateRuleError);
+    expect(() => validateNoDuplicateRules(duplicatePolicy)).toThrow(
+      /Duplicate rule identifier.*api\.safe-research\.ai.*allowedDomains/,
+    );
+  });
+
+  it("rejects policies with duplicate identifiers in blockedDomains", () => {
+    const duplicatePolicy: PolicyConfig = {
+      ...basePolicy,
+      blockedDomains: ["wallet-drainer.evil", "wallet-drainer.evil"],
+    };
+
+    expect(() => validateNoDuplicateRules(duplicatePolicy)).toThrow(DuplicateRuleError);
+    const error = (() => {
+      try {
+        validateNoDuplicateRules(duplicatePolicy);
+      } catch (e) {
+        return e as DuplicateRuleError;
+      }
+    })();
+    expect(error.field).toBe("blockedDomains");
+    expect(error.value).toBe("wallet-drainer.evil");
+  });
+
+  it("rejects policies with duplicate identifiers in allowedTools", () => {
+    const duplicatePolicy: PolicyConfig = {
+      ...basePolicy,
+      allowedTools: ["research-pro", "research-pro"],
+    };
+
+    expect(() => validateNoDuplicateRules(duplicatePolicy)).toThrow(DuplicateRuleError);
+    const error = (() => {
+      try {
+        validateNoDuplicateRules(duplicatePolicy);
+      } catch (e) {
+        return e as DuplicateRuleError;
+      }
+    })();
+    expect(error.field).toBe("allowedTools");
+    expect(error.value).toBe("research-pro");
+  });
+
+  it("rejects policies with duplicate identifiers in blockedTools", () => {
+    const duplicatePolicy: PolicyConfig = {
+      ...basePolicy,
+      blockedTools: ["shadow-shell", "shadow-shell"],
+    };
+
+    expect(() => validateNoDuplicateRules(duplicatePolicy)).toThrow(DuplicateRuleError);
+  });
+
+  it("accepts policies with no duplicates", () => {
+    expect(() => validateNoDuplicateRules(basePolicy)).not.toThrow();
+  });
+
+  it("throws DuplicateRuleError from evaluatePolicy when duplicates exist", () => {
+    const duplicatePolicy: PolicyConfig = {
+      ...basePolicy,
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+    };
+
+    expect(() => evaluatePolicy(baseAction, duplicatePolicy, baseUsage)).toThrow(DuplicateRuleError);
+  });
+});
+
+describe("duplicate rule identifier detection (regression)", () => {
+  it("reports the first duplicate found when multiple lists have duplicates", () => {
+    const policy: PolicyConfig = {
+      ...basePolicy,
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+      blockedTools: ["shadow-shell", "shadow-shell"],
+    };
+
+    const error = (() => {
+      try {
+        validateNoDuplicateRules(policy);
+        return null;
+      } catch (e) {
+        return e as DuplicateRuleError;
+      }
+    })();
+
+    expect(error).not.toBeNull();
+    expect(error!.field).toBe("allowedDomains");
+  });
+
+  it("is case-sensitive for tool identifiers", () => {
+    const policy: PolicyConfig = {
+      ...basePolicy,
+      allowedTools: ["research-pro", "Research-Pro"],
+    };
+
+    expect(() => validateNoDuplicateRules(policy)).not.toThrow();
+  });
+
+  it("import flow rejects duplicate rule identifiers in imported policy JSON", () => {
+    const importedPolicy: PolicyConfig = {
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+      blockedDomains: ["wallet-drainer.evil"],
+      allowedTools: ["research-pro"],
+      blockedTools: ["shadow-shell"],
+      perTxCapXLM: 120,
+      dailyCapXLM: 300,
+      maxToolCallsPerDay: 8,
+      riskThreshold: 78,
+      allowedHours: { start: 6, end: 23 },
+    };
+
+    expect(() => validateNoDuplicateRules(importedPolicy)).toThrow(DuplicateRuleError);
+  });
+
+  it("direct save rejects duplicate rule identifiers in edited policy", () => {
+    const editedPolicy: PolicyConfig = {
+      allowedDomains: ["api.safe-research.ai"],
+      blockedDomains: ["wallet-drainer.evil"],
+      allowedTools: ["research-pro", "research-pro"],
+      blockedTools: ["shadow-shell"],
+      perTxCapXLM: 120,
+      dailyCapXLM: 300,
+      maxToolCallsPerDay: 8,
+      riskThreshold: 78,
+      allowedHours: { start: 6, end: 23 },
+    };
+
+    expect(() => validateNoDuplicateRules(editedPolicy)).toThrow(DuplicateRuleError);
+    const error = (() => {
+      try {
+        validateNoDuplicateRules(editedPolicy);
+      } catch (e) {
+        return e as DuplicateRuleError;
+      }
+    })();
+    expect(error.field).toBe("allowedTools");
+    expect(error.value).toBe("research-pro");
   });
 });
