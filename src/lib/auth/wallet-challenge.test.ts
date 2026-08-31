@@ -9,6 +9,7 @@ import {
   verifyWalletChallenge,
   verifyWalletSignature,
 } from "@/lib/auth/wallet-challenge";
+import * as sharedSecurityState from "@/lib/security/shared-security-state";
 
 const TEST_SECRET = "SAKICEVQLYWGSOJS4WW7HZJWAHZVEEBS527LHK5V4MLJALYKICQCJXMW";
 const TEST_PUBLIC_KEY = "GBXFXNDLV4LSWA4VB7YIL5GBD7BVNR22SGBTDKMO2SBZZHDXSKZYCP7L";
@@ -61,6 +62,52 @@ describe("wallet challenge", () => {
     });
 
     expect(replayed).toEqual({ ok: false, code: "replayed" });
+  });
+
+  it("rejects concurrent verification attempts for the same challenge", async () => {
+    const challenge = await createWalletChallenge(TEST_PUBLIC_KEY);
+    const signature = signSep53Message(TEST_SECRET, challenge.message);
+
+    const originalRead = sharedSecurityState.readSharedChallenge.bind(sharedSecurityState);
+    let allowReads = false;
+    let readsStarted = 0;
+
+    vi.spyOn(sharedSecurityState, "readSharedChallenge").mockImplementation(async (challengeId) => {
+      if (challengeId !== challenge.id) {
+        return originalRead(challengeId);
+      }
+
+      readsStarted += 1;
+      if (readsStarted === 2) {
+        await Promise.resolve();
+      }
+
+      while (!allowReads) {
+        await Promise.resolve();
+      }
+
+      return originalRead(challengeId);
+    });
+
+    const first = verifyWalletChallenge({
+      challengeId: challenge.id,
+      publicKey: TEST_PUBLIC_KEY,
+      signature,
+    });
+
+    const second = verifyWalletChallenge({
+      challengeId: challenge.id,
+      publicKey: TEST_PUBLIC_KEY,
+      signature,
+    });
+
+    await Promise.resolve();
+    allowReads = true;
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    expect([firstResult, secondResult].filter((result) => result.ok)).toHaveLength(1);
+    expect([firstResult, secondResult].some((result) => !result.ok && result.code === "replayed")).toBe(true);
   });
 
   it("rejects expired challenges", async () => {
