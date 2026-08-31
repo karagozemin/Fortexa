@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { DuplicateRuleError } from "@/lib/policy/engine";
 import {
   PolicyVersionConflict,
   getPolicyConfig,
@@ -112,5 +113,23 @@ describe("policy store versioning", () => {
     // +1 from the legitimate bump, no extra row for the rejected attempt.
     expect(historyAfter.length).toBe(historyBefore + 1);
     expect((await getPolicyConfig()).version).toBe(nowVersion);
+  });
+
+  it("rejects saves with duplicate rule identifiers via DuplicateRuleError", async () => {
+    const current = await getPolicyConfig();
+
+    await expect(
+      updatePolicyConfig(
+        {
+          ...current.policy,
+          allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+        },
+        "policy-store-duplicate-test",
+      ),
+    ).rejects.toBeInstanceOf(DuplicateRuleError);
+
+    // Verify the policy was NOT updated by ensuring version is unchanged.
+    const after = await getPolicyConfig();
+    expect(after.version).toBe(current.version);
   });
 });

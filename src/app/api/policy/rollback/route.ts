@@ -6,6 +6,7 @@ import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observab
 import { readJsonBody } from "@/lib/http/read-json-body";
 import { rollbackPolicyVersion } from "@/lib/storage/policy-store";
 import { policyRollbackSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
@@ -32,11 +33,12 @@ export async function POST(request: NextRequest) {
     const parsed = policyRollbackSchema.safeParse(bodyResult.data);
 
     if (!parsed.success) {
+      logValidationFailure("Policy rollback validation failed", { ...context, userId: auth.session.userId }, parsed.error, bodyResult.data);
       return jsonWithRequestContext(request, {
         route: "/api/policy/rollback",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid rollback payload.", details: parsed.error.flatten() },
+        body: { error: "Invalid rollback payload.", details: toPublicValidationDetails(parsed.error) },
       });
     }
 

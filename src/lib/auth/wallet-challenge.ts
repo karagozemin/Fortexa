@@ -46,6 +46,20 @@ async function withChallengeVerificationLock<T>(challengeId: string, operation: 
   }
 }
 
+/**
+ * Whether a challenge is expired at `nowMs`.
+ *
+ * Expiry is **inclusive**: a challenge whose `expiresAtMs` equals the current
+ * time is already expired. `expiresAtMs` is the first instant at which the
+ * challenge is no longer valid, not the last instant at which it still is.
+ * Exclusive comparison (`<`) would leave a one-millisecond window in which a
+ * challenge past its stated deadline still authenticates, so the boundary is
+ * closed on the expired side.
+ */
+export function isChallengeExpired(expiresAtMs: number, nowMs: number = Date.now()) {
+  return expiresAtMs <= nowMs;
+}
+
 function getChallengeTtlSeconds() {
   const parsed = Number(process.env.FORTEXA_AUTH_CHALLENGE_TTL_SECONDS ?? 300);
   if (!Number.isFinite(parsed) || parsed < 30) {
@@ -170,13 +184,14 @@ export async function verifyWalletChallenge(input: {
       return { ok: false, code: "missing" };
     }
 
-    if (challenge.publicKey !== normalizedKey) {
-      return { ok: false, code: "wallet_mismatch" };
-    }
-
-    if (challenge.expiresAtMs <= Date.now()) {
+    // Expired challenges are dead regardless of the presenting wallet.
+    if (isChallengeExpired(challenge.expiresAtMs)) {
       await removeChallenge(input.challengeId);
       return { ok: false, code: "expired" };
+    }
+
+    if (challenge.publicKey !== normalizedKey) {
+      return { ok: false, code: "wallet_mismatch" };
     }
 
     if (challenge.consumed) {

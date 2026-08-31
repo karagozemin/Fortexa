@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 
-import { defaultPolicyConfig } from "@/lib/policy/engine";
+import { defaultPolicyConfig, validateNoDuplicateRules } from "@/lib/policy/engine";
 import { runWithDatabase } from "@/lib/storage/db";
 import { getFortexaStoreDir, getFortexaStorePath } from "@/lib/storage/paths";
 import type { PolicyConfig } from "@/lib/types/domain";
@@ -255,6 +255,7 @@ export async function updatePolicyConfig(
     const db = await runWithDatabase("updatePolicyConfig", async (pool) => {
       const now = new Date().toISOString();
       const normalized = normalizePolicy(nextPolicy);
+      validateNoDuplicateRules(normalized);
 
       const current = await pool.query<{
         version: number;
@@ -375,6 +376,7 @@ export async function updatePolicyConfig(
   const historyStore = await readHistoryStore();
   const nextVersion = (current.version ?? 1) + 1;
   const normalized = normalizePolicy(nextPolicy);
+  validateNoDuplicateRules(normalized);
 
   const entry: PolicyHistoryEntry = {
     version: nextVersion,

@@ -53,3 +53,26 @@ describe("POST /api/stellar/submit-signed body limits", () => {
     expect(payload.error).toBe("Invalid signed transaction submission.");
   });
 });
+
+describe("POST /api/stellar/submit-signed validation redaction", () => {
+  it("does not echo signedXdr values in validation error responses", async () => {
+    const secretXdr = "LEAK_XDR_SECRET";
+    const request = new NextRequest("http://localhost/api/stellar/submit-signed", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: operatorCookie(),
+      },
+      body: JSON.stringify({ signedXdr: secretXdr }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+
+    const raw = await response.text();
+    expect(raw).not.toContain(secretXdr);
+
+    const payload = JSON.parse(raw) as { details?: { fieldErrors?: Record<string, string[]> } };
+    expect(payload.details?.fieldErrors?.signedXdr).toEqual(["Invalid value."]);
+  });
+});

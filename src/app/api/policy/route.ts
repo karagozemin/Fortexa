@@ -7,8 +7,10 @@ import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { readJsonBody } from "@/lib/http/read-json-body";
 import { z } from "zod";
 
+import { DuplicateRuleError } from "@/lib/policy/engine";
 import { getPolicyConfig, PolicyVersionConflict, updatePolicyConfig } from "@/lib/storage/policy-store";
 import { policyConfigSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export async function GET(request: NextRequest) {
   const startedAtMs = Date.now();
@@ -93,12 +95,12 @@ export async function POST(request: NextRequest) {
     const parsed = policyConfigSchema.safeParse(bodyResult.data);
 
     if (!parsed.success) {
-      logWarn("Policy update validation failed", { ...context, userId: auth.session.userId });
+      logValidationFailure("Policy update validation failed", { ...context, userId: auth.session.userId }, parsed.error, bodyResult.data);
       return jsonWithRequestContext(request, {
         route: "/api/policy",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid policy payload.", details: parsed.error.flatten() },
+        body: { error: "Invalid policy payload.", details: toPublicValidationDetails(parsed.error) },
         headers: rateLimitHeaders(rate),
       });
     }
@@ -108,12 +110,12 @@ export async function POST(request: NextRequest) {
     }).safeParse(bodyResult.data);
 
     if (!versionMeta.success) {
-      logWarn("Policy update invalid expectedVersion", { ...context, userId: auth.session.userId });
+      logValidationFailure("Policy update invalid expectedVersion", { ...context, userId: auth.session.userId }, versionMeta.error, bodyResult.data);
       return jsonWithRequestContext(request, {
         route: "/api/policy",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid policy payload.", details: versionMeta.error.flatten() },
+        body: { error: "Invalid policy payload.", details: toPublicValidationDetails(versionMeta.error) },
         headers: rateLimitHeaders(rate),
       });
     }
@@ -154,6 +156,27 @@ export async function POST(request: NextRequest) {
           expectedVersion: error.expectedVersion,
           currentVersion: error.currentVersion,
           currentUpdatedAt: error.currentUpdatedAt,
+        },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
+    if (error instanceof DuplicateRuleError) {
+      logWarn("Policy update rejected: duplicate rule identifier", {
+        ...context,
+        userId: auth.session.userId,
+        field: error.field,
+        duplicateValue: error.value,
+      });
+      return jsonWithRequestContext(request, {
+        route: "/api/policy",
+        startedAtMs,
+        status: 422,
+        body: {
+          error: error.message,
+          code: "DUPLICATE_RULE_IDENTIFIER",
+          field: error.field,
+          duplicateValue: error.value,
         },
         headers: rateLimitHeaders(rate),
       });

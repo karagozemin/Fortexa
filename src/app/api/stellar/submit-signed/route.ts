@@ -16,7 +16,11 @@ import {
   putIdempotencyRecord,
 } from "@/lib/storage/submit-idempotency-store";
 import { getUserWallet } from "@/lib/storage/user-wallet-store";
-import { stellarSubmitSignedRequestSchema } from "@/lib/validation/schemas";
+import {
+  stellarSubmitSignedRequestSchema,
+  validateIdempotencyKey,
+} from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 import { normalizeHorizonError } from "@/lib/utils/horizonErrors";
 
 type HorizonErrorContext = {
@@ -166,14 +170,14 @@ export async function POST(request: NextRequest) {
     const parsedPayload = stellarSubmitSignedRequestSchema.safeParse(bodyResult.data);
 
     if (!parsedPayload.success) {
-      logWarn("Submit signed validation failed", { ...context, userId });
+      logValidationFailure("Submit signed validation failed", { ...context, userId }, parsedPayload.error, bodyResult.data);
       return jsonWithRequestContext(request, {
         route: "/api/stellar/submit-signed",
         startedAtMs,
         status: 400,
         body: {
           error: "Invalid signed transaction submission.",
-          details: parsedPayload.error.flatten(),
+          details: toPublicValidationDetails(parsedPayload.error),
         },
         headers: rateLimitHeaders(rate),
       });
@@ -239,17 +243,23 @@ export async function POST(request: NextRequest) {
 
     const headerKey = request.headers.get("idempotency-key")?.trim();
     const bodyKey = payload.idempotencyKey?.trim();
-    const idempotencyKey = headerKey && headerKey.length > 0 ? headerKey : bodyKey;
+    const mergedIdempotencyKey =
+      headerKey && headerKey.length > 0 ? headerKey : bodyKey;
 
-    if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 255)) {
-      logWarn("Submit signed invalid idempotency key", { ...context, userId });
-      return jsonWithRequestContext(request, {
-        route: "/api/stellar/submit-signed",
-        startedAtMs,
-        status: 400,
-        body: { error: "Idempotency-Key must be between 8 and 255 characters." },
-        headers: rateLimitHeaders(rate),
-      });
+    let idempotencyKey: string | undefined;
+    if (mergedIdempotencyKey) {
+      const idempotencyValidation = validateIdempotencyKey(mergedIdempotencyKey);
+      if (!idempotencyValidation.ok) {
+        logWarn("Submit signed invalid idempotency key", { ...context, userId });
+        return jsonWithRequestContext(request, {
+          route: "/api/stellar/submit-signed",
+          startedAtMs,
+          status: 400,
+          body: { error: idempotencyValidation.error },
+          headers: rateLimitHeaders(rate),
+        });
+      }
+      idempotencyKey = idempotencyValidation.key;
     }
 
     const xdrHash = idempotencyKey ? hashSignedXdr(payload.signedXdr) : null;

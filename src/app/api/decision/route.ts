@@ -22,6 +22,7 @@ import { getPolicyConfig } from "@/lib/storage/policy-store";
 import { buildPaymentQuoteFromDecision } from "@/lib/stellar/verify-payment-quote";
 import type { AuditEntry } from "@/lib/types/domain";
 import { decisionRequestSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
@@ -58,14 +59,14 @@ export async function POST(request: NextRequest) {
     const parsedBody = decisionRequestSchema.safeParse(rawBody);
 
     if (!parsedBody.success) {
-      logWarn("Decision route validation failed", { ...context, userId });
+      logValidationFailure("Decision route validation failed", { ...context, userId }, parsedBody.error, rawBody);
       return jsonWithRequestContext(request, {
         route: "/api/decision",
         startedAtMs,
         status: 400,
         body: {
           error: "Invalid decision request body.",
-          details: parsedBody.error.flatten(),
+          details: toPublicValidationDetails(parsedBody.error),
         },
         headers: rateLimitHeaders(rate),
       });
