@@ -24,6 +24,27 @@ type StoredChallenge = WalletChallengeRecord & {
 };
 
 const challenges = new Map<string, StoredChallenge>();
+const challengeVerificationLocks = new Map<string, Promise<void>>();
+
+async function withChallengeVerificationLock<T>(challengeId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = challengeVerificationLocks.get(challengeId) ?? Promise.resolve();
+  let release: (() => void) | undefined;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  challengeVerificationLocks.set(challengeId, previous.then(() => current));
+  await previous;
+
+  try {
+    return await operation();
+  } finally {
+    release?.();
+    if (challengeVerificationLocks.get(challengeId) === current) {
+      challengeVerificationLocks.delete(challengeId);
+    }
+  }
+}
 
 /**
  * Whether a challenge is expired at `nowMs`.
@@ -155,47 +176,46 @@ export async function verifyWalletChallenge(input: {
   publicKey: string;
   signature: string;
 }): Promise<ChallengeVerificationResult> {
-  const normalizedKey = normalizeWalletPublicKey(input.publicKey);
-  const challenge = await readChallenge(input.challengeId);
+  return withChallengeVerificationLock(input.challengeId, async () => {
+    const normalizedKey = normalizeWalletPublicKey(input.publicKey);
+    const challenge = await readChallenge(input.challengeId);
 
-  if (!challenge) {
-    return { ok: false, code: "missing" };
-  }
+    if (!challenge) {
+      return { ok: false, code: "missing" };
+    }
 
-  // Expiry is checked before wallet identity, replay state, and signature
-  // verification: an expired challenge is dead regardless of who presents it or
-  // what they present with it, and it is purged here rather than left to linger
-  // until its store TTL elapses.
-  if (isChallengeExpired(challenge.expiresAtMs)) {
-    await removeChallenge(input.challengeId);
-    return { ok: false, code: "expired" };
-  }
+    // Expired challenges are dead regardless of the presenting wallet.
+    if (isChallengeExpired(challenge.expiresAtMs)) {
+      await removeChallenge(input.challengeId);
+      return { ok: false, code: "expired" };
+    }
 
-  if (challenge.publicKey !== normalizedKey) {
-    return { ok: false, code: "wallet_mismatch" };
-  }
+    if (challenge.publicKey !== normalizedKey) {
+      return { ok: false, code: "wallet_mismatch" };
+    }
 
-  if (challenge.consumed) {
-    return { ok: false, code: "replayed" };
-  }
+    if (challenge.consumed) {
+      return { ok: false, code: "replayed" };
+    }
 
-  const signatureValid = verifyWalletSignature(normalizedKey, challenge.message, input.signature);
-  challenge.consumed = true;
-  await writeChallenge(challenge);
+    const signatureValid = verifyWalletSignature(normalizedKey, challenge.message, input.signature);
+    challenge.consumed = true;
+    await writeChallenge(challenge);
 
-  if (!signatureValid) {
-    return { ok: false, code: "invalid_signature" };
-  }
+    if (!signatureValid) {
+      return { ok: false, code: "invalid_signature" };
+    }
 
-  return {
-    ok: true,
-    challenge: {
-      id: challenge.id,
-      publicKey: challenge.publicKey,
-      message: challenge.message,
-      expiresAtMs: challenge.expiresAtMs,
-    },
-  };
+    return {
+      ok: true,
+      challenge: {
+        id: challenge.id,
+        publicKey: challenge.publicKey,
+        message: challenge.message,
+        expiresAtMs: challenge.expiresAtMs,
+      },
+    };
+  });
 }
 
 export async function resetWalletChallengeStore() {
