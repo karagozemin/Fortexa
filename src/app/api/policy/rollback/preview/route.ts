@@ -13,6 +13,7 @@ import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { getDailyUsage, listAuditEntries } from "@/lib/storage/audit-store";
 import { getPolicyConfig, getPolicyVersionByNumber } from "@/lib/storage/policy-store";
 import { policyRollbackPreviewSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
@@ -47,12 +48,12 @@ export async function POST(request: NextRequest) {
     const parsed = policyRollbackPreviewSchema.safeParse(rawBody);
 
     if (!parsed.success) {
-      logWarn("Policy rollback preview validation failed", { ...context, userId });
+      logValidationFailure("Policy rollback preview validation failed", { ...context, userId }, parsed.error, bodyResult.data);
       return jsonWithRequestContext(request, {
         route: "/api/policy/rollback/preview",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid rollback preview payload.", details: parsed.error.flatten() },
+        body: { error: "Invalid rollback preview payload.", details: toPublicValidationDetails(parsed.error) },
         headers: rateLimitHeaders(rate),
       });
     }

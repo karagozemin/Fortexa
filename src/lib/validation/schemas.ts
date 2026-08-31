@@ -6,6 +6,34 @@ import {
   PAYMENT_AMOUNT_ERROR,
 } from "@/lib/stellar/verify-payment-quote";
 
+export const IDEMPOTENCY_KEY_MIN = 8;
+export const IDEMPOTENCY_KEY_MAX = 255;
+export const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._-]+$/;
+export const IDEMPOTENCY_KEY_ERROR =
+  "Idempotency-Key must be 8–255 characters and contain only letters, numbers, dots, underscores, and hyphens.";
+
+export const idempotencyKeySchema = z
+  .string()
+  .min(IDEMPOTENCY_KEY_MIN, { message: IDEMPOTENCY_KEY_ERROR })
+  .max(IDEMPOTENCY_KEY_MAX, { message: IDEMPOTENCY_KEY_ERROR })
+  .regex(IDEMPOTENCY_KEY_PATTERN, { message: IDEMPOTENCY_KEY_ERROR });
+
+export function validateIdempotencyKey(
+  key: string | undefined,
+): { ok: true; key: string } | { ok: false; error: string } {
+  const trimmed = key?.trim() ?? "";
+  if (trimmed.length === 0) {
+    return { ok: false, error: IDEMPOTENCY_KEY_ERROR };
+  }
+
+  const parsed = idempotencyKeySchema.safeParse(trimmed);
+  if (!parsed.success) {
+    return { ok: false, error: IDEMPOTENCY_KEY_ERROR };
+  }
+
+  return { ok: true, key: parsed.data };
+}
+
 const actionKindSchema = z.enum([
   "api_payment",
   "tool_access",
@@ -74,7 +102,7 @@ export const stellarBuildPaymentRequestSchema = z.object({
 
 export const stellarSubmitSignedRequestSchema = z.object({
   signedXdr: z.string().min(20).max(120000),
-  idempotencyKey: z.string().min(8).max(255).optional(),
+  idempotencyKey: idempotencyKeySchema.optional(),
 });
 
 export const agentPlanRequestSchema = z.object({

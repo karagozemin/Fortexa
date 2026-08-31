@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   agentActionSchema,
   agentPlanRequestSchema,
+  IDEMPOTENCY_KEY_ERROR,
+  IDEMPOTENCY_KEY_MAX,
+  IDEMPOTENCY_KEY_MIN,
   policyConfigSchema,
   stellarBuildPaymentRequestSchema,
+  validateIdempotencyKey,
 } from "@/lib/validation/schemas";
 
 describe("validation schemas", () => {
@@ -112,4 +116,46 @@ describe("validation schemas", () => {
 
     expect(parsed.success).toBe(true);
   });
+  describe("validateIdempotencyKey", () => {
+    it("rejects empty keys", () => {
+      expect(validateIdempotencyKey("")).toEqual({ ok: false, error: IDEMPOTENCY_KEY_ERROR });
+      expect(validateIdempotencyKey("   ")).toEqual({ ok: false, error: IDEMPOTENCY_KEY_ERROR });
+      expect(validateIdempotencyKey(undefined)).toEqual({ ok: false, error: IDEMPOTENCY_KEY_ERROR });
+    });
+
+    it("rejects keys shorter than minimum length", () => {
+      expect(validateIdempotencyKey("a".repeat(IDEMPOTENCY_KEY_MIN - 1))).toEqual({
+        ok: false,
+        error: IDEMPOTENCY_KEY_ERROR,
+      });
+    });
+
+    it("rejects keys longer than maximum length", () => {
+      expect(validateIdempotencyKey("a".repeat(IDEMPOTENCY_KEY_MAX + 1))).toEqual({
+        ok: false,
+        error: IDEMPOTENCY_KEY_ERROR,
+      });
+    });
+
+    it("rejects keys with invalid characters", () => {
+      for (const key of ["1234567!", "1234 5678", "12345678/", "12345678@"]) {
+        expect(validateIdempotencyKey(key)).toEqual({
+          ok: false,
+          error: IDEMPOTENCY_KEY_ERROR,
+        });
+      }
+    });
+
+    it("accepts valid boundary keys", () => {
+      const minKey = "a".repeat(IDEMPOTENCY_KEY_MIN);
+      const maxKey = "A".repeat(IDEMPOTENCY_KEY_MAX);
+      expect(validateIdempotencyKey(minKey)).toEqual({ ok: true, key: minKey });
+      expect(validateIdempotencyKey(maxKey)).toEqual({ ok: true, key: maxKey });
+      expect(validateIdempotencyKey("idem-key_01.test")).toEqual({
+        ok: true,
+        key: "idem-key_01.test",
+      });
+    });
+  });
+
 });

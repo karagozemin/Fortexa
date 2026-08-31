@@ -2,11 +2,9 @@ import { isWithinInterval } from "date-fns";
 import { normalizeDomain } from "@/lib/policy/domain";
 
 import type { AgentAction, DailyUsage, PolicyConfig, PolicyEvaluation, PolicyTrigger } from "@/lib/types/domain";
+import { toNearestStroops } from "@/lib/stellar/stroops";
 
-/**
- * Raised when a policy contains duplicate identifiers within a single rule
- * list (allowedDomains, blockedDomains, allowedTools, blockedTools).
- */
+/** Raised when one policy rule list contains the same identifier twice. */
 export class DuplicateRuleError extends Error {
   public readonly field: string;
   public readonly value: string;
@@ -26,20 +24,12 @@ const RULE_LISTS: Array<keyof Pick<
   "allowedDomains" | "blockedDomains" | "allowedTools" | "blockedTools"
 >> = ["allowedDomains", "blockedDomains", "allowedTools", "blockedTools"];
 
-/**
- * Reject a policy that contains repeated identifiers within any single rule
- * list. Identifiers are compared case-sensitively because domain normalization
- * is applied elsewhere and tool names are case-sensitive by convention.
- *
- * @throws {DuplicateRuleError} when a duplicate is found.
- */
+/** Reject repeated identifiers within any single policy rule list. */
 export function validateNoDuplicateRules(policy: PolicyConfig): void {
   for (const field of RULE_LISTS) {
     const seen = new Set<string>();
     for (const id of policy[field]) {
-      if (seen.has(id)) {
-        throw new DuplicateRuleError(field, id);
-      }
+      if (seen.has(id)) throw new DuplicateRuleError(field, id);
       seen.add(id);
     }
   }
@@ -62,9 +52,7 @@ export const defaultPolicyConfig: PolicyConfig = {
 
 export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage: DailyUsage): PolicyEvaluation {
   validateNoDuplicateRules(policy);
-
   const triggers: PolicyTrigger[] = [];
-
   const normalizedDomain = normalizeDomain(action.domain);
 
   if (!normalizedDomain) {
@@ -107,7 +95,13 @@ export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage:
     });
   }
 
-  if (action.amountXLM > policy.perTxCapXLM) {
+  // Keep cap arithmetic in integer stroops so decimal XLM values do not drift.
+  const amountStroops = toNearestStroops(action.amountXLM);
+  const perTxCapStroops = toNearestStroops(policy.perTxCapXLM);
+  const dailyCapStroops = toNearestStroops(policy.dailyCapXLM);
+  const spentStroops = toNearestStroops(usage.spentXLM);
+
+  if (amountStroops > perTxCapStroops) {
     triggers.push({
       code: "PER_TX_CAP_EXCEEDED",
       message: `Amount ${action.amountXLM} XLM exceeds per transaction cap (${policy.perTxCapXLM} XLM).`,
@@ -115,7 +109,7 @@ export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage:
     });
   }
 
-  if (usage.spentXLM + action.amountXLM > policy.dailyCapXLM) {
+  if (spentStroops + amountStroops > dailyCapStroops) {
     triggers.push({
       code: "DAILY_CAP_EXCEEDED",
       message: `Action would exceed daily budget (${policy.dailyCapXLM} XLM).`,

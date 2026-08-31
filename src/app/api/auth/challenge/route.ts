@@ -5,6 +5,7 @@ import { createWalletChallenge } from "@/lib/auth/wallet-challenge";
 import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 const challengeSchema = z.object({
   publicKey: z.string().regex(/^G[A-Z2-7]{55}$/u, "Invalid Stellar public key."),
@@ -36,12 +37,12 @@ export async function POST(request: NextRequest) {
     const parsed = challengeSchema.safeParse(rawBody);
 
     if (!parsed.success) {
-      logWarn("Auth challenge validation failed", context);
+      logValidationFailure("Auth challenge validation failed", context, parsed.error, rawBody);
       return jsonWithRequestContext(request, {
         route: "/api/auth/challenge",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid challenge payload.", details: parsed.error.flatten() },
+        body: { error: "Invalid challenge payload.", details: toPublicValidationDetails(parsed.error) },
         headers: rateLimitHeaders(rate),
       });
     }
