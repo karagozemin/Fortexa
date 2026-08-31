@@ -4,6 +4,37 @@ import { normalizeDomain } from "@/lib/policy/domain";
 import type { AgentAction, DailyUsage, PolicyConfig, PolicyEvaluation, PolicyTrigger } from "@/lib/types/domain";
 import { toNearestStroops } from "@/lib/stellar/stroops";
 
+/** Raised when one policy rule list contains the same identifier twice. */
+export class DuplicateRuleError extends Error {
+  public readonly field: string;
+  public readonly value: string;
+
+  constructor(field: string, value: string) {
+    super(
+      `Duplicate rule identifier "${value}" found in ${field}. Remove the duplicate before saving or evaluating the policy.`,
+    );
+    this.name = "DuplicateRuleError";
+    this.field = field;
+    this.value = value;
+  }
+}
+
+const RULE_LISTS: Array<keyof Pick<
+  PolicyConfig,
+  "allowedDomains" | "blockedDomains" | "allowedTools" | "blockedTools"
+>> = ["allowedDomains", "blockedDomains", "allowedTools", "blockedTools"];
+
+/** Reject repeated identifiers within any single policy rule list. */
+export function validateNoDuplicateRules(policy: PolicyConfig): void {
+  for (const field of RULE_LISTS) {
+    const seen = new Set<string>();
+    for (const id of policy[field]) {
+      if (seen.has(id)) throw new DuplicateRuleError(field, id);
+      seen.add(id);
+    }
+  }
+}
+
 export const defaultPolicyConfig: PolicyConfig = {
   allowedDomains: ["api.safe-research.ai", "tools.verified-data.dev", "workers.fortexa-demo.stellar"],
   blockedDomains: ["wallet-drainer.evil", "prompt-pwn.io", "untrusted-mirror.xyz"],
@@ -20,8 +51,8 @@ export const defaultPolicyConfig: PolicyConfig = {
 };
 
 export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage: DailyUsage): PolicyEvaluation {
+  validateNoDuplicateRules(policy);
   const triggers: PolicyTrigger[] = [];
-
   const normalizedDomain = normalizeDomain(action.domain);
 
   if (!normalizedDomain) {
@@ -64,10 +95,7 @@ export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage:
     });
   }
 
-  // Cap checks are integer stroop arithmetic, never floating point. Adding
-  // `0.1 + 0.2` in binary floating point yields `0.30000000000000004`, which is
-  // greater than a `0.3` cap, so a payment landing exactly on the daily budget
-  // would be refused. See `@/lib/stellar/stroops`.
+  // Keep cap arithmetic in integer stroops so decimal XLM values do not drift.
   const amountStroops = toNearestStroops(action.amountXLM);
   const perTxCapStroops = toNearestStroops(policy.perTxCapXLM);
   const dailyCapStroops = toNearestStroops(policy.dailyCapXLM);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { evaluatePolicy, defaultPolicyConfig } from "@/lib/policy/engine";
+import { DuplicateRuleError, evaluatePolicy, defaultPolicyConfig, validateNoDuplicateRules } from "@/lib/policy/engine";
 import type { AgentAction, DailyUsage, PolicyConfig } from "@/lib/types/domain";
 
 const baseAction: AgentAction = {
@@ -247,5 +247,59 @@ describe("policy engine", () => {
       );
       expect(overCap).toContain("PER_TX_CAP_EXCEEDED");
     });
+  });
+});
+
+describe("duplicate rule identifier detection", () => {
+  it("reports the first duplicate found when multiple lists have duplicates", () => {
+    const policy: PolicyConfig = {
+      ...basePolicy,
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+      blockedTools: ["shadow-shell", "shadow-shell"],
+    };
+
+    let error: DuplicateRuleError | null = null;
+    try {
+      validateNoDuplicateRules(policy);
+    } catch (caught) {
+      error = caught as DuplicateRuleError;
+    }
+
+    expect(error).not.toBeNull();
+    expect(error!.field).toBe("allowedDomains");
+  });
+
+  it("is case-sensitive for tool identifiers", () => {
+    const policy: PolicyConfig = {
+      ...basePolicy,
+      allowedTools: ["research-pro", "Research-Pro"],
+    };
+
+    expect(() => validateNoDuplicateRules(policy)).not.toThrow();
+  });
+
+  it("rejects duplicate rule identifiers from imported policy JSON", () => {
+    const importedPolicy: PolicyConfig = {
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+      blockedDomains: ["wallet-drainer.evil"],
+      allowedTools: ["research-pro"],
+      blockedTools: ["shadow-shell"],
+      perTxCapXLM: 120,
+      dailyCapXLM: 300,
+      maxToolCallsPerDay: 8,
+      riskThreshold: 78,
+      allowedHours: { start: 6, end: 23 },
+    };
+
+    expect(() => validateNoDuplicateRules(importedPolicy)).toThrow(DuplicateRuleError);
+  });
+
+  it("rejects duplicate rule identifiers from a direct policy edit", () => {
+    const editedPolicy: PolicyConfig = {
+      ...basePolicy,
+      allowedTools: ["research-pro", "research-pro"],
+    };
+
+    expect(() => validateNoDuplicateRules(editedPolicy)).toThrow(DuplicateRuleError);
   });
 });
