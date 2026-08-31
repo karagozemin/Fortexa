@@ -2,6 +2,7 @@ import { isWithinInterval } from "date-fns";
 import { normalizeDomain } from "@/lib/policy/domain";
 
 import type { AgentAction, DailyUsage, PolicyConfig, PolicyEvaluation, PolicyTrigger } from "@/lib/types/domain";
+import { toNearestStroops } from "@/lib/stellar/stroops";
 
 export const defaultPolicyConfig: PolicyConfig = {
   allowedDomains: ["api.safe-research.ai", "tools.verified-data.dev", "workers.fortexa-demo.stellar"],
@@ -63,7 +64,16 @@ export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage:
     });
   }
 
-  if (action.amountXLM > policy.perTxCapXLM) {
+  // Cap checks are integer stroop arithmetic, never floating point. Adding
+  // `0.1 + 0.2` in binary floating point yields `0.30000000000000004`, which is
+  // greater than a `0.3` cap, so a payment landing exactly on the daily budget
+  // would be refused. See `@/lib/stellar/stroops`.
+  const amountStroops = toNearestStroops(action.amountXLM);
+  const perTxCapStroops = toNearestStroops(policy.perTxCapXLM);
+  const dailyCapStroops = toNearestStroops(policy.dailyCapXLM);
+  const spentStroops = toNearestStroops(usage.spentXLM);
+
+  if (amountStroops > perTxCapStroops) {
     triggers.push({
       code: "PER_TX_CAP_EXCEEDED",
       message: `Amount ${action.amountXLM} XLM exceeds per transaction cap (${policy.perTxCapXLM} XLM).`,
@@ -71,7 +81,7 @@ export function evaluatePolicy(action: AgentAction, policy: PolicyConfig, usage:
     });
   }
 
-  if (usage.spentXLM + action.amountXLM > policy.dailyCapXLM) {
+  if (spentStroops + amountStroops > dailyCapStroops) {
     triggers.push({
       code: "DAILY_CAP_EXCEEDED",
       message: `Action would exceed daily budget (${policy.dailyCapXLM} XLM).`,
