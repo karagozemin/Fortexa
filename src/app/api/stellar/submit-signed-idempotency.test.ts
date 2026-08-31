@@ -37,6 +37,7 @@ import { Account, Asset, Keypair, Networks, Operation, TransactionBuilder } from
 import { NextRequest } from "next/server";
 
 import { POST as submitSignedPost } from "@/app/api/stellar/submit-signed/route";
+import { IDEMPOTENCY_KEY_ERROR } from "@/lib/validation/schemas";
 import { AUTH_COOKIE_KEY, createSessionToken } from "@/lib/auth/session";
 import { resetSubmitIdempotencyState } from "@/lib/storage/submit-idempotency-store";
 import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
@@ -174,5 +175,59 @@ describe("submit-signed idempotency", () => {
     expect(second.status).toBe(200);
     expect(second.headers.get("Idempotency-Replayed")).toBe("true");
     expect(horizonMocks.submitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 400 for invalid idempotency keys in the body", async () => {
+    const signedXdr = buildSignedXdr("1.0000000");
+
+    for (const idempotencyKey of ["short", "a".repeat(256), "invalid key!", "bad/key"]) {
+      const response = await submitSignedPost(submitRequest({ signedXdr, idempotencyKey }));
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      if (body.error === IDEMPOTENCY_KEY_ERROR) {
+        expect(body.error).toBe(IDEMPOTENCY_KEY_ERROR);
+      } else {
+        expect(body.details?.fieldErrors?.idempotencyKey?.[0]).toBe(IDEMPOTENCY_KEY_ERROR);
+      }
+    }
+
+    expect(horizonMocks.submitTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for too-short idempotency keys via header", async () => {
+    const signedXdr = buildSignedXdr("1.0000000");
+
+    const response = await submitSignedPost(
+      submitRequest({ signedXdr }, { "Idempotency-Key": "short" }),
+    );
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe(IDEMPOTENCY_KEY_ERROR);
+    expect(horizonMocks.submitTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for malformed idempotency keys in the header", async () => {
+    const signedXdr = buildSignedXdr("1.0000000");
+
+    const response = await submitSignedPost(
+      submitRequest({ signedXdr }, { "Idempotency-Key": "bad-key!" }),
+    );
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe(IDEMPOTENCY_KEY_ERROR);
+    expect(horizonMocks.submitTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for oversized idempotency keys", async () => {
+    const signedXdr = buildSignedXdr("1.0000000");
+    const oversizedKey = "a".repeat(256);
+
+    const response = await submitSignedPost(
+      submitRequest({ signedXdr, idempotencyKey: oversizedKey }),
+    );
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.details?.fieldErrors?.idempotencyKey?.[0]).toBe(IDEMPOTENCY_KEY_ERROR);
+    expect(horizonMocks.submitTransaction).not.toHaveBeenCalled();
   });
 });

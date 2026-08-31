@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { logError, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { agentPlanRequestSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export const runtime = "nodejs";
 
@@ -34,10 +35,11 @@ export async function POST(request: NextRequest) {
     const parsed = agentPlanRequestSchema.safeParse(rawBody);
 
     if (!parsed.success) {
+      logValidationFailure("Agent plan validation failed", { route: "/api/agent/plan" }, parsed.error, rawBody);
       return NextResponse.json(
         {
           error: "Invalid request body.",
-          details: parsed.error.flatten(),
+          details: toPublicValidationDetails(parsed.error),
         },
         { status: 400, headers: rateLimitHeaders(rate) }
       );

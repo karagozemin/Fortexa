@@ -161,3 +161,28 @@ describe("/api/auth/login challenge-signature flow", () => {
     expect(payload.error).toContain("not authorized");
   });
 });
+
+describe("/api/auth/login validation redaction", () => {
+  it("does not echo signature values in validation error responses", async () => {
+    const secretSignature = "LOGIN_VALIDATION_SECRET_SIGNATURE_DO_NOT_LEAK";
+    const request = new NextRequest("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        publicKey: "not-a-valid-stellar-key",
+        challengeId: "not-a-uuid",
+        signature: secretSignature,
+      }),
+    });
+
+    const response = await login(request);
+    expect(response.status).toBe(400);
+
+    const raw = await response.text();
+    expect(raw).not.toContain(secretSignature);
+
+    const payload = JSON.parse(raw) as { error: string; details?: unknown };
+    expect(payload.error).toBe("Invalid login payload.");
+    expect(payload.details).toBeDefined();
+  });
+});
