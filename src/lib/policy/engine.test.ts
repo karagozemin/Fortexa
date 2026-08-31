@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { evaluatePolicy, defaultPolicyConfig } from "@/lib/policy/engine";
+import { DuplicateRuleError, evaluatePolicy, defaultPolicyConfig, validateNoDuplicateRules } from "@/lib/policy/engine";
 import type { AgentAction, DailyUsage, PolicyConfig } from "@/lib/types/domain";
 
 const baseAction: AgentAction = {
@@ -189,5 +189,117 @@ describe("policy engine", () => {
         expect.objectContaining({ code: "UNAPPROVED_TOOL" }),
       ]),
     );
+  });
+  describe("cap arithmetic is exact", () => {
+    // In binary floating point 0.1 + 0.2 is 0.30000000000000004, which is
+    // strictly greater than a 0.3 cap. Comparing in stroops removes the drift,
+    // so a payment that lands exactly on a cap is allowed and one stroop more
+    // is not.
+    it("allows a payment that lands exactly on the daily cap", () => {
+      expect(
+        triggerCodes({ amountXLM: 0.2 }, { dailyCapXLM: 0.3, perTxCapXLM: 120 }, { spentXLM: 0.1 }),
+      ).not.toContain("DAILY_CAP_EXCEEDED");
+
+      expect(
+        triggerCodes({ amountXLM: 2.2 }, { dailyCapXLM: 3.3, perTxCapXLM: 120 }, { spentXLM: 1.1 }),
+      ).not.toContain("DAILY_CAP_EXCEEDED");
+    });
+
+    it("blocks a payment one stroop over the daily cap", () => {
+      expect(
+        triggerCodes(
+          { amountXLM: 0.2000001 },
+          { dailyCapXLM: 0.3, perTxCapXLM: 120 },
+          { spentXLM: 0.1 },
+        ),
+      ).toContain("DAILY_CAP_EXCEEDED");
+    });
+
+    it("allows a payment that lands exactly on the per-transaction cap", () => {
+      expect(
+        triggerCodes({ amountXLM: 3.3 }, { perTxCapXLM: 3.3, dailyCapXLM: 1000 }, { spentXLM: 0 }),
+      ).not.toContain("PER_TX_CAP_EXCEEDED");
+    });
+
+    it("blocks a payment one stroop over the per-transaction cap", () => {
+      expect(
+        triggerCodes(
+          { amountXLM: 3.3000001 },
+          { perTxCapXLM: 3.3, dailyCapXLM: 1000 },
+          { spentXLM: 0 },
+        ),
+      ).toContain("PER_TX_CAP_EXCEEDED");
+    });
+
+    it("holds exactness at large amounts", () => {
+      const atCap = triggerCodes(
+        { amountXLM: 100000 },
+        { perTxCapXLM: 100000, dailyCapXLM: 100000 },
+        { spentXLM: 0 },
+      );
+      expect(atCap).not.toContain("PER_TX_CAP_EXCEEDED");
+      expect(atCap).not.toContain("DAILY_CAP_EXCEEDED");
+
+      const overCap = triggerCodes(
+        { amountXLM: 100000.0000001 },
+        { perTxCapXLM: 100000, dailyCapXLM: 100000 },
+        { spentXLM: 0 },
+      );
+      expect(overCap).toContain("PER_TX_CAP_EXCEEDED");
+    });
+  });
+});
+
+describe("duplicate rule identifier detection", () => {
+  it("reports the first duplicate found when multiple lists have duplicates", () => {
+    const policy: PolicyConfig = {
+      ...basePolicy,
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+      blockedTools: ["shadow-shell", "shadow-shell"],
+    };
+
+    let error: DuplicateRuleError | null = null;
+    try {
+      validateNoDuplicateRules(policy);
+    } catch (caught) {
+      error = caught as DuplicateRuleError;
+    }
+
+    expect(error).not.toBeNull();
+    expect(error!.field).toBe("allowedDomains");
+  });
+
+  it("is case-sensitive for tool identifiers", () => {
+    const policy: PolicyConfig = {
+      ...basePolicy,
+      allowedTools: ["research-pro", "Research-Pro"],
+    };
+
+    expect(() => validateNoDuplicateRules(policy)).not.toThrow();
+  });
+
+  it("rejects duplicate rule identifiers from imported policy JSON", () => {
+    const importedPolicy: PolicyConfig = {
+      allowedDomains: ["api.safe-research.ai", "api.safe-research.ai"],
+      blockedDomains: ["wallet-drainer.evil"],
+      allowedTools: ["research-pro"],
+      blockedTools: ["shadow-shell"],
+      perTxCapXLM: 120,
+      dailyCapXLM: 300,
+      maxToolCallsPerDay: 8,
+      riskThreshold: 78,
+      allowedHours: { start: 6, end: 23 },
+    };
+
+    expect(() => validateNoDuplicateRules(importedPolicy)).toThrow(DuplicateRuleError);
+  });
+
+  it("rejects duplicate rule identifiers from a direct policy edit", () => {
+    const editedPolicy: PolicyConfig = {
+      ...basePolicy,
+      allowedTools: ["research-pro", "research-pro"],
+    };
+
+    expect(() => validateNoDuplicateRules(editedPolicy)).toThrow(DuplicateRuleError);
   });
 });

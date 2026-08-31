@@ -12,8 +12,10 @@ import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observab
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { readJsonBody } from "@/lib/http/read-json-body";
 import { getDailyUsage, listAuditEntries } from "@/lib/storage/audit-store";
+import { DuplicateRuleError } from "@/lib/policy/engine";
 import { getPolicyConfig } from "@/lib/storage/policy-store";
 import { policySimulateRequestSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export async function POST(request: NextRequest) {
   const startedAtMs = Date.now();
@@ -60,12 +62,12 @@ export async function POST(request: NextRequest) {
     const parsed = policySimulateRequestSchema.safeParse(bodyResult.data);
 
     if (!parsed.success) {
-      logWarn("Policy simulate validation failed", { ...context, userId });
+      logValidationFailure("Policy simulate validation failed", { ...context, userId }, parsed.error, bodyResult.data);
       return jsonWithRequestContext(request, {
         route: "/api/policy/simulate",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid simulation payload.", details: parsed.error.flatten() },
+        body: { error: "Invalid simulation payload.", details: toPublicValidationDetails(parsed.error) },
         headers: rateLimitHeaders(rate),
       });
     }
@@ -114,6 +116,27 @@ export async function POST(request: NextRequest) {
       headers: rateLimitHeaders(rate),
     });
   } catch (error) {
+    if (error instanceof DuplicateRuleError) {
+      logWarn("Policy simulate rejected: duplicate rule identifier", {
+        ...context,
+        userId: auth.session.userId,
+        field: error.field,
+        duplicateValue: error.value,
+      });
+      return jsonWithRequestContext(request, {
+        route: "/api/policy/simulate",
+        startedAtMs,
+        status: 422,
+        body: {
+          error: error.message,
+          code: "DUPLICATE_RULE_IDENTIFIER",
+          field: error.field,
+          duplicateValue: error.value,
+        },
+        headers: rateLimitHeaders(rate),
+      });
+    }
+
     logError("Policy simulate internal error", {
       ...context,
       userId: auth.session.userId,

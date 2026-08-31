@@ -9,6 +9,7 @@ import { verifyPaymentAgainstQuote } from "@/lib/stellar/verify-payment-quote";
 import { getAuditEntryById } from "@/lib/storage/audit-store";
 import { getUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarBuildPaymentRequestSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export async function POST(request: NextRequest) {
   const rate = await consumeRateLimit(request, {
@@ -65,10 +66,11 @@ export async function POST(request: NextRequest) {
     const parsedPayload = stellarBuildPaymentRequestSchema.safeParse(bodyResult.data);
 
     if (!parsedPayload.success) {
+      logValidationFailure("Stellar build payment validation failed", { route: "/api/stellar/build-payment", userId }, parsedPayload.error, bodyResult.data);
       return NextResponse.json(
         {
           error: "Invalid payment build request.",
-          details: parsedPayload.error.flatten(),
+          details: toPublicValidationDetails(parsedPayload.error),
         },
         { status: 400, headers: rateLimitHeaders(rate) },
       );

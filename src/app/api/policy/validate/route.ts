@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { DuplicateRuleError, validateNoDuplicateRules } from "@/lib/policy/engine";
 import { policyConfigSchema } from "@/lib/validation/schemas";
 
 /**
@@ -42,6 +43,25 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       );
+    }
+
+    // Check for duplicate rule identifiers
+    try {
+      validateNoDuplicateRules(result.data);
+    } catch (error) {
+      if (error instanceof DuplicateRuleError) {
+        return NextResponse.json(
+          {
+            valid: false,
+            errors: [error.message],
+            code: "DUPLICATE_RULE_IDENTIFIER",
+            field: error.field,
+            duplicateValue: error.value,
+          },
+          { status: 422 }
+        );
+      }
+      throw error;
     }
 
     // Valid policy

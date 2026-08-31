@@ -5,6 +5,7 @@ import { getWalletFromSession } from "@/lib/auth/session-wallet";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { getUserWallet, upsertUserWallet } from "@/lib/storage/user-wallet-store";
 import { stellarSetupRequestSchema } from "@/lib/validation/schemas";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 export const runtime = "nodejs";
 
@@ -27,10 +28,11 @@ export async function POST(request: NextRequest) {
     const parsedBody = stellarSetupRequestSchema.safeParse(rawBody);
 
     if (!parsedBody.success) {
+      logValidationFailure("Stellar setup validation failed", { route: "/api/stellar/setup" }, parsedBody.error, rawBody);
       return NextResponse.json(
         {
           error: "Invalid wallet setup request.",
-          details: parsedBody.error.flatten(),
+          details: toPublicValidationDetails(parsedBody.error),
         },
         { status: 400, headers: rateLimitHeaders(rate) }
       );

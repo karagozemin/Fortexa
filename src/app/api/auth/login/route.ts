@@ -9,6 +9,7 @@ import { jsonWithRequestContext } from "@/lib/observability/http";
 import { getRequestLogContext, logError, logInfo, logWarn } from "@/lib/observability/logger";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { upsertUserWallet } from "@/lib/storage/user-wallet-store";
+import { logValidationFailure, toPublicValidationDetails } from "@/lib/validation/errors";
 
 const loginSchema = z.object({
   publicKey: z.string().regex(/^G[A-Z2-7]{55}$/u, "Invalid Stellar public key."),
@@ -58,12 +59,12 @@ export async function POST(request: NextRequest) {
     const parsed = loginSchema.safeParse(rawBody);
 
     if (!parsed.success) {
-      logWarn("Auth login validation failed", context);
+      logValidationFailure("Auth login validation failed", context, parsed.error, rawBody);
       return jsonWithRequestContext(request, {
         route: "/api/auth/login",
         startedAtMs,
         status: 400,
-        body: { error: "Invalid login payload.", details: parsed.error.flatten() },
+        body: { error: "Invalid login payload.", details: toPublicValidationDetails(parsed.error) },
         headers: rateLimitHeaders(rate),
       });
     }

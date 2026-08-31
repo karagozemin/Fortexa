@@ -9,6 +9,70 @@ export type StellarSubmitResult =
   | "idempotency_conflict"
   | "source_wallet_mismatch";
 
+export const ALLOWED_ROUTES = new Set<string>([
+  "/api/auth/challenge",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/refresh",
+  "/api/auth/session",
+  "/api/auth/wallet/revoke",
+  "/api/decision",
+  "/api/policy",
+  "/api/policy/history",
+  "/api/policy/validate",
+  "/api/policy/simulate",
+  "/api/policy/rollback",
+  "/api/policy/rollback/preview",
+  "/api/agent/plan",
+  "/api/health",
+  "/api/metrics",
+  "/api/stellar/balance",
+  "/api/stellar/build-payment",
+  "/api/stellar/fund",
+  "/api/stellar/pay",
+  "/api/stellar/setup",
+  "/api/stellar/submit-signed",
+  "/api/audit",
+  "/api/audit/export",
+  "/api/audit/integrity",
+  "/other",
+]);
+
+export const ALLOWED_METHODS = new Set<string>([
+  "GET",
+  "POST",
+  "PUT",
+  "DELETE",
+  "PATCH",
+  "HEAD",
+  "OPTIONS",
+]);
+
+export const ALLOWED_OUTCOMES: ReadonlySet<DecisionOutcome> = new Set<DecisionOutcome>([
+  "APPROVE",
+  "WARN",
+  "REQUIRE_APPROVAL",
+  "BLOCK",
+]);
+
+export const ALLOWED_RESULTS: ReadonlySet<StellarSubmitResult> = new Set<StellarSubmitResult>([
+  "success",
+  "horizon_failure",
+  "validation_failure",
+  "idempotency_replay",
+  "idempotency_conflict",
+  "source_wallet_mismatch",
+]);
+
+/**
+ * Maximum distinct route+method series before new series are dropped.
+ * This is a second-layer guard: primary guard is the allowlist which
+ * collapses arbitrary user-controlled values to "/other".
+ * Set to accommodate all legitimate route×method combinations (ALLOWED_ROUTES × ALLOWED_METHODS)
+ * while still bounding explosion if the allowlist is misconfigured.
+ */
+export const MAX_CARDINALITY = 200;
+
 const decisionOutcomeCounts = new Map<DecisionOutcome, number>();
 const stellarSubmitResultCounts = new Map<StellarSubmitResult, number>();
 
@@ -25,6 +89,53 @@ type MetricBucket = {
 
 const buckets = new Map<MetricKey, MetricBucket>();
 const MAX_DURATIONS = 500;
+
+const WALLET_PATTERN = /G[A-Z2-7]{55}/;
+const FREE_TEXT_PATTERN = /[\s\n\r\t"'`]/;
+
+export function normalizeRoute(route: string): string {
+  if (!route || typeof route !== "string") {
+    return "/other";
+  }
+  // Strip query string and hash fragment – those can contain free-text / wallet data
+  let normalized = route.trim().split("?")[0].split("#")[0] ?? "";
+  // Remove trailing slash (except root)
+  if (normalized.length > 1 && normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1);
+  }
+  // Drop overly long values (likely free-text injection)
+  if (normalized.length === 0 || normalized.length > 128) {
+    return "/other";
+  }
+  // Drop values containing Stellar wallet addresses
+  if (WALLET_PATTERN.test(normalized)) {
+    return "/other";
+  }
+  // Drop values containing whitespace/quotes (free-text)
+  if (FREE_TEXT_PATTERN.test(normalized)) {
+    return "/other";
+  }
+  // Only allow explicitly listed routes; everything else collapses to /other
+  if (ALLOWED_ROUTES.has(normalized)) {
+    return normalized;
+  }
+  return "/other";
+}
+
+export function normalizeMethod(method: string): string {
+  if (!method || typeof method !== "string") {
+    return "UNKNOWN";
+  }
+  const upper = method.trim().toUpperCase();
+  if (ALLOWED_METHODS.has(upper)) {
+    return upper;
+  }
+  return "UNKNOWN";
+}
+
+export function escapePrometheusLabelValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
+}
 
 function keyOf(route: string, method: string): MetricKey {
   return `${method.toUpperCase()}:${route}`;
@@ -46,10 +157,18 @@ export function recordApiMetric(input: {
   statusCode: number;
   durationMs: number;
 }) {
-  const key = keyOf(input.route, input.method);
+  const sanitizedRoute = normalizeRoute(input.route);
+  const sanitizedMethod = normalizeMethod(input.method);
+  const key = keyOf(sanitizedRoute, sanitizedMethod);
+
+  // Cardinality guard: drop new series once MAX_CARDINALITY is reached
+  if (!buckets.has(key) && buckets.size >= MAX_CARDINALITY) {
+    return;
+  }
+
   const current = buckets.get(key) ?? {
-    route: input.route,
-    method: input.method.toUpperCase(),
+    route: sanitizedRoute,
+    method: sanitizedMethod,
     totalCount: 0,
     errorCount: 0,
     totalDurationMs: 0,
@@ -123,7 +242,7 @@ export function toPrometheusText() {
 
   for (const route of snapshot.routes) {
     lines.push(
-      `fortexa_requests_total{route="${route.route}",method="${route.method}"} ${route.totalCount}`
+      `fortexa_requests_total{route="${escapePrometheusLabelValue(route.route)}",method="${escapePrometheusLabelValue(route.method)}"} ${route.totalCount}`
     );
   }
 
@@ -132,7 +251,7 @@ export function toPrometheusText() {
 
   for (const route of snapshot.routes) {
     lines.push(
-      `fortexa_request_errors_total{route="${route.route}",method="${route.method}"} ${route.errorCount}`
+      `fortexa_request_errors_total{route="${escapePrometheusLabelValue(route.route)}",method="${escapePrometheusLabelValue(route.method)}"} ${route.errorCount}`
     );
   }
 
@@ -141,31 +260,40 @@ export function toPrometheusText() {
 
   for (const route of snapshot.routes) {
     lines.push(
-      `fortexa_request_duration_ms_p95{route="${route.route}",method="${route.method}"} ${route.p95DurationMs.toFixed(2)}`
+      `fortexa_request_duration_ms_p95{route="${escapePrometheusLabelValue(route.route)}",method="${escapePrometheusLabelValue(route.method)}"} ${route.p95DurationMs.toFixed(2)}`
     );
   }
 
   lines.push("# HELP fortexa_decision_outcomes_total Total decision evaluations by outcome");
   lines.push("# TYPE fortexa_decision_outcomes_total counter");
   for (const [outcome, count] of decisionOutcomeCounts) {
-    lines.push(`fortexa_decision_outcomes_total{outcome="${outcome}"} ${count}`);
+    lines.push(`fortexa_decision_outcomes_total{outcome="${escapePrometheusLabelValue(outcome)}"} ${count}`);
   }
 
   lines.push("# HELP fortexa_stellar_submit_results_total Total Stellar submission attempts by result");
   lines.push("# TYPE fortexa_stellar_submit_results_total counter");
   for (const [result, count] of stellarSubmitResultCounts) {
-    lines.push(`fortexa_stellar_submit_results_total{result="${result}"} ${count}`);
+    lines.push(`fortexa_stellar_submit_results_total{result="${escapePrometheusLabelValue(result)}"} ${count}`);
   }
 
   return `${lines.join("\n")}\n`;
 }
 
 export function recordDecisionOutcome(outcome: DecisionOutcome) {
-  decisionOutcomeCounts.set(outcome, (decisionOutcomeCounts.get(outcome) ?? 0) + 1);
+  // Only allow low-cardinality allowlisted outcomes; drop free-text/wallet injection
+  const normalized = String(outcome).trim().toUpperCase();
+  if (!ALLOWED_OUTCOMES.has(normalized as DecisionOutcome)) {
+    return;
+  }
+  const safeOutcome = normalized as DecisionOutcome;
+  decisionOutcomeCounts.set(safeOutcome, (decisionOutcomeCounts.get(safeOutcome) ?? 0) + 1);
 }
 
 export function recordStellarSubmitResult(result: StellarSubmitResult) {
-  stellarSubmitResultCounts.set(result, (stellarSubmitResultCounts.get(result) ?? 0) + 1);
+  if (!ALLOWED_RESULTS.has(result as StellarSubmitResult)) {
+    return;
+  }
+  stellarSubmitResultCounts.set(result as StellarSubmitResult, (stellarSubmitResultCounts.get(result as StellarSubmitResult) ?? 0) + 1);
 }
 
 export function resetMetrics() {
