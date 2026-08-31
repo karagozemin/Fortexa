@@ -1,3 +1,4 @@
+import { validateRequestTimestamp } from "@/lib/stellar/request-timestamp-skew";
 import {
   parseXlmNumberToStroops,
   parseXlmToStroops,
@@ -16,7 +17,8 @@ export type PaymentQuoteField =
   | "amountXLM"
   | "asset"
   | "memo"
-  | "network";
+  | "network"
+  | "requestTimestampMs";
 
 export type PaymentBuildParams = {
   destination: string;
@@ -24,6 +26,15 @@ export type PaymentBuildParams = {
   asset: StellarAssetId;
   memo?: string;
   network: StellarNetworkId;
+  /**
+   * Optional epoch-millisecond timestamp the client attaches to this
+   * request. When present, it's checked against the configured clock-skew
+   * window (see {@link validateRequestTimestamp}) before any other
+   * verification runs -- a stale or implausibly-future timestamp is
+   * rejected outright. Omitting it entirely skips the check, so existing
+   * callers that don't send a timestamp are unaffected.
+   */
+  requestTimestampMs?: number;
 };
 
 export type VerifyPaymentQuoteResult =
@@ -156,6 +167,24 @@ export function verifyPaymentAgainstQuote(
       status: 403,
       error: `Decision '${auditEntry.decision}' does not authorize payment execution.`,
     };
+  }
+
+  if (request.requestTimestampMs !== undefined) {
+    const skewResult = validateRequestTimestamp(request.requestTimestampMs);
+    if (!skewResult.ok) {
+      const reason =
+        skewResult.code === "stale"
+          ? "too old"
+          : skewResult.code === "future"
+            ? "too far in the future"
+            : "not a valid timestamp";
+      return {
+        ok: false,
+        status: 400,
+        error: `Request timestamp is ${reason}.`,
+        field: "requestTimestampMs",
+      };
+    }
   }
 
   if (Date.now() - Date.parse(auditEntry.timestamp) > getQuoteTtlMs()) {

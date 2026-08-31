@@ -98,6 +98,13 @@ export const stellarBuildPaymentRequestSchema = z.object({
   asset: z.enum(["native"]).default("native"),
   memo: z.string().max(28).optional(),
   network: z.enum(["testnet"]).default("testnet"),
+  /**
+   * Optional epoch-millisecond timestamp the client attaches to this
+   * request, checked against the configured clock-skew window (see
+   * src/lib/stellar/request-timestamp-skew.ts). Omitted entirely, the
+   * check is skipped -- existing clients are unaffected.
+   */
+  requestTimestampMs: z.number().finite().optional(),
 });
 
 export const stellarSubmitSignedRequestSchema = z.object({

@@ -146,6 +146,80 @@ describe("verifyPaymentAgainstQuote", () => {
       expect(result.error).toContain("expired");
     }
   });
+
+  describe("requestTimestampMs (clock-skew guard, #185)", () => {
+    afterEach(() => {
+      delete process.env.FORTEXA_REQUEST_TIMESTAMP_MAX_PAST_SKEW_SECONDS;
+      delete process.env.FORTEXA_REQUEST_TIMESTAMP_MAX_FUTURE_SKEW_SECONDS;
+    });
+
+    it("accepts a request with no timestamp at all (backward compatible)", () => {
+      const entry = mockAuditEntry();
+      const result = verifyPaymentAgainstQuote(entry, {
+        destination: entry.paymentQuote!.destination,
+        amountXLM: entry.paymentQuote!.amountXLM,
+        asset: "native",
+        memo: entry.paymentQuote!.memo,
+        network: "testnet",
+      });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts a request with a current timestamp", () => {
+      const entry = mockAuditEntry();
+      const result = verifyPaymentAgainstQuote(entry, {
+        destination: entry.paymentQuote!.destination,
+        amountXLM: entry.paymentQuote!.amountXLM,
+        asset: "native",
+        memo: entry.paymentQuote!.memo,
+        network: "testnet",
+        requestTimestampMs: Date.now(),
+      });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects a stale request timestamp with a 400 before checking anything else", () => {
+      process.env.FORTEXA_REQUEST_TIMESTAMP_MAX_PAST_SKEW_SECONDS = "60";
+      const entry = mockAuditEntry();
+      const result = verifyPaymentAgainstQuote(entry, {
+        destination: "wrong-destination-should-never-be-reached",
+        amountXLM: entry.paymentQuote!.amountXLM,
+        asset: "native",
+        memo: entry.paymentQuote!.memo,
+        network: "testnet",
+        requestTimestampMs: Date.now() - 5 * 60 * 1000,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(400);
+        expect(result.field).toBe("requestTimestampMs");
+        expect(result.error).toContain("too old");
+      }
+    });
+
+    it("rejects a request timestamp implausibly far in the future", () => {
+      process.env.FORTEXA_REQUEST_TIMESTAMP_MAX_FUTURE_SKEW_SECONDS = "30";
+      const entry = mockAuditEntry();
+      const result = verifyPaymentAgainstQuote(entry, {
+        destination: entry.paymentQuote!.destination,
+        amountXLM: entry.paymentQuote!.amountXLM,
+        asset: "native",
+        memo: entry.paymentQuote!.memo,
+        network: "testnet",
+        requestTimestampMs: Date.now() + 60 * 60 * 1000,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(400);
+        expect(result.field).toBe("requestTimestampMs");
+        expect(result.error).toContain("future");
+      }
+    });
+  });
 });
 
 

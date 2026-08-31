@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       asset: payload.asset,
       memo: payload.memo,
       network: payload.network,
+      requestTimestampMs: payload.requestTimestampMs,
     });
 
     if (!verification.ok) {
