@@ -1,3 +1,9 @@
+import {
+  parseXlmNumberToStroops,
+  parseXlmToStroops,
+  stroopsToXlmString,
+  STROOPS_PER_XLM,
+} from "@/lib/stellar/stroops";
 import type {
   AuditEntry,
   PaymentQuote,
@@ -36,29 +42,46 @@ const PAYMENT_AMOUNT_DECIMAL_PLACES = 7;
 export const PAYMENT_AMOUNT_ERROR =
   "amountXLM must be a positive finite XLM amount with up to 7 decimals.";
 
-function isSafeScaledAmount(amount: number): boolean {
-  // Round-trip through the wire precision so values that would be silently
-  // rounded by Stellar are rejected instead of changing the authorized amount.
-  return Number(amount.toFixed(PAYMENT_AMOUNT_DECIMAL_PLACES)) === amount;
+const MAX_PAYMENT_AMOUNT_STROOPS = BigInt(MAX_PAYMENT_AMOUNT_XLM) * STROOPS_PER_XLM;
+
+/**
+ * Reads an authorized amount as an exact stroop count, or `null` if it is not
+ * one. Amounts are never scaled in floating point: a value finer than a stroop
+ * is refused rather than rounded, because rounding would change the amount the
+ * user actually authorized.
+ */
+function toAuthorizedStroops(amount: number | string): bigint | null {
+  const parsed =
+    typeof amount === "number" ? parseXlmNumberToStroops(amount) : parseXlmToStroops(amount);
+
+  if (!parsed.ok) {
+    return null;
+  }
+
+  if (parsed.stroops <= 0n || parsed.stroops > MAX_PAYMENT_AMOUNT_STROOPS) {
+    return null;
+  }
+
+  return parsed.stroops;
 }
 
 export function isValidPaymentAmountNumber(amount: number): boolean {
-  return (
-    Number.isFinite(amount) &&
-    amount > 0 &&
-    amount <= MAX_PAYMENT_AMOUNT_XLM &&
-    isSafeScaledAmount(amount)
-  );
+  return toAuthorizedStroops(amount) !== null;
 }
 
 export function isValidPaymentAmountString(amount: string): boolean {
+  // The wire format stays deliberately narrow: unsigned, no exponent notation,
+  // and at most 7 written decimals. The value itself is then read exactly.
   if (!/^\d+(?:\.\d+)?$/.test(amount)) {
     return false;
   }
 
   const [, fraction = ""] = amount.split(".");
-  return fraction.length <= PAYMENT_AMOUNT_DECIMAL_PLACES &&
-    isValidPaymentAmountNumber(Number(amount));
+  if (fraction.length > PAYMENT_AMOUNT_DECIMAL_PLACES) {
+    return false;
+  }
+
+  return toAuthorizedStroops(amount) !== null;
 }
 
 /** Default quote TTL: 300 seconds (5 minutes). */
@@ -89,8 +112,14 @@ export function normalizeAmountXLM(amount: number | string): string {
     throw new Error(PAYMENT_AMOUNT_ERROR);
   }
 
-  const parsed = typeof amount === "number" ? amount : Number(amount);
-  return parsed.toFixed(7);
+  const stroops = toAuthorizedStroops(amount);
+  if (stroops === null) {
+    throw new Error(PAYMENT_AMOUNT_ERROR);
+  }
+
+  // Render from the exact stroop count rather than from a double, so the
+  // normalized string is the amount that was authorized, to the stroop.
+  return stroopsToXlmString(stroops);
 }
 
 export function buildPaymentQuoteFromDecision(input: {
