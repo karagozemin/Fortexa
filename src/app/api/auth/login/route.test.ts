@@ -29,6 +29,7 @@ async function issueChallenge(publicKey: string) {
   return (await response.json()) as {
     challengeId: string;
     message: string;
+    expiresAt: string;
   };
 }
 
@@ -42,6 +43,7 @@ describe("/api/auth/login challenge-signature flow", () => {
     delete process.env.FORTEXA_OPERATOR_WALLETS;
     delete process.env.FORTEXA_VIEWER_WALLETS;
     delete process.env.FORTEXA_AUTH_CHALLENGE_TTL_SECONDS;
+    delete process.env.FORTEXA_AUTH_MAX_ATTEMPTS;
     await resetWalletChallengeStore();
     await resetLoginLockoutStore();
   });
@@ -159,6 +161,115 @@ describe("/api/auth/login challenge-signature flow", () => {
     expect(response.status).toBe(401);
     const payload = (await response.json()) as { error: string };
     expect(payload.error).toContain("not authorized");
+  });
+  describe("expiry at the request boundary", () => {
+    // The route must refuse an expired challenge before it resolves a role,
+    // touches the wallet store, or mints a session. `expiresAt` is inclusive:
+    // the stated instant is already too late.
+    it("rejects a challenge at the exact expiry instant", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      process.env.FORTEXA_AUTH_SECRET = "login-route-test-secret";
+      process.env.FORTEXA_OPERATOR_WALLETS = AUTHORIZED_PUBLIC_KEY;
+      process.env.FORTEXA_AUTH_CHALLENGE_TTL_SECONDS = "60";
+
+      const challenge = await issueChallenge(AUTHORIZED_PUBLIC_KEY);
+      const signature = signSep53Message(AUTHORIZED_SECRET, challenge.message);
+
+      vi.setSystemTime(Date.parse(challenge.expiresAt));
+
+      const response = await login(
+        new NextRequest("http://localhost/api/auth/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            publicKey: AUTHORIZED_PUBLIC_KEY,
+            challengeId: challenge.challengeId,
+            signature,
+          }),
+        })
+      );
+
+      expect(response.status).toBe(400);
+      const payload = (await response.json()) as { error: string };
+      expect(payload.error).toContain("expired");
+      expect(response.cookies.get(AUTH_COOKIE_KEY)).toBeUndefined();
+    });
+
+    it("accepts a challenge one millisecond before expiry", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      process.env.FORTEXA_AUTH_SECRET = "login-route-test-secret";
+      process.env.FORTEXA_OPERATOR_WALLETS = AUTHORIZED_PUBLIC_KEY;
+      process.env.FORTEXA_AUTH_CHALLENGE_TTL_SECONDS = "60";
+
+      const challenge = await issueChallenge(AUTHORIZED_PUBLIC_KEY);
+      const signature = signSep53Message(AUTHORIZED_SECRET, challenge.message);
+
+      vi.setSystemTime(Date.parse(challenge.expiresAt) - 1);
+
+      const response = await login(
+        new NextRequest("http://localhost/api/auth/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            publicKey: AUTHORIZED_PUBLIC_KEY,
+            challengeId: challenge.challengeId,
+            signature,
+          }),
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.cookies.get(AUTH_COOKIE_KEY)?.value).toBeTruthy();
+    });
+
+    it("does not spend lockout budget on expired challenges", async () => {
+      // An expired challenge is a timing failure, not a credential failure:
+      // letting it count toward lockout would let anyone lock a wallet out by
+      // sitting on the login screen.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      process.env.FORTEXA_AUTH_SECRET = "login-route-test-secret";
+      process.env.FORTEXA_OPERATOR_WALLETS = AUTHORIZED_PUBLIC_KEY;
+      process.env.FORTEXA_AUTH_CHALLENGE_TTL_SECONDS = "60";
+      process.env.FORTEXA_AUTH_MAX_ATTEMPTS = "2";
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const stale = await issueChallenge(AUTHORIZED_PUBLIC_KEY);
+        const staleSignature = signSep53Message(AUTHORIZED_SECRET, stale.message);
+        vi.setSystemTime(Date.parse(stale.expiresAt));
+
+        const rejected = await login(
+          new NextRequest("http://localhost/api/auth/login", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              publicKey: AUTHORIZED_PUBLIC_KEY,
+              challengeId: stale.challengeId,
+              signature: staleSignature,
+            }),
+          })
+        );
+
+        expect(rejected.status).toBe(400);
+      }
+
+      const fresh = await issueChallenge(AUTHORIZED_PUBLIC_KEY);
+      const response = await login(
+        new NextRequest("http://localhost/api/auth/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            publicKey: AUTHORIZED_PUBLIC_KEY,
+            challengeId: fresh.challengeId,
+            signature: signSep53Message(AUTHORIZED_SECRET, fresh.message),
+          }),
+        })
+      );
+
+      expect(response.status).toBe(200);
+    });
   });
 });
 
