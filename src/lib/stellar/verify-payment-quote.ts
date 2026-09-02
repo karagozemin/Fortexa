@@ -55,6 +55,10 @@ export const PAYMENT_AMOUNT_ERROR =
 
 const MAX_PAYMENT_AMOUNT_STROOPS = BigInt(MAX_PAYMENT_AMOUNT_XLM) * STROOPS_PER_XLM;
 
+function requiresMemo(destination: string): boolean {
+  return (process.env.FORTEXA_CUSTODIAL_DESTINATIONS ?? "").split(",").map((value) => value.trim().toUpperCase()).filter(Boolean).includes(destination);
+}
+
 /**
  * Reads an authorized amount as an exact stroop count, or `null` if it is not
  * one. Amounts are never scaled in floating point: a value finer than a stroop
@@ -153,6 +157,13 @@ export function verifyPaymentAgainstQuote(
   auditEntry: AuditEntry | undefined,
   request: PaymentBuildParams,
 ): VerifyPaymentQuoteResult {
+  const destination = request.destination.trim().toUpperCase();
+  if (requiresMemo(destination) && (!request.memo || request.memo.trim().length === 0)) {
+    return { ok: false, status: 400, error: "A memo is required for this destination.", field: "memo" };
+  }
+  if (request.memo !== undefined && (request.memo.trim().length === 0 || request.memo.length > 28)) {
+    return { ok: false, status: 400, error: "Memo must be a non-empty text value of at most 28 characters.", field: "memo" };
+  }
   if (!auditEntry) {
     return {
       ok: false,
