@@ -9,6 +9,8 @@ import type { AuditFilter } from "@/lib/storage/audit-store";
 import { redactAuditExportEntriesByUser, redactAuditExportPayload } from "@/lib/audit/redact";
 import { getChainBoundaries } from "@/lib/audit/hash-chain";
 
+export const MAX_AUDIT_EXPORT_ROWS = 10_000;
+
 
 
 
@@ -43,6 +45,10 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format")?.toLowerCase() ?? "json";
   const scope = request.nextUrl.searchParams.get("scope")?.toLowerCase() ?? "mine";
+  const requestedLimit = Number(request.nextUrl.searchParams.get("limit") ?? MAX_AUDIT_EXPORT_ROWS);
+  if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > MAX_AUDIT_EXPORT_ROWS) {
+    return jsonWithRequestContext(request, { route: "/api/audit/export", startedAtMs, status: 400, body: { error: `limit must be an integer between 1 and ${MAX_AUDIT_EXPORT_ROWS}` } });
+  }
 
   const filter: AuditFilter = {
     from: request.nextUrl.searchParams.get("from") ?? undefined,
@@ -87,6 +93,8 @@ export async function GET(request: NextRequest) {
 
     if (exportAll) {
       const all = await listAllAuditEntriesByUser(filter);
+      const totalRows = Object.values(all).reduce((count, entries) => count + entries.length, 0);
+      if (totalRows > requestedLimit) return jsonWithRequestContext(request, { route: "/api/audit/export", startedAtMs, status: 413, body: { error: `export exceeds the ${requestedLimit}-row limit; narrow filters with from/to` } });
 
       if (format === "json") {
         logInfo("Audit export success (all/json)", { ...context, userId: auth.session.userId });
@@ -140,6 +148,7 @@ export async function GET(request: NextRequest) {
     }
 
     const mine = await listAuditEntries(auth.session.userId, filter);
+    if (mine.length > requestedLimit) return jsonWithRequestContext(request, { route: "/api/audit/export", startedAtMs, status: 413, body: { error: `export exceeds the ${requestedLimit}-row limit; narrow filters with from/to` } });
 
     if (format === "json") {
       logInfo("Audit export success (mine/json)", { ...context, userId: auth.session.userId });
